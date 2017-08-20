@@ -1,10 +1,10 @@
 [Unit]
-Description=A simple proxy for Plex and Tvheadend
+Description=A simple proxy for SSTV and Plex DVR
 
 [Service]
 Environment=
-WorkingDirectory=/home/tvh/tvhProxy/
-ExecStart=/home/tvh/tvhProxy/venv/bin/python /home/tvh/tvhProxy/tvhProxy.py
+WorkingDirectory=/home/bjzy/sstvProxy/
+ExecStart=/home/bjzy/sstvProxy/venv/bin/python /home/bjzy/sstvProxy/sstvProxy.py
 Restart=always
 
 [Install]
