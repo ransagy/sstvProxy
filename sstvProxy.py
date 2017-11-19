@@ -475,7 +475,7 @@ def build_playlist():
         channel_url = urljoin(SERVER_HOST,urlformatted)
         # build playlist entry
         try:
-            new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s" group-title="Dynamic",%s\n' % (
+            new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s",%s\n' % (
                 chan_map[pos].epg, chan_map[pos].channame, SERVER_HOST, SERVER_PATH,  chan_map[pos].channum, chan_map[pos].channum,
                 chan_map[pos].channame)
             new_playlist += '%s\n' % channel_url
@@ -486,50 +486,7 @@ def build_playlist():
 
     return new_playlist
 
-def build_kodi_playlist():
-    global chan_map
-    # build playlist using the data we have
-    new_playlist = "#EXTM3U\n" 
-    for pos in range(1, len(chan_map) + 1):
-        # build channel url
-        url = "{0}/playlist.m3u8?ch={1}&strm={2}&qual={3}" 
-        rtmpTemplate = 'rtmp://{0}.smoothstreams.tv:3625/{1}/ch{2}q{3}.stream?wmsAuthSign={4}'
-        urlformatted = url.format(SERVER_PATH, chan_map[pos].channum,'hls', QUAL)
-        channel_url = urljoin(SERVER_HOST,urlformatted)
-        # build playlist entry
-        try:
-            new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s" group-title="Dynamic",%s\n' % (
-                chan_map[pos].epg, chan_map[pos].channame, SERVER_HOST, SERVER_PATH,  chan_map[pos].channum, chan_map[pos].channum,
-                chan_map[pos].channame)
-            new_playlist += '%s\n' % channel_url
-            new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s" group-title="Static RTMP",%s\n' % (
-                chan_map[pos].epg, chan_map[pos].channame, SERVER_HOST, SERVER_PATH, chan_map[pos].channum, chan_map[pos].channum,
-                chan_map[pos].channame)
-            new_playlist += '%s\n' % rtmpTemplate.format(SRVR, SITE, "{:02}".format(pos), QUAL, token['hash'])
-        except:
-            logger.exception("Exception while updating playlist: ")		
-    new_playlist += '#EXTINF:-1 tvg-id="static_refresh" tvg-name="Static Refresh" tvg-logo="%s/%s/empty.png" channel-id="0" group-title="Static RTMP",Static Refresh\n' % (
-        SERVER_HOST, SERVER_PATH)
-    new_playlist += '%s/%s/refresh.m3u8\n' % (SERVER_HOST, SERVER_PATH)
-    logger.info("Built playlist")
 
-    if os.path.isdir(ADDONPATH):
-        if not os.path.isfile(os.path.join(ADDONPATH, 'settings.xml')):
-            writesettings()
-    #lazy install, low priority tbh
-        tree = ET.parse(os.path.join(ADDONPATH, 'settings.xml'))
-        root = tree.getroot()
-        for child in root:
-            if child.attrib['id'] == 'epgUrl':
-                child.attrib['value'] = '%s/%s/epg.xml' % (SERVER_HOST, SERVER_PATH)
-            elif child.attrib['id'] == 'm3uUrl':
-                child.attrib['value'] = '%s/%s/kodi.m3u8' % (SERVER_HOST, SERVER_PATH)
-            elif child.attrib['id'] == 'epgPathType':
-                child.attrib['value'] = '1'
-            elif child.attrib['id'] == 'm3uPathType':
-               child.attrib['value'] = '1'
-        tree.write(os.path.join(ADDONPATH, 'settings.xml'))
-    return new_playlist
 
 def thread_playlist():
     global playlist
@@ -566,6 +523,32 @@ def create_channel_playlist(sanitized_channel, qual, strm, hash):
         #with open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'playlist.m3u8'), 'r+') as f:
         #    f.write(file)
         return rtmp_url
+
+############################################################
+# TVHeadend
+############################################################
+
+def build_tvh_playlist():
+    global chan_map
+
+    # build playlist using the data we have
+    new_playlist = "#EXTM3U\n" 
+    for pos in range(1, len(chan_map) + 1):
+        # build channel url
+        template = "{0}/{1}/auto/v{2}"
+        channel_url = template.format(SERVER_HOST, SERVER_PATH, chan_map[pos].channum)
+        # build playlist entry
+        try:
+            new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s",%s\n' % (
+                chan_map[pos].epg, chan_map[pos].channame, SERVER_HOST, SERVER_PATH,  chan_map[pos].channum, chan_map[pos].channum,
+                chan_map[pos].channame)
+            new_playlist += '%s\n' % channel_url
+
+        except:
+            logger.exception("Exception while updating playlist: ")		
+    logger.info("Built TVH playlist")
+
+    return new_playlist
 
 
 ############################################################
@@ -759,7 +742,51 @@ def epgguide(epgsummaries=False, epggenres=False, epgorig=False):
 ############################################################
 # Kodi
 ############################################################
-		
+def build_kodi_playlist():
+    global chan_map
+    # build playlist using the data we have
+    new_playlist = "#EXTM3U\n" 
+    for pos in range(1, len(chan_map) + 1):
+        # build channel url
+        url = "{0}/playlist.m3u8?ch={1}&strm={2}&qual={3}" 
+        rtmpTemplate = 'rtmp://{0}.smoothstreams.tv:3625/{1}/ch{2}q{3}.stream?wmsAuthSign={4}'
+        urlformatted = url.format(SERVER_PATH, chan_map[pos].channum,'hls', QUAL)
+        channel_url = urljoin(SERVER_HOST,urlformatted)
+        # build playlist entry
+        try:
+            new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s" group-title="Dynamic",%s\n' % (
+                chan_map[pos].epg, chan_map[pos].channame, SERVER_HOST, SERVER_PATH,  chan_map[pos].channum, chan_map[pos].channum,
+                chan_map[pos].channame)
+            new_playlist += '%s\n' % channel_url
+            new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s" group-title="Static RTMP",%s\n' % (
+                chan_map[pos].epg, chan_map[pos].channame, SERVER_HOST, SERVER_PATH, chan_map[pos].channum, chan_map[pos].channum,
+                chan_map[pos].channame)
+            new_playlist += '%s\n' % rtmpTemplate.format(SRVR, SITE, "{:02}".format(pos), QUAL, token['hash'])
+        except:
+            logger.exception("Exception while updating playlist: ")		
+    new_playlist += '#EXTINF:-1 tvg-id="static_refresh" tvg-name="Static Refresh" tvg-logo="%s/%s/empty.png" channel-id="0" group-title="Static RTMP",Static Refresh\n' % (
+        SERVER_HOST, SERVER_PATH)
+    new_playlist += '%s/%s/refresh.m3u8\n' % (SERVER_HOST, SERVER_PATH)
+    logger.info("Built playlist")
+
+    if os.path.isdir(ADDONPATH):
+        if not os.path.isfile(os.path.join(ADDONPATH, 'settings.xml')):
+            writesettings()
+    #lazy install, low priority tbh
+        tree = ET.parse(os.path.join(ADDONPATH, 'settings.xml'))
+        root = tree.getroot()
+        for child in root:
+            if child.attrib['id'] == 'epgUrl':
+                child.attrib['value'] = '%s/%s/epg.xml' % (SERVER_HOST, SERVER_PATH)
+            elif child.attrib['id'] == 'm3uUrl':
+                child.attrib['value'] = '%s/%s/kodi.m3u8' % (SERVER_HOST, SERVER_PATH)
+            elif child.attrib['id'] == 'epgPathType':
+                child.attrib['value'] = '1'
+            elif child.attrib['id'] == 'm3uPathType':
+               child.attrib['value'] = '1'
+        tree.write(os.path.join(ADDONPATH, 'settings.xml'))
+    return new_playlist
+	
 def rescan_channels():
     #if not os.path.isfile(os.path.join(ADDONPATH,'iptv.m3u.cache')):
     #    f = open(os.path.join(ADDONPATH,'iptv.m3u.cache'),'w')
@@ -818,7 +845,7 @@ def index():
 @app.route('/%s/<request_file>' % SERVER_PATH)
 def bridge(request_file):
     print('Got request for %s from %s' % (request_file, request.environ.get('REMOTE_ADDR')))
-    global playlist, token, chan_map, kodiplaylist
+    global playlist, token, chan_map, kodiplaylist, tvhplaylist
     if request_file.lower().startswith('epg.'):
         logger.info("EPG was requested by %s", request.environ.get('REMOTE_ADDR'))
         if not fallback:
@@ -850,9 +877,14 @@ def bridge(request_file):
         return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'empty.png')
     elif request_file.lower().startswith('kodi'):
         kodiplaylist = build_kodi_playlist()
-        logger.info("All channels playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
+        logger.info("Kodi channels playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
         logger.info("Sending playlist to %s", request.environ.get('REMOTE_ADDR'))
         return Response(kodiplaylist, mimetype='application/x-mpegURL')
+    elif request_file.lower().startswith('tvh'):
+        tvhplaylist = build_tvh_playlist()
+        logger.info("TVH channels playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
+        logger.info("Sending playlist to %s", request.environ.get('REMOTE_ADDR'))
+        return Response(tvhplaylist, mimetype='application/x-mpegURL')
     elif request_file.lower() == 'playlist.m3u8':
         #returning Dynamic channels
         if request.args.get('ch'):
@@ -993,6 +1025,7 @@ if __name__ == "__main__":
     print("kodi m3u8 url is %s/kodi.m3u8" %  urljoin(SERVER_HOST, SERVER_PATH))
     print("EPG url is %s/epg.xml" % urljoin(SERVER_HOST, SERVER_PATH))
     print("Plex Live TV url is %s" % urljoin(SERVER_HOST, SERVER_PATH))
+    print("TVHeadend network url is %s/tvh.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
     print("#######################################################\n")
     logger.info("Listening on %s:%d at %s/", LISTEN_IP, LISTEN_PORT, urljoin(SERVER_HOST, SERVER_PATH))
     #debug causes it to load twice on initial startup and every time the script is saved, TODO disbale later
