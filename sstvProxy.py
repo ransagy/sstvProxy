@@ -64,6 +64,11 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
+__version__ = 1.1
+#Changlog
+#1.1 - Refactoring and TVH inclusion
+#1.0 - Initial post testing release
+
 token = {
     'hash': '',
     'expires': ''
@@ -190,8 +195,8 @@ except:
     os.system('cls' if os.name == 'nt' else 'clear')
     config["quality"] = int(input("Quality(1,2,3)"))
     os.system('cls' if os.name == 'nt' else 'clear')
-    config["ip"] = input("Listening IP address?(ie 192.168.1.2)")
-    config["port"] = int(input("and port?(ie 99)"))
+    config["ip"] = input("Listening IP address?(ie recommend 127.0.0.1 for beginners)")
+    config["port"] = int(input("and port?(ie 99, do not use 8080)"))
     os.system('cls' if os.name == 'nt' else 'clear')
     config["kodiport"] = int(input("Kodiport? (def is 8080)"))
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -463,6 +468,7 @@ def build_channel_map_sstv():
     return chan_map
 
 def build_playlist():
+    #standard dynamic playlist
     global chan_map
 
     # build playlist using the data we have
@@ -482,7 +488,7 @@ def build_playlist():
 
         except:
             logger.exception("Exception while updating playlist: ")		
-    logger.info("Built playlist")
+    logger.info("Built Dynamic playlist")
 
     return new_playlist
 
@@ -511,13 +517,14 @@ def create_channel_playlist(sanitized_channel, qual, strm, hash):
         f = open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'playlist.m3u8'), 'w')
         f.close()
     if strm == 'hls':
-        #Only needed to generate m3u8 file, kodi will accept a redirect though
+        #Used to support HLS HTTPS requests
         template = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/chunks'
         file = file.replace('chunks', template.format(SRVR, SITE, sanitized_channel, qual))
         with open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'playlist.m3u8'), 'r+') as f:
             f.write(file)
         return file
     else:
+        #not used currently
         template = 'http://{0}.smoothstreams.tv:9100/{1}/ch{2}q{3}.stream/chunks'
         file = '#EXTM3U\n#EXTINF:' + file[43:110] + "\n" + rtmp_url
         #with open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'playlist.m3u8'), 'r+') as f:
@@ -592,9 +599,13 @@ def lineup(chan_map):
 def lineup_post():
     return ''
 
+#TODO
+#not working atm, unsure of it's need
 def device():
     return render_template('device.xml',data = discoverData),{'Content-Type': 'application/xml'}
 
+
+#PLEX DVR EPG from here
 import argparse
 import glob
 import sqlite3
@@ -739,10 +750,12 @@ def epgguide(epgsummaries=False, epggenres=False, epgorig=False):
             print("Database file not writable (required for queries): %s" % dbfile)
         else:
             create_list(dbfile, epgsummaries, epggenres, epgorig)
+#PLEX DVR EPG Ends
 ############################################################
 # Kodi
 ############################################################
 def build_kodi_playlist():
+    #kodi playlist contains two copies of channels, first is dynmaic HLS and the second is static rtmp
     global chan_map
     # build playlist using the data we have
     new_playlist = "#EXTM3U\n" 
@@ -767,7 +780,7 @@ def build_kodi_playlist():
     new_playlist += '#EXTINF:-1 tvg-id="static_refresh" tvg-name="Static Refresh" tvg-logo="%s/%s/empty.png" channel-id="0" group-title="Static RTMP",Static Refresh\n' % (
         SERVER_HOST, SERVER_PATH)
     new_playlist += '%s/%s/refresh.m3u8\n' % (SERVER_HOST, SERVER_PATH)
-    logger.info("Built playlist")
+    logger.info("Built Kodi playlist")
 
     if os.path.isdir(ADDONPATH):
         if not os.path.isfile(os.path.join(ADDONPATH, 'settings.xml')):
@@ -788,29 +801,21 @@ def build_kodi_playlist():
     return new_playlist
 	
 def rescan_channels():
-    #if not os.path.isfile(os.path.join(ADDONPATH,'iptv.m3u.cache')):
-    #    f = open(os.path.join(ADDONPATH,'iptv.m3u.cache'),'w')
-    #    f.close
-    #with open(os.path.join(ADDONPATH,'iptv.m3u.cache'), 'r+') as f:
-    #    f.write(playlist)
     credentials = b'kodi:'
     encoded_credentials = base64.b64encode(credentials)
     authorization = b'Basic ' + encoded_credentials
     apiheaders = { 'Content-Type': 'application/json', 'Authorization': authorization }
     apidata = {"jsonrpc":"2.0","method":"Addons.SetAddonEnabled","params":{"addonid":"pvr.iptvsimple","enabled":"toggle"},"id":1}
-    #apidata2 = {"jsonrpc":"2.0","method":"pvr.scan","id":1}
     apiurl = 'http://%s:%s/jsonrpc' % (request.environ.get('REMOTE_ADDR'), KODIPORT)
     json_data = json.dumps(apidata)
-    #json_data2 = json.dumps(apidata2)
     post_data = json_data.encode('utf-8')
-    #post_data2 = json_data2.encode('utf-8')
     apirequest = requests.Request(apiurl, post_data, apiheaders)
-    #apirequest2 = requests.Request(apiurl, post_data2, apiheaders)
+    #has to happen twice to toggle off then back on
     result = requests.urlopen(apirequest)
     result = requests.urlopen(apirequest)
-    #result = requests.urlopen(apirequest2)
     logger.info("Forcing Kodi to rescan, result:%s " % result.read())
 
+#lazy install, low priority
 def writesettings():
     f = open(os.path.join(ADDONPATH, 'settings.xml'), 'w')
     xmldata = """<settings>
@@ -844,8 +849,9 @@ def index():
 
 @app.route('/%s/<request_file>' % SERVER_PATH)
 def bridge(request_file):
-    print('Got request for %s from %s' % (request_file, request.environ.get('REMOTE_ADDR')))
+    #print('Got request for %s from %s' % (request_file, request.environ.get('REMOTE_ADDR')))
     global playlist, token, chan_map, kodiplaylist, tvhplaylist
+    #return epg
     if request_file.lower().startswith('epg.'):
         logger.info("EPG was requested by %s", request.environ.get('REMOTE_ADDR'))
         if not fallback:
@@ -854,20 +860,20 @@ def bridge(request_file):
             logger.info("EPG download failed. Trying SSTV.")
             dl_epg(2)
         return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'epg.xml')
-
+    #return icons
     elif request_file.lower().endswith('.png'):
         try:
             return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), request_file)
         except:
             return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'empty.png')
-
+    #return html epg guide based off of plex live
     elif request_file.lower().startswith('guide'):
         #try:
         epgguide()
         return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'guide.html')
         #except:
         #    return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'empty.png')
-
+    #kodi static refresh
     elif request_file.lower().startswith('refresh'):
         #kodi force rescan 423-434
         logger.info("Refresh was requested by %s", request.environ.get('REMOTE_ADDR'))
@@ -875,16 +881,19 @@ def bridge(request_file):
         check_token()
         rescan_channels()
         return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'empty.png')
+    #returns kodi playlist
     elif request_file.lower().startswith('kodi'):
         kodiplaylist = build_kodi_playlist()
         logger.info("Kodi channels playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
         logger.info("Sending playlist to %s", request.environ.get('REMOTE_ADDR'))
         return Response(kodiplaylist, mimetype='application/x-mpegURL')
+    #returns tvh playlist
     elif request_file.lower().startswith('tvh'):
         tvhplaylist = build_tvh_playlist()
         logger.info("TVH channels playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
         logger.info("Sending playlist to %s", request.environ.get('REMOTE_ADDR'))
         return Response(tvhplaylist, mimetype='application/x-mpegURL')
+
     elif request_file.lower() == 'playlist.m3u8':
         #returning Dynamic channels
         if request.args.get('ch'):
@@ -904,10 +913,6 @@ def bridge(request_file):
                 hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/chunks.m3u8?wmsAuthSign={4}=='
                 ss_url = create_channel_playlist(sanitized_channel, qual, strm, token['hash'])#hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
 
-			#sstv kodi app example rtmp output
-			#ss_url = 'rtmp://dnaw1.SmoothStreams.tv:3615/viewstvn?user_agent=Smoothstreams.tv_1.0.4.2%20%28Kodi%2017.5%20Git%3A20171023-5bd45ab%3B%20Windows%20AMD64%29%20Windows&wmsAuthSign=c2VydmVyX3RpbWU9MTEvNy8yMDE3IDExOjQ4OjEyIFBNJmhhc2hfdmFsdWU9ckxiaE5YSGZGNVQxbmlyaWE0Vk9KQT09JnZhbGlkbWludXRlcz0yNDAmaWQ9dmlld3N0dm4tNzEzOA==/ch05q1.stream'
-
-			#http response builder
             response = redirect(ss_url, code=302)
             headers = dict(response.headers)
             headers.update({'Content-Type': 'application/x-mpegURL', "Access-Control-Allow-Origin": "*"})
@@ -915,7 +920,8 @@ def bridge(request_file):
 
             logger.info("Channel %s playlist was requested by %s", sanitized_channel,
             request.environ.get('REMOTE_ADDR'))
-            #logger.info("URL returned: %s" % ss_url)
+            #useful for debugging
+            logger.debug("URL returned: %s" % ss_url)
             if strm == 'rtmp':
                 return response
             else:
@@ -924,12 +930,13 @@ def bridge(request_file):
             #return redirect(ss_url, code=302)
             #return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'playlist.m3u8')
 
-        #returning playlist
+        #returning dynamic playlist
         else:
             playlist = build_playlist()
             logger.info("All channels playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
             logger.info("Sending playlist to %s", request.environ.get('REMOTE_ADDR'))
             return Response(playlist, mimetype='application/x-mpegURL')
+    #HDHomeRun emulated json files for Plex Live tv.
     elif request_file.lower() == 'lineup_status.json':
         return status()
     elif request_file.lower() == 'discover.json':
@@ -940,14 +947,12 @@ def bridge(request_file):
         return lineup_post()
     elif request_file.lower() == 'device.xml':
         return device()
-    elif request_file.lower().startswith('v'):
-        channel = request_file.replace("v","")
-
     else:
         logger.info("Unknown requested %r by %s", request_file, request.environ.get('REMOTE_ADDR'))
         abort(404, "Unknown request")
 
 @app.route('/%s/auto/<request_file>' % SERVER_PATH)
+#returns a piped stream, used for TVH/Plex Live TV
 def auto(request_file):
     channel = request_file.replace("v","")
     logger.info("Channel %s playlist was requested by %s", channel,
@@ -1005,12 +1010,14 @@ if __name__ == "__main__":
         try:
             chan_map = build_channel_map()
         except:
+            #cannot get response from fog, resorting to fallback
             fallback = True
             chan_map = build_channel_map_sstv()
         playlist = build_playlist()
         kodiplaylist = build_kodi_playlist()
-        #Download icons
-        #threading.Thread(target=dl_icons, args=(len(chan_map),)).start()
+        tvhplaylist = build_tvh_playlist()
+        #Download icons, runs in sep thread, takes ~1min
+        threading.Thread(target=dl_icons, args=(len(chan_map),)).start()
     except:
         logger.exception("Exception while building initial playlist: ")
         exit(1)
@@ -1029,5 +1036,5 @@ if __name__ == "__main__":
     print("#######################################################\n")
     logger.info("Listening on %s:%d at %s/", LISTEN_IP, LISTEN_PORT, urljoin(SERVER_HOST, SERVER_PATH))
     #debug causes it to load twice on initial startup and every time the script is saved, TODO disbale later
-    app.run(host=LISTEN_IP, port=LISTEN_PORT, threaded=True, debug=True)
+    app.run(host=LISTEN_IP, port=LISTEN_PORT, threaded=True, debug=False)
     logger.info("Finished!")
