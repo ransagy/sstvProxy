@@ -3,8 +3,8 @@ Description=A simple proxy for SSTV and Plex DVR
 
 [Service]
 Environment=
-WorkingDirectory=/home/bjzy/sstvProxy/
-ExecStart=/home/bjzy/sstvProxy/venv/bin/python /home/bjzy/sstvProxy/sstvProxy.py
+WorkingDirectory=/home/USERNAME/sstvProxy/
+ExecStart=/home/USERNAME/sstvProxy/venv/bin/python /home/USERNAME/sstvProxy/sstvProxy.py
 Restart=always
 
 [Install]
