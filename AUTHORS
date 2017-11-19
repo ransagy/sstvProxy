@@ -1,14 +1,10 @@
-sstvProxy is written and maintained by bjzy:
+Forked from TVHProxy and vastly rewritten by vorghahn
 
-sstvProxy Development Lead
-````````````````
-- bjzy <bjzybjzy@gmail.com>
 
-tvhProxy Developer (majority of code, thanks!)
-````````````````
-- Joel Kaaberg <joel.kaberg@gmail.com>
-
-Patches and Suggestions
+Previous work by:
 ```````````````````````
 
+- l3uddz
+- bjzy 
+- Joel Kaaberg <joel.kaberg@gmail.com>
 - Nikhil Choudhary
