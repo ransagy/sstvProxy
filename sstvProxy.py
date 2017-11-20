@@ -52,6 +52,8 @@ import base64
 import platform
 import threading
 import subprocess
+from socket import timeout
+import time
 
 try:
     from urlparse import urljoin
@@ -64,8 +66,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.1
-#Changlog
+__version__ = 1.2
+#Changelog
+#1.2 - TVH Completion and install
 #1.1 - Refactoring and TVH inclusion
 #1.0 - Initial post testing release
 
@@ -110,8 +113,60 @@ elif platform.system() == 'Darwin':
     FFMPEGLOC = ''
     ADDONPATH = os.path.join(os.path.expanduser("~"),"Library","Application Support", '.kodi','userdata','addon_data','pvr.iptvsimple')     
 
-#TODO
-#installer
+
+############################################################
+# INSTALL
+############################################################
+
+def installer():
+    if os.path.isfile(os.path.join('/usr','bin','tv_find_grabbers')):
+        writetvGrabFile()
+        os.chmod('/usr/bin/tv_grab_sstv', 0o777)
+        proc= subprocess.Popen( "/usr/bin/tv_find_grabbers" )
+
+def writetvGrabFile():
+    f = open(os.path.join('/usr','bin', 'tv_grab_sstv'), 'w')
+    tvGrabFile = '''
+#!/bin/sh
+dflag=
+vflag=
+cflag=
+
+#Save this file into /usr/bin ensure HTS user has read/write and the file is executable
+
+URL="%s/%s/epg.xml"
+DESCRIPTION="SmoothStreamsTV"
+VERSION="1.1"
+
+if [ $# -lt 1 ]; then
+  wget -q -O - $URL
+  exit 0
+fi
+
+for a in "$@"; do
+  [ "$a" = "-d" -o "$a" = "--description"  ] && dflag=1
+  [ "$a" = "-v" -o "$a" = "--version"      ] && vflag=1
+  [ "$a" = "-c" -o "$a" = "--capabilities" ] && cflag=1
+done
+
+if [ -n "$dflag" ]; then
+  echo $DESCRIPTION
+fi
+
+if [ -n "$vflag" ]; then
+  echo $VERSION
+fi
+
+if [ -n "$cflag" ]; then
+  echo "baseline"
+fi''' % (SERVER_HOST,SERVER_PATH)
+    f.write(tvGrabFile)
+    f.close
+
+############################################################
+# INIT
+############################################################
+
 serverList = [
 	[' EU-Mix', 'deu'],
 	['    DE-Frankfurt', 'deu.de'],
@@ -212,10 +267,9 @@ except:
     SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
     with open(os.path.join(os.path.dirname(sys.argv[0]),'proxysettings.json'), 'w') as fp:
         dump(config, fp)
+    installer()
 
-############################################################
-# INIT
-############################################################
+
 
 # Setup logging
 log_formatter = logging.Formatter(
@@ -239,6 +293,8 @@ file_handler = RotatingFileHandler(os.path.join(os.path.dirname(sys.argv[0]), 'c
 file_handler.setLevel(logging.DEBUG)
 file_handler.setFormatter(log_formatter)
 logger.addHandler(file_handler)
+
+
 
 ############################################################
 # MISC
@@ -959,11 +1015,20 @@ def auto(request_file):
             request.environ.get('REMOTE_ADDR'))
     sanitized_channel = ("0%d" % int(channel)) if int(channel) < 10 else channel
     sanitized_qual = 1 if int(channel) > 60 else QUAL
-    if STRM == 'hls':
-        template = "http://{0}.smoothstreams.tv:9100/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}"
-    else:
-        template = "http://{0}.smoothstreams.tv:9100/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}"
+
+    template = "http://{0}.smoothstreams.tv:9100/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}"
     url =  template.format(SRVR, SITE, sanitized_channel,sanitized_qual, token['hash'])
+    try:
+        urllib.request.urlopen(url, timeout=2).getcode()
+    except timeout:
+        #special arg for tricking tvh into saving every channel first time
+        sanitized_channel = '01'
+        sanitized_qual = '3'
+        url =  template.format(SRVR, SITE, sanitized_channel,sanitized_qual, token['hash'])
+    except:
+        sanitized_channel = '01'
+        sanitized_qual = '3'
+        url =  template.format(SRVR, SITE, sanitized_channel,sanitized_qual, token['hash'])
     runf = "%s -i %s -codec copy -loglevel error -f mpegts - " % (FFMPEGLOC, url)
     import subprocess
     def generate():
@@ -987,6 +1052,7 @@ def auto(request_file):
             while byte:
                 yield byte
                 byte = f.read(512)
+
         finally:
             proc.kill()
 
