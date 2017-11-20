@@ -587,8 +587,8 @@ def lineup(chan_map):
     lineup = []
 
     for c in range(1, len(chan_map) + 1):
-        template = "http://192.168.1.27:99/sstv/auto/v{0}"
-        url = template.format(chan_map[c].channum)
+        template = "{0}/{1}/auto/v{2}"
+        url = template.format(SERVER_HOST, SERVER_PATH, chan_map[c].channum)
         lineup.append({'GuideNumber': str(chan_map[c].channum),
                            'GuideName': chan_map[c].channame,
                            'URL': url
