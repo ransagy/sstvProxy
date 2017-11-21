@@ -344,6 +344,7 @@ def dl_icons(channum):
     logger.debug("Icon download completed.")
 
 def dl_epg(source=1):
+    global chan_map
     #download epg xml
     if os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'epg.xml')):
         existing = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'epg.xml')
@@ -365,7 +366,22 @@ def dl_epg(source=1):
     #try to categorise the sports events
     tree = ET.parse(unzipped)
     root = tree.getroot()
+    changelist={}
+    #remove fogs xmltv channel names for readability in PLex Live
+    if source == 1:
+        for a in tree.iterfind('channel'):
+            b = a.find('display-name')
+            newname = [chan_map[x].channum for x in range(len(chan_map)+1) if x!= 0 and chan_map[x].epg == a.attrib['id'] and chan_map[x].channame == b.text]
+            if len(newname) > 1:
+                logger.debug("EPG rename conflict")
+                print(a.attrib['id'], newname)
+            else:
+                newname = newname[0]
+                changelist[a.attrib['id']] = newname
+            a.attrib['id'] = newname
     for a in tree.iterfind('programme'):
+        if source == 1:
+            a.attrib['channel'] = changelist[a.attrib['channel']]
         for b in a.findall('title'):
             if source == 2:
                 ET.SubElement(a, 'category')
@@ -538,7 +554,7 @@ def build_playlist():
         # build playlist entry
         try:
             new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s",%s\n' % (
-                chan_map[pos].epg, chan_map[pos].channame, SERVER_HOST, SERVER_PATH,  chan_map[pos].channum, chan_map[pos].channum,
+                chan_map[pos].channum, chan_map[pos].channame, SERVER_HOST, SERVER_PATH,  chan_map[pos].channum, chan_map[pos].channum,
                 chan_map[pos].channame)
             new_playlist += '%s\n' % channel_url
 
@@ -603,7 +619,7 @@ def build_tvh_playlist():
         # build playlist entry
         try:
             new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s",%s\n' % (
-                chan_map[pos].epg, chan_map[pos].channame, SERVER_HOST, SERVER_PATH,  chan_map[pos].channum, chan_map[pos].channum,
+                chan_map[pos].channum, chan_map[pos].channame, SERVER_HOST, SERVER_PATH,  chan_map[pos].channum, chan_map[pos].channum,
                 chan_map[pos].channame)
             new_playlist += '%s\n' % channel_url
 
@@ -824,11 +840,11 @@ def build_kodi_playlist():
         # build playlist entry
         try:
             new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s" group-title="Dynamic",%s\n' % (
-                chan_map[pos].epg, chan_map[pos].channame, SERVER_HOST, SERVER_PATH,  chan_map[pos].channum, chan_map[pos].channum,
+                chan_map[pos].channum, chan_map[pos].channame, SERVER_HOST, SERVER_PATH,  chan_map[pos].channum, chan_map[pos].channum,
                 chan_map[pos].channame)
             new_playlist += '%s\n' % channel_url
             new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s" group-title="Static RTMP",%s\n' % (
-                chan_map[pos].epg, chan_map[pos].channame, SERVER_HOST, SERVER_PATH, chan_map[pos].channum, chan_map[pos].channum,
+                chan_map[pos].channum, chan_map[pos].channame, SERVER_HOST, SERVER_PATH, chan_map[pos].channum, chan_map[pos].channum,
                 chan_map[pos].channame)
             new_playlist += '%s\n' % rtmpTemplate.format(SRVR, SITE, "{:02}".format(pos), QUAL, token['hash'])
         except:
