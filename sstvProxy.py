@@ -69,8 +69,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.31
+__version__ = 1.32
 #Changelog
+#1.32 - Change server name dots to hyphens.
 #1.31 - Tidying
 #1.3 - EPG - Changed zap2it references to the channel number for better readability in clients that use that field as the channel name. As a result the epgs from both sources share the same convention. Playlist generators adjusted to suit.
 #1.2 - TVH Completion and install
@@ -201,16 +202,16 @@ def writesettings():
 
 serverList = [
 	[' EU-Mix', 'deu'],
-	['    DE-Frankfurt', 'deu.de'],
-	['    NL-Mix', 'deu.nl'],
-	['    NL-1', 'deu.nl1'],
-	['    NL-2', 'deu.nl2'],
-	['    NL-3 Ams', 'deu.nl3'],
-	['    NL-4 Breda', 'deu.nl4'],
-	['    NL-5 Enschede', 'deu.nl5'],
-	['    UK-Mix', 'deu.uk'],
-	['    UK-London1', 'deu.uk1'],
-	['    UK-London2', 'deu.uk2'],
+	['    DE-Frankfurt', 'deu-de'],
+	['    NL-Mix', 'deu-nl'],
+	['    NL-1', 'deu-nl1'],
+	['    NL-2', 'deu-nl2'],
+	['    NL-3 Ams', 'deu-nl3'],
+	['    NL-4 Breda', 'deu-nl4'],
+	['    NL-5 Enschede', 'deu-nl5'],
+	['    UK-Mix', 'deu-uk'],
+	['    UK-London1', 'deu-uk1'],
+	['    UK-London2', 'deu-uk2'],
 	[' US-Mix', 'dna'],
 	['   East-Mix', 'dnae'],
 	['   West-Mix', 'dnaw'],
