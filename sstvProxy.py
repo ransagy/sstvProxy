@@ -69,8 +69,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.32
+__version__ = 1.33
 #Changelog
+#1.33 - Typo
 #1.32 - Change server name dots to hyphens.
 #1.31 - Tidying
 #1.3 - EPG - Changed zap2it references to the channel number for better readability in clients that use that field as the channel name. As a result the epgs from both sources share the same convention. Playlist generators adjusted to suit.
@@ -130,7 +131,7 @@ def installer():
 		os.chmod('/usr/bin/tv_grab_sstv', 0o777)
 		proc = subprocess.Popen( "/usr/bin/tv_find_grabbers" )
 	if os.path.isfile(ADDONPATH):
-		writetvGrabFile()
+		writesettings()
 
 def writetvGrabFile():
 	f = open(os.path.join('/usr','bin', 'tv_grab_sstv'), 'w')
