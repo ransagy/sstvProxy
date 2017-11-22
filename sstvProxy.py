@@ -73,8 +73,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.34
+__version__ = 1.35
 #Changelog
+#1.35 - Mac addon path fix and check
 #1.34 - Fixed Plex Discovery, TVH file creation fix and addition of writing of genres and template files
 #1.33 - Typo
 #1.32 - Change server name dots to hyphens.
@@ -117,13 +118,21 @@ KODIPORT = 8080
 #LINUX/WINDOWS
 if platform.system() == 'Linux':
 	FFMPEGLOC = '/usr/bin/ffmpeg'
-	ADDONPATH = os.path.join(os.path.expanduser("~"), '.kodi','userdata','addon_data','pvr.iptvsimple')
+	if os.path.isdir(os.path.join(os.path.expanduser("~"), '.kodi','userdata','addon_data','pvr.iptvsimple')):
+		ADDONPATH = os.path.join(os.path.expanduser("~"), '.kodi','userdata','addon_data','pvr.iptvsimple')
+	else: ADDONPATH = False
 elif platform.system() == 'Windows':
 	FFMPEGLOC = os.path.join('C:\FFMPEG' , 'bin', 'ffmpeg.exe')
-	ADDONPATH = os.path.join(os.path.expanduser("~"), 'AppData','Roaming','Kodi','userdata','addon_data','pvr.iptvsimple')
+	if os.path.isdir(os.path.join(os.path.expanduser("~"), 'AppData','Roaming','Kodi','userdata','addon_data','pvr.iptvsimple')):
+		ADDONPATH = os.path.join(os.path.expanduser("~"), 'AppData','Roaming','Kodi','userdata','addon_data','pvr.iptvsimple')
+	else: ADDONPATH = False
 elif platform.system() == 'Darwin':
 	FFMPEGLOC = ''
-	ADDONPATH = os.path.join(os.path.expanduser("~"),"Library","Application Support", '.kodi','userdata','addon_data','pvr.iptvsimple')
+	if os.path.isdir(os.path.join(os.path.expanduser("~"),"Library","Application Support", 'Kodi','userdata','addon_data','pvr.iptvsimple')):
+		ADDONPATH = os.path.join(os.path.expanduser("~"),"Library","Application Support", 'Kodi','userdata','addon_data','pvr.iptvsimple')
+	else: ADDONPATH = False
+else:
+	print("Unknown OS detected... proxy may not function correctly")
 
 
 ############################################################
@@ -1591,12 +1600,12 @@ if __name__ == "__main__":
 	print("TVHeadend network url is %s/tvh.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
 	print("#######################################################\n")
 	logger.info("Listening on %s:%d at %s/", LISTEN_IP, LISTEN_PORT, urljoin(SERVER_HOST, SERVER_PATH))
-	try:
-		a = threading.Thread(target=udpServer)
-		a.setDaemon(True)
-		a.start()
-	except (KeyboardInterrupt, SystemExit):
-		sys.exit()
+	#try:
+	#	a = threading.Thread(target=tcpServer)
+	#	a.setDaemon(True)
+	#	a.start()
+	#except (KeyboardInterrupt, SystemExit):
+	#	sys.exit()
 	#debug causes it to load twice on initial startup and every time the script is saved, TODO disbale later
 	app.run(host=LISTEN_IP, port=LISTEN_PORT, threaded=True, debug=False)
 	logger.info("Finished!")
