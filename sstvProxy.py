@@ -73,8 +73,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.35
+__version__ = 1.36
 #Changelog
+#1.36 - Two path bug fixes
 #1.35 - Mac addon path fix and check
 #1.34 - Fixed Plex Discovery, TVH file creation fix and addition of writing of genres and template files
 #1.33 - Typo
@@ -349,7 +350,7 @@ def writegenres():
 
 
 def writetemplate():
-	f = open(os.path.join(ADDONPATH, 'device.xml'), 'w')
+	f = open(os.path.join(os.path.dirname(sys.argv[0]),'Templates', 'device.xml'), 'w')
 	xmldata = """<root xmlns="urn:schemas-upnp-org:device-1-0">
 	<specVersion>
 		<major>1</major>
@@ -1333,7 +1334,7 @@ def build_kodi_playlist():
 	new_playlist += '%s/%s/refresh.m3u8\n' % (SERVER_HOST, SERVER_PATH)
 	logger.info("Built Kodi playlist")
 
-	if os.path.isdir(ADDONPATH):
+	if ADDONPATH and os.path.isdir(ADDONPATH):
 		#lazy install, low priority tbh
 		tree = ET.parse(os.path.join(ADDONPATH, 'settings.xml'))
 		root = tree.getroot()
