@@ -94,7 +94,7 @@ token = {
 }
 
 playlist = ""
-
+netdiscover = False
 class channelinfo:
 	epg = ""
 	description = ""
