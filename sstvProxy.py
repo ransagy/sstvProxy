@@ -1655,6 +1655,7 @@ def bridge(request_file):
 #returns a piped stream, used for TVH/Plex Live TV
 def auto(request_file):
 	print("starting pipe function")
+	check_token()
 	channel = request_file.replace("v","")
 	logger.info("Channel %s playlist was requested by %s", channel,
 			request.environ.get('REMOTE_ADDR'))
@@ -1758,12 +1759,13 @@ if __name__ == "__main__":
 	print("TVHeadend network url is %s/tvh.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
 	print("#######################################################\n")
 	logger.info("Listening on %s:%d at %s/", LISTEN_IP, LISTEN_PORT, urljoin(SERVER_HOST, SERVER_PATH))
-	try:
-		a = threading.Thread(target=udpServer)
-		a.setDaemon(True)
-		a.start()
-	except (KeyboardInterrupt, SystemExit):
-		sys.exit()
+	if netdiscover:
+		try:
+			a = threading.Thread(target=udpServer)
+			a.setDaemon(True)
+			a.start()
+		except (KeyboardInterrupt, SystemExit):
+			sys.exit()
 	#debug causes it to load twice on initial startup and every time the script is saved, TODO disbale later
 	app.run(host=LISTEN_IP, port=LISTEN_PORT, threaded=True, debug=False)
 	logger.info("Finished!")
