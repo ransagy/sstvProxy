@@ -118,9 +118,9 @@ HDHOMERUN_DEVICE_TYPE_WILDCARD = 0xFFFFFFFF
 HDHOMERUN_DEVICE_TYPE_TUNER = 0x00000001
 HDHOMERUN_DEVICE_ID_WILDCARD = 0xFFFFFFFF
 
-ignorelist = [] # the tvheadend ip address(es), tvheadend crashes when it discovers the tvhproxy (TODO: Fix this)
-SERVER_HOST = 'http://192.168.1.27:5004/sstv'
-LISTEN_IP = '192.168.1.27'
+ignorelist = ['192.168.1.4'] # the tvheadend ip address(es), tvheadend crashes when it discovers the tvhproxy (TODO: Fix this)
+SERVER_HOST = 'http://192.168.1.3:80'
+LISTEN_IP = '192.168.1.3'
 
 def retrieveTypeAndPayload(packet):
 	header = packet[:4]
