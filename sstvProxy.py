@@ -69,12 +69,14 @@ except ImportError:
 	from urllib.parse import urljoin
 	import _thread
 
-from flask import Flask, redirect, abort, request, Response, send_from_directory, jsonify, render_template, stream_with_context
+from flask import Flask, redirect, abort, request, Response, send_from_directory, jsonify, render_template, stream_with_context, url_for
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.36
+__version__ = 1.40
 #Changelog
+#1.40 - Settings menu added to /index.html
+#1.37 - Network Discovery fixed hopefully
 #1.36 - Two path bug fixes
 #1.35 - Mac addon path fix and check
 #1.34 - Fixed Plex Discovery, TVH file creation fix and addition of writing of genres and template files
@@ -411,6 +413,13 @@ providerList = [
 ]
 
 streamtype = ['hls','rtmp']
+
+qualityList = [
+	['HD', '1'],
+	['HQ', '2'],
+	['LQ', '3']
+]
+
 try:
 	with open(os.path.join(os.path.dirname(sys.argv[0]),'proxysettings.json')) as jsonConfig:
 		config = {}
@@ -454,7 +463,9 @@ except:
 		print(streamtype.index(i),i)
 	config["stream"] = streamtype[int(input("Dynamic Stream Type? (HLS/RTMP)"))]
 	os.system('cls' if os.name == 'nt' else 'clear')
-	config["quality"] = int(input("Quality(1,2,3)"))
+	for i in qualityList:
+		print(qualityList.index(i), qualityList[qualityList.index(i)][0])
+	config["quality"] = int(qualityList[int(input("Stream quality?"))][1])
 	os.system('cls' if os.name == 'nt' else 'clear')
 	config["ip"] = input("Listening IP address?(ie recommend 127.0.0.1 for beginners)")
 	config["port"] = int(input("and port?(ie 99, do not use 8080)"))
@@ -1296,8 +1307,7 @@ def udpServer():
 				logger.debug('No discovery request received, nothing to send to client')
 		else:
 			logger.debug('Ignoring udp client %s' % client[0])
-		if KeyboardInterrupt:
-			discoverySocket.close()
+
 	discoverySocket.close()
 
 
@@ -1368,28 +1378,164 @@ def rescan_channels():
 
 
 ############################################################
-# CLIENT <-> SSTV BRIDGE
+# Html
 ############################################################
 
 
-@app.route('/')
-@app.route('/%s/' % SERVER_PATH)
-@app.route('/%s/discover.json' % SERVER_PATH)
-def disc():
-	logger.debug(request.headers)
-	return discover()
+# Change this to change the style of the web page generated
+style = """
+<style type="text/css">
+	body { max-width: 60em; background-color: white; color: black; }
+	h1 { color: white; background-color: black; padding: 0.5ex }
+	h2 { color: white; background-color: #404040; padding: 0.3ex }
+	.gap { color: darkred; }
+	.recorded { color: green; font-weight: bold; }
+	.summary { font-size: 85%%; color: #505050; margin-left: 4em; }
+	.genre { margin-left: 4em; }
+	.origdate { margin-left: 4em; }
+	.episodetitle { font-style: italic; font-weight: bold }
+	.channellink { display: inline-block; width: 10em; }
+	.channellink A { color: black; text-decoration: none; }
+</style>
+"""
 
-@app.route('/')
-@app.route('/%s/' % SERVER_PATH)
-@app.route('/%s/device.xml' % SERVER_PATH)
-def index():
-	logger.debug(request.headers)
-	return device()
+
+def create_menu():
+	with open("./cache/settings.html", "w") as html:
+		with open(os.path.join(os.path.dirname(sys.argv[0]),'proxysettings.json')) as jsonConfig:
+			config = {}
+			config = load(jsonConfig)
+			if "quality" in config:
+				QUAL = config["quality"]
+			if "username" in config:
+				USER = config["username"]
+			if "password" in config:
+				PASS = config["password"]
+			if "server" in config:
+				SRVR = config["server"]
+			if "service" in config:
+				SITE = config["service"]
+			if "stream" in config:
+				STRM = config["stream"]
+			if "kodiport" in config:
+				KODIPORT = config["kodiport"]
+			if "ip" in config and "port" in config:
+				LISTEN_IP = config["ip"]
+				LISTEN_PORT = config["port"]
+				SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
+
+		html.write("""<html>
+		<head>
+		<meta charset="UTF-8">
+		%s
+		</head>
+		<body>\n""" % (style,))
+		html.write('<form action="%s/%s/handle_data" method="post">' % (SERVER_HOST, SERVER_PATH))
+		html.write("<h1>YAP Settings</h1>")
+
+		channelmap = {}
+		chanindex = 0
+		list = ["Username","Password","Quality","Stream","Server","Service","IP","Port","Kodiport"]
+		html.write('<table width="200" border="1">')
+		for setting in list:
+			#html.write("<h1><a name=\"%s\"></a>%s: %s</h1>" % (setting, setting, config[setting.lower()]))
+			if setting.lower() == 'service':
+				html.write('<tr><td>Service:</td><td><select name="Service" size="1">')
+				for option in providerList:
+					html.write('<option value="%s"%s>%s</option>' % (option[0],' selected' if config[setting.lower()] == option[1] else "", option[0]))
+				html.write('</select></td></tr>')
+			elif setting.lower() == 'server':
+				html.write('<tr><td>Server:</td><td><select name="Server" size="1">')
+				for option in serverList:
+					html.write('<option value="%s"%s>%s</option>' % (option[0],' selected' if config[setting.lower()] == option[1] else "", option[0]))
+				html.write('</select></td></tr>')
+			elif setting.lower() == 'stream':
+				html.write('<tr><td>Stream:</td><td><select name="Stream" size="1">')
+				for option in streamtype:
+					html.write('<option value="%s"%s>%s</option>' % (option,' selected' if config[setting.lower()] == option else "", option))
+				html.write('</select></td></tr>')
+			elif setting.lower() == 'quality':
+				html.write('<tr><td>Quality:</td><td><select name="Quality" size="1">')
+				for option in qualityList:
+					html.write('<option value="%s"%s>%s</option>' % (option[0],' selected' if config[setting.lower()] == option[1] else "", option[0]))
+				html.write('</select></td></tr>')
+			elif setting.lower() == 'password':
+				html.write('<tr><td>%s:</td><td><input name="%s" type="Password" value="%s"></td></tr>'% (setting, setting, config[setting.lower()]))
+			else:
+				html.write('<tr><td>%s:</td><td><input name="%s" type="text" value="%s"></td></tr>'% (setting, setting, config[setting.lower()]))
+		html.write('</table>')
+		html.write('<input type="submit"  value="Submit">')
+		html.write('</form>')
+		html.write("</body></html>\n")
+		
+		
+def close_menu():
+	with open("./cache/close.html", "w") as html:
+		html.write("""<html><head><meta charset="UTF-8">%s</head><body>\n""" % (style,))
+		html.write("<h1>Data Saved</h1>")
+		html.write("</body></html>\n")
+		
+		
+############################################################
+# CLIENT <-> SSTV BRIDGE
+############################################################
+@app.route('/sstv/handle_data', methods=['POST'])
+def handle_data():
+	inc_data = request.form
+	config = {}
+	config["username"] = inc_data['Username']
+	config["password"] = inc_data['Password']
+	config["stream"] = inc_data['Stream']
+	for sub in serverList:
+		if sub[0] == inc_data['Server']:
+			config["server"] = sub[1]
+	for sub in providerList:
+		if sub[0] == inc_data['Service']:
+			config["service"] = sub[1]
+	for sub in qualityList:
+		if sub[0] == inc_data['Quality']:
+			config["quality"] = int(sub[1])
+	config["ip"] = inc_data['IP']
+	config["port"] = int(inc_data['Port'])
+	config["kodiport"] = int(inc_data['Kodiport'])
+	QUAL = config["quality"]
+	USER = config["username"]
+	PASS = config["password"]
+	SRVR = config["server"]
+	SITE = config["service"]
+	STRM = config["stream"]
+	KODIPORT = config["kodiport"]
+	LISTEN_IP = config["ip"]
+	LISTEN_PORT = config["port"]
+	with open(os.path.join(os.path.dirname(sys.argv[0]),'proxysettings.json'), 'w') as fp:
+		dump(config, fp)
+	close_menu()
+	playlist = build_playlist()
+	kodiplaylist = build_kodi_playlist()
+	return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'close.html')
+
+
+@app.route('/<request_file>')
+def index(request_file):
+	logger.info("%s requested by %s" % (request_file, request.environ.get('REMOTE_ADDR')))
+	if request_file.lower() == 'lineup_status.json':
+		return status()
+	elif request_file.lower() == 'discover.json':
+		return discover()
+	elif request_file.lower() == 'lineup.json':
+		return lineup(chan_map)
+	elif request_file.lower() == 'lineup.post':
+		return lineup_post()
+	#logger.debug(request.headers)
+	elif request_file.lower() == 'device.xml':
+		return device()
+	elif request_file.lower() == 'favicon.ico':
+		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'empty.png')
 
 
 @app.route('/%s/<request_file>' % SERVER_PATH)
 def bridge(request_file):
-	#print('Got request for %s from %s' % (request_file, request.environ.get('REMOTE_ADDR')))
+	logger.info('%s requested by %s' % (request_file, request.environ.get('REMOTE_ADDR')))
 	global playlist, token, chan_map, kodiplaylist, tvhplaylist
 
 	#return epg
@@ -1408,6 +1554,9 @@ def bridge(request_file):
 			return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), request_file)
 		except:
 			return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'empty.png')
+			
+	elif request_file.lower() == 'favicon.ico':
+		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'empty.png')
 
 	#return html epg guide based off of plex live
 	elif request_file.lower().startswith('guide'):
@@ -1416,7 +1565,13 @@ def bridge(request_file):
 		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'guide.html')
 		#except:
 		#    return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'empty.png')
-
+	
+	#return html epg guide based off of plex live
+	elif request_file.lower().startswith('index'):
+		#try:
+		create_menu()
+		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'settings.html')
+		
 	#kodi static refresh
 	elif request_file.lower().startswith('refresh'):
 		#kodi force rescan 423-434
@@ -1489,9 +1644,11 @@ def bridge(request_file):
 		return lineup(chan_map)
 	elif request_file.lower() == 'lineup.post':
 		return lineup_post()
-	else:
-		logger.info("Unknown requested %r by %s", request_file, request.environ.get('REMOTE_ADDR'))
-		abort(404, "Unknown request")
+	elif request_file.lower() == 'device.xml':
+		return device()
+	#else:
+	#	logger.info("Unknown requested %r by %s", request_file, request.environ.get('REMOTE_ADDR'))
+	#	abort(404, "Unknown request")
 
 
 @app.route('/%s/auto/<request_file>' % SERVER_PATH)
@@ -1601,12 +1758,12 @@ if __name__ == "__main__":
 	print("TVHeadend network url is %s/tvh.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
 	print("#######################################################\n")
 	logger.info("Listening on %s:%d at %s/", LISTEN_IP, LISTEN_PORT, urljoin(SERVER_HOST, SERVER_PATH))
-	#try:
-	#	a = threading.Thread(target=tcpServer)
-	#	a.setDaemon(True)
-	#	a.start()
-	#except (KeyboardInterrupt, SystemExit):
-	#	sys.exit()
+	try:
+		a = threading.Thread(target=udpServer)
+		a.setDaemon(True)
+		a.start()
+	except (KeyboardInterrupt, SystemExit):
+		sys.exit()
 	#debug causes it to load twice on initial startup and every time the script is saved, TODO disbale later
 	app.run(host=LISTEN_IP, port=LISTEN_PORT, threaded=True, debug=False)
 	logger.info("Finished!")
