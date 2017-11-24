@@ -499,7 +499,7 @@ except:
 	os.system('cls' if os.name == 'nt' else 'clear')
 	config["kodiport"] = int(input("Kodiport? (def is 8080)"))
 	os.system('cls' if os.name == 'nt' else 'clear')
-	config["externalip"] = int(input("External IP?"))
+	config["externalip"] = input("External IP?")
 	os.system('cls' if os.name == 'nt' else 'clear')
 	QUAL = config["quality"]
 	USER = config["username"]
