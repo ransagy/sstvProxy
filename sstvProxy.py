@@ -74,8 +74,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.42
+__version__ = 1.43
 #Changelog
+#1.43 - Bugfix settings menu
 #1.42 - External Playlist added, version check and download added
 #1.41 - Bug fix and switch put on netwrok discovery
 #1.40 - Settings menu added to /index.html
@@ -1511,6 +1512,7 @@ def close_menu():
 ############################################################
 @app.route('/sstv/handle_data', methods=['POST'])
 def handle_data():
+	global playlist, kodiplaylist,QUAL,USER,PASS,SRVR,SITE,STRM,KODIPORT,LISTEN_IP,LISTEN_PORT,EXTIP,EXT_HOST
 	inc_data = request.form
 	config = {}
 	config["username"] = inc_data['Username']
@@ -1545,6 +1547,7 @@ def handle_data():
 	close_menu()
 	playlist = build_playlist(SERVER_HOST)
 	kodiplaylist = build_kodi_playlist()
+	print(SRVR)
 	return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'close.html')
 
 
