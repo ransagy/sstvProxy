@@ -60,6 +60,7 @@ import array
 from io import StringIO
 import socket
 import struct
+import ntpath
 
 
 try:
@@ -73,8 +74,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.41
+__version__ = 1.42
 #Changelog
+#1.42 - External Playlist added, version check and download added
 #1.41 - Bug fix and switch put on netwrok discovery
 #1.40 - Settings menu added to /index.html
 #1.37 - Network Discovery fixed hopefully
@@ -89,6 +91,22 @@ __version__ = 1.41
 #1.1 - Refactoring and TVH inclusion
 #1.0 - Initial post testing release
 
+type = ""
+latestfile = "https://github.com/vorghahn/sstvProxy/blob/master/sstvProxy.py"
+if not sys.argv[0].endswith('.py'):
+	if platform.system() == 'Linux':
+		type = "Linux/"
+		latestfile = "https://github.com/vorghahn/sstvProxy/blob/master/Linux/sstvproxy"
+	elif platform.system() == 'Windows':
+		type  = "Windows/"
+		latestfile = "https://github.com/vorghahn/sstvProxy/blob/master/Windows/sstvproxy.exe"
+	elif platform.system() == 'Darwin':
+		type = "Macintosh/"
+		latestfile = "https://github.com/vorghahn/sstvProxy/blob/master/Macintosh/sstvproxy"
+url = "https://raw.githubusercontent.com/vorghahn/sstvProxy/master/%sversion.txt" % type
+latest_ver = float(json.loads(requests.urlopen(url).read().decode('utf-8'))['Version'])
+
+	
 token = {
 	'hash': '',
 	'expires': ''
@@ -118,6 +136,9 @@ LISTEN_PORT = 99
 SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
 SERVER_PATH = "sstv"
 KODIPORT = 8080
+EXTIP = "127.0.0.1"
+EXT_HOST = "http://" + EXTIP + ":" + str(LISTEN_PORT)
+
 
 #LINUX/WINDOWS
 if platform.system() == 'Linux':
@@ -439,11 +460,15 @@ try:
 			STRM = config["stream"]
 		if "kodiport" in config:
 			KODIPORT = config["kodiport"]
+		if "externalip" in config:
+			EXTIP = config["externalip"]
 		if "ip" in config and "port" in config:
 			LISTEN_IP = config["ip"]
 			LISTEN_PORT = config["port"]
 			SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
+			EXT_HOST = "http://" + EXTIP + ":" + str(LISTEN_PORT)
 		#print("Using config file.")
+
 except:
 	config = {}
 	config["username"] = input("Username?")
@@ -473,6 +498,8 @@ except:
 	os.system('cls' if os.name == 'nt' else 'clear')
 	config["kodiport"] = int(input("Kodiport? (def is 8080)"))
 	os.system('cls' if os.name == 'nt' else 'clear')
+	config["externalip"] = int(input("External IP?"))
+	os.system('cls' if os.name == 'nt' else 'clear')
 	QUAL = config["quality"]
 	USER = config["username"]
 	PASS = config["password"]
@@ -482,7 +509,9 @@ except:
 	KODIPORT = config["kodiport"]
 	LISTEN_IP = config["ip"]
 	LISTEN_PORT = config["port"]
+	EXTIP = config["externalip"]
 	SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
+	EXT_HOST = "http://" + EXTIP + ":" + str(LISTEN_PORT)
 	with open(os.path.join(os.path.dirname(sys.argv[0]),'proxysettings.json'), 'w') as fp:
 		dump(config, fp)
 	installer()
@@ -868,7 +897,7 @@ def build_channel_map_sstv():
 	return chan_map
 
 
-def build_playlist():
+def build_playlist(host):
 	#standard dynamic playlist
 	global chan_map
 
@@ -879,11 +908,11 @@ def build_playlist():
 		url = "{0}/playlist.m3u8?ch={1}&strm={2}&qual={3}"
 		rtmpTemplate = 'rtmp://{0}.smoothstreams.tv:3625/{1}/ch{2}q{3}.stream?wmsAuthSign={4}'
 		urlformatted = url.format(SERVER_PATH, chan_map[pos].channum,STRM, QUAL)
-		channel_url = urljoin(SERVER_HOST,urlformatted)
+		channel_url = urljoin(host,urlformatted)
 		# build playlist entry
 		try:
 			new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s",%s\n' % (
-				chan_map[pos].channum, chan_map[pos].channame, SERVER_HOST, SERVER_PATH,  chan_map[pos].channum, chan_map[pos].channum,
+				chan_map[pos].channum, chan_map[pos].channame, host, SERVER_PATH,  chan_map[pos].channum, chan_map[pos].channum,
 				chan_map[pos].channame)
 			new_playlist += '%s\n' % channel_url
 
@@ -901,7 +930,7 @@ def thread_playlist():
 		time.sleep(86400)
 		logger.info("Updating playlist...")
 		try:
-			tmp_playlist = build_playlist()
+			tmp_playlist = build_playlist(SERVER_HOST)
 			playlist = tmp_playlist
 			logger.info("Updated playlist!")
 		except:
@@ -1436,7 +1465,7 @@ def create_menu():
 
 		channelmap = {}
 		chanindex = 0
-		list = ["Username","Password","Quality","Stream","Server","Service","IP","Port","Kodiport"]
+		list = ["Username","Password","Quality","Stream","Server","Service","IP","Port","Kodiport","ExternalIP"]
 		html.write('<table width="200" border="1">')
 		for setting in list:
 			#html.write("<h1><a name=\"%s\"></a>%s: %s</h1>" % (setting, setting, config[setting.lower()]))
@@ -1499,6 +1528,7 @@ def handle_data():
 	config["ip"] = inc_data['IP']
 	config["port"] = int(inc_data['Port'])
 	config["kodiport"] = int(inc_data['Kodiport'])
+	config["externalip"] = inc_data['ExternalIP']
 	QUAL = config["quality"]
 	USER = config["username"]
 	PASS = config["password"]
@@ -1508,10 +1538,12 @@ def handle_data():
 	KODIPORT = config["kodiport"]
 	LISTEN_IP = config["ip"]
 	LISTEN_PORT = config["port"]
+	EXTIP = config["externalip"]
+	EXT_HOST = "http://" + EXTIP + ":" + str(LISTEN_PORT)
 	with open(os.path.join(os.path.dirname(sys.argv[0]),'proxysettings.json'), 'w') as fp:
 		dump(config, fp)
 	close_menu()
-	playlist = build_playlist()
+	playlist = build_playlist(SERVER_HOST)
 	kodiplaylist = build_kodi_playlist()
 	return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'close.html')
 
@@ -1588,6 +1620,13 @@ def bridge(request_file):
 		logger.info("Kodi channels playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
 		logger.info("Sending playlist to %s", request.environ.get('REMOTE_ADDR'))
 		return Response(kodiplaylist, mimetype='application/x-mpegURL')
+		
+	#returns external playlist
+	elif request_file.lower().startswith('external'):
+		extplaylist = build_playlist(EXT_HOST)
+		logger.info("External channels playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
+		logger.info("Sending playlist to %s", request.environ.get('REMOTE_ADDR'))
+		return Response(extplaylist, mimetype='application/x-mpegURL')
 
 	#returns tvh playlist
 	elif request_file.lower().startswith('tvh'):
@@ -1632,7 +1671,7 @@ def bridge(request_file):
 
 		#returning dynamic playlist
 		else:
-			playlist = build_playlist()
+			playlist = build_playlist(SERVER_HOST)
 			logger.info("All channels playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
 			logger.info("Sending playlist to %s", request.environ.get('REMOTE_ADDR'))
 			return Response(playlist, mimetype='application/x-mpegURL')
@@ -1733,7 +1772,7 @@ if __name__ == "__main__":
 			#cannot get response from fog, resorting to fallback
 			fallback = True
 			chan_map = build_channel_map_sstv()
-		playlist = build_playlist()
+		playlist = build_playlist(SERVER_HOST)
 		kodiplaylist = build_kodi_playlist()
 		tvhplaylist = build_tvh_playlist()
 		#Download icons, runs in sep thread, takes ~1min
@@ -1752,14 +1791,24 @@ if __name__ == "__main__":
 	except:
 		_thread.start_new_thread(thread_playlist, ())
 
-	print("\n#######################################################")
+	print("\n##############################################################")
+	print("Change your settings at %s/index.html" %  urljoin(SERVER_HOST, SERVER_PATH))
 	print("m3u8 url is %s/playlist.m3u8" %  urljoin(SERVER_HOST, SERVER_PATH))
 	print("kodi m3u8 url is %s/kodi.m3u8" %  urljoin(SERVER_HOST, SERVER_PATH))
 	print("EPG url is %s/epg.xml" % urljoin(SERVER_HOST, SERVER_PATH))
 	print("Plex Live TV url is %s" % urljoin(SERVER_HOST, SERVER_PATH))
 	print("TVHeadend network url is %s/tvh.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
-	print("#######################################################\n")
+	print("External m3u8 url is %s/external.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
+	print("##############################################################\n")
 	logger.info("Listening on %s:%d at %s/", LISTEN_IP, LISTEN_PORT, urljoin(SERVER_HOST, SERVER_PATH))
+	if __version__ < latest_ver:
+		logger.info("Your version (%s%s) is out of date, the latest is %s, which has now be downloaded for you into the 'updates' subdirectory." % (type, __version__, latest_ver))
+		newfilename = ntpath.basename(latestfile)
+		if not os.path.isdir(os.path.join(os.path.dirname(sys.argv[0]), 'updates')):
+			os.mkdir(os.path.join(os.path.dirname(sys.argv[0]), 'updates'))
+		requests.urlretrieve(latestfile, os.path.join(os.path.dirname(sys.argv[0]), 'updates', newfilename))
+	else:
+		logger.info("Your version (%s) is up to date." % (__version__))
 	if netdiscover:
 		try:
 			a = threading.Thread(target=udpServer)
