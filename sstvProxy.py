@@ -73,8 +73,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.40
+__version__ = 1.41
 #Changelog
+#1.41 - Bug fix and switch put on netwrok discovery
 #1.40 - Settings menu added to /index.html
 #1.37 - Network Discovery fixed hopefully
 #1.36 - Two path bug fixes
