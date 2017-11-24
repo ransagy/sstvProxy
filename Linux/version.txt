@@ -1,2 +1,1 @@
-Version - 1.40
-Date - 23 NOV 2017
+{"Version": "1.40", "Date": "23 NOV 2017"}
