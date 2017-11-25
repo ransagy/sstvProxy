@@ -75,12 +75,13 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.44
+__version__ = 1.45
 #Changelog
+#1.45 - Added restart required message, Change of piping checks, manual trigger now for easy mux detection (forcing channel 1), use 'python sstvproxy install'
 #1.44 - Change of initial launch to use the gui, if not desired launch with 'python sstvproxy.py headless'. Added adv settings parsing see advancedsettings.json for example
 #1.43 - Bugfix settings menu
 #1.42 - External Playlist added, version check and download added
-#1.41 - Bug fix and switch put on netwrok discovery
+#1.41 - Bug fix and switch put on network discovery
 #1.40 - Settings menu added to /index.html
 #1.37 - Network Discovery fixed hopefully
 #1.36 - Two path bug fixes
@@ -93,6 +94,8 @@ __version__ = 1.44
 #1.2 - TVH Completion and install
 #1.1 - Refactoring and TVH inclusion
 #1.0 - Initial post testing release
+
+
 opener = requests.build_opener()
 opener.addheaders = [('User-agent', 'YAP - %s - %s - %s' % (sys.argv[0], platform.system(), str(__version__)))]
 requests.install_opener(opener)
@@ -243,6 +246,8 @@ def adv_settings():
 
 def load_settings():
 	global QUAL, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, SERVER_HOST, EXTIP, EXT_HOST
+	if not os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'proxysettings.json')):
+		logger.debug("No config file found.")
 	try:
 		logger.debug("Parsing settings")
 		with open(os.path.join(os.path.dirname(sys.argv[0]),'proxysettings.json')) as jsonConfig:
@@ -269,7 +274,7 @@ def load_settings():
 				LISTEN_PORT = config["port"]
 				SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
 				EXT_HOST = "http://" + EXTIP + ":" + str(LISTEN_PORT)
-			#print("Using config file.")
+			logger.debug("Using config file.")
 
 	except:
 		if 'headless' in sys.argv:
@@ -1543,10 +1548,12 @@ def create_menu():
 		html.write("</body></html>\n")
 		
 		
-def close_menu():
+def close_menu(restart):
 	with open("./cache/close.html", "w") as html:
 		html.write("""<html><head><meta charset="UTF-8">%s</head><body>\n""" % (style,))
 		html.write("<h1>Data Saved</h1>")
+		if restart:
+			html.write("<h1>You have change either the IP or Port, please restart this program.</h1>")
 		html.write("</body></html>\n")
 		
 		
@@ -1581,6 +1588,10 @@ def handle_data():
 	SITE = config["service"]
 	STRM = config["stream"]
 	KODIPORT = config["kodiport"]
+	if LISTEN_IP != config["ip"] or LISTEN_PORT != config["port"]:
+		restartrequired = True
+	else:
+		restartrequired = False
 	LISTEN_IP = config["ip"]
 	LISTEN_PORT = config["port"]
 	EXTIP = config["externalip"]
@@ -1588,11 +1599,14 @@ def handle_data():
 	SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
 	with open(os.path.join(os.path.dirname(sys.argv[0]),'proxysettings.json'), 'w') as fp:
 		dump(config, fp)
-	close_menu()
 	check_token()
 	playlist = build_playlist(SERVER_HOST)
 	kodiplaylist = build_kodi_playlist()
-	print(SRVR)
+	if restartrequired:
+		logger.info("You have change either the IP or Port, please restart this program.")
+		close_menu(True)
+	else:
+		close_menu(False)
 	return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'close.html')
 
 
@@ -1747,18 +1761,18 @@ def auto(request_file):
 	sanitized_qual = 1 if int(channel) > 60 else QUAL
 	template = "http://{0}.smoothstreams.tv:9100/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}"
 	url =  template.format(SRVR, SITE, sanitized_channel,sanitized_qual, token['hash'])
-	print("sanitized_channel: %s sanitized_qual: %s" % (sanitized_channel,sanitized_qual))
-	print(url)
-	try:
-		urllib.request.urlopen(url, timeout=2).getcode()
-	except timeout:
-		#special arg for tricking tvh into saving every channel first time
-		print("timeout")
-		sanitized_channel = '01'
-		sanitized_qual = '3'
-		url =  template.format(SRVR, SITE, sanitized_channel,sanitized_qual, token['hash'])
-	except:
-		print("except")
+	# print("sanitized_channel: %s sanitized_qual: %s" % (sanitized_channel,sanitized_qual))
+	# print(url)
+	# try:
+	# 	urllib.request.urlopen(url, timeout=2).getcode()
+	# except timeout:
+	# 	#special arg for tricking tvh into saving every channel first time
+	# 	print("timeout")
+	# 	sanitized_channel = '01'
+	# 	sanitized_qual = '3'
+	# 	url =  template.format(SRVR, SITE, sanitized_channel,sanitized_qual, token['hash'])
+	if 'install' in sys.argv:
+		logger.debug("TVH Trickery happening")
 		sanitized_channel = '01'
 		sanitized_qual = '3'
 		url =  template.format(SRVR, SITE, sanitized_channel,sanitized_qual, token['hash'])
@@ -1854,7 +1868,12 @@ if __name__ == "__main__":
 		requests.urlretrieve(latestfile, os.path.join(os.path.dirname(sys.argv[0]), 'updates', newfilename))
 	else:
 		logger.info("Your version (%s) is up to date." % (__version__))
-	thread_updater()
+	try:
+		a = threading.Thread(target=thread_updater)
+		a.setDaemon(True)
+		a.start()
+	except (KeyboardInterrupt, SystemExit):
+		sys.exit()
 	if netdiscover:
 		try:
 			a = threading.Thread(target=udpServer)
