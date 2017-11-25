@@ -61,6 +61,7 @@ from io import StringIO
 import socket
 import struct
 import ntpath
+import webbrowser
 
 
 try:
@@ -74,8 +75,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.43
+__version__ = 1.44
 #Changelog
+#1.44 - Change of initial launch to use the gui, if not desired launch with 'python sstvproxy.py headless'. Added adv settings parsing see advancedsettings.json for example
 #1.43 - Bugfix settings menu
 #1.42 - External Playlist added, version check and download added
 #1.41 - Bug fix and switch put on netwrok discovery
@@ -91,7 +93,9 @@ __version__ = 1.43
 #1.2 - TVH Completion and install
 #1.1 - Refactoring and TVH inclusion
 #1.0 - Initial post testing release
-
+opener = requests.build_opener()
+opener.addheaders = [('User-agent', 'YAP - %s - %s - %s' % (sys.argv[0], platform.system(), str(__version__)))]
+requests.install_opener(opener)
 type = ""
 latestfile = "https://github.com/vorghahn/sstvProxy/blob/master/sstvProxy.py"
 if not sys.argv[0].endswith('.py'):
@@ -114,7 +118,7 @@ token = {
 }
 
 playlist = ""
-netdiscover = False
+
 class channelinfo:
 	epg = ""
 	description = ""
@@ -126,6 +130,7 @@ class channelinfo:
 ############################################################
 
 #These are just defaults, place your settings in a file called proxysettings.json in the same directory
+
 USER = ""
 PASS = ""
 SITE = "viewstvn"
@@ -139,7 +144,9 @@ SERVER_PATH = "sstv"
 KODIPORT = 8080
 EXTIP = "127.0.0.1"
 EXT_HOST = "http://" + EXTIP + ":" + str(LISTEN_PORT)
-
+KODIUSER = "kodi"
+KODIPASS = ""
+netdiscover = False
 
 #LINUX/WINDOWS
 if platform.system() == 'Linux':
@@ -161,6 +168,193 @@ else:
 	print("Unknown OS detected... proxy may not function correctly")
 
 
+
+############################################################
+# INIT
+############################################################
+
+serverList = [
+	[' EU-Mix', 'deu'],
+	['    DE-Frankfurt', 'deu-de'],
+	['    NL-Mix', 'deu-nl'],
+	['    NL-1', 'deu-nl1'],
+	['    NL-2', 'deu-nl2'],
+	['    NL-3 Ams', 'deu-nl3'],
+	['    NL-4 Breda', 'deu-nl4'],
+	['    NL-5 Enschede', 'deu-nl5'],
+	['    UK-Mix', 'deu-uk'],
+	['    UK-London1', 'deu-uk1'],
+	['    UK-London2', 'deu-uk2'],
+	[' US-Mix', 'dna'],
+	['   East-Mix', 'dnae'],
+	['   West-Mix', 'dnaw'],
+	['   East-NJ', 'dnae1'],
+	['   East-VA', 'dnae2'],
+	['   East-Mtl', 'dnae3'],
+	['   East-Tor', 'dnae4'],
+	['   East-NY', 'dnae6'],
+	['   West-Phx', 'dnaw1'],
+	['   West-LA', 'dnaw2'],
+	['   West-SJ', 'dnaw3'],
+	['   West-Chi', 'dnaw4'],
+	['Asia', 'dap'],
+	['Asia-Old', 'dsg']
+]
+
+providerList = [
+	['Live247', 'view247'],
+	['Mystreams/Usport', 'viewms'],
+	['StarStreams', 'viewss'],
+	['MMA SR+', 'viewmmasr'],
+	['StreamTVnow', 'viewstvn'],
+	['MMA-TV/MyShout', 'mmatv']
+]
+
+streamtype = ['hls','rtmp']
+
+qualityList = [
+	['HD', '1'],
+	['HQ', '2'],
+	['LQ', '3']
+]
+
+def adv_settings():
+	if os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]),'advancedsettings.json')):
+		logger.debug("Parsing advanced settings")
+		with open(os.path.join(os.path.dirname(sys.argv[0]), 'advancedsettings.json')) as advset:
+			advconfig = load(advset)
+			if "networkdiscovery" in advconfig:
+				logger.debug("Overriding network discovery")
+				global netdiscover
+				netdiscover = advconfig["networkdiscovery"]
+			if "kodiuser" in advconfig:
+				logger.debug("Overriding kodi username")
+				global KODIUSER
+				KODIUSER = advconfig["kodiuser"]
+			if "kodipass" in advconfig:
+				logger.debug("Overriding kodi password")
+				global KODIPASS
+				KODIPASS = advconfig["kodipass"]
+			if "ffmpegloc" in advconfig:
+				logger.debug("Overriding ffmpeg location")
+				global FFMPEGLOC
+				FFMPEGLOC = advconfig["ffmpegloc"]
+
+
+def load_settings():
+	global QUAL, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, SERVER_HOST, EXTIP, EXT_HOST
+	try:
+		logger.debug("Parsing settings")
+		with open(os.path.join(os.path.dirname(sys.argv[0]),'proxysettings.json')) as jsonConfig:
+			config = {}
+			config = load(jsonConfig)
+			if "quality" in config:
+				QUAL = config["quality"]
+			if "username" in config:
+				USER = config["username"]
+			if "password" in config:
+				PASS = config["password"]
+			if "server" in config:
+				SRVR = config["server"]
+			if "service" in config:
+				SITE = config["service"]
+			if "stream" in config:
+				STRM = config["stream"]
+			if "kodiport" in config:
+				KODIPORT = config["kodiport"]
+			if "externalip" in config:
+				EXTIP = config["externalip"]
+			if "ip" in config and "port" in config:
+				LISTEN_IP = config["ip"]
+				LISTEN_PORT = config["port"]
+				SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
+				EXT_HOST = "http://" + EXTIP + ":" + str(LISTEN_PORT)
+			#print("Using config file.")
+
+	except:
+		if 'headless' in sys.argv:
+			config = {}
+			config["username"] = input("Username?")
+			config["password"] = input("Password?")
+			os.system('cls' if os.name == 'nt' else 'clear')
+			print("Type the number of the item you wish to select:")
+			for i in serverList:
+				print(serverList.index(i), serverList[serverList.index(i)][0])
+			config["server"] = serverList[int(input("Regional Server name?"))][1]
+			os.system('cls' if os.name == 'nt' else 'clear')
+			print("Type the number of the item you wish to select:")
+			for i in providerList:
+				print(providerList.index(i), providerList[providerList.index(i)][0])
+			config["service"] = providerList[int(input("Provider name?"))][1]
+			os.system('cls' if os.name == 'nt' else 'clear')
+			print("Type the number of the item you wish to select:")
+			for i in streamtype:
+				print(streamtype.index(i),i)
+			config["stream"] = streamtype[int(input("Dynamic Stream Type? (HLS/RTMP)"))]
+			os.system('cls' if os.name == 'nt' else 'clear')
+			for i in qualityList:
+				print(qualityList.index(i), qualityList[qualityList.index(i)][0])
+			config["quality"] = int(qualityList[int(input("Stream quality?"))][1])
+			os.system('cls' if os.name == 'nt' else 'clear')
+			config["ip"] = input("Listening IP address?(ie recommend 127.0.0.1 for beginners)")
+			config["port"] = int(input("and port?(ie 99, do not use 8080)"))
+			os.system('cls' if os.name == 'nt' else 'clear')
+			config["kodiport"] = int(input("Kodiport? (def is 8080)"))
+			os.system('cls' if os.name == 'nt' else 'clear')
+			config["externalip"] = input("External IP?")
+			os.system('cls' if os.name == 'nt' else 'clear')
+			QUAL = config["quality"]
+			USER = config["username"]
+			PASS = config["password"]
+			SRVR = config["server"]
+			SITE = config["service"]
+			STRM = config["stream"]
+			KODIPORT = config["kodiport"]
+			LISTEN_IP = config["ip"]
+			LISTEN_PORT = config["port"]
+			EXTIP = config["externalip"]
+			SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
+			EXT_HOST = "http://" + EXTIP + ":" + str(LISTEN_PORT)
+			with open(os.path.join(os.path.dirname(sys.argv[0]),'proxysettings.json'), 'w') as fp:
+				dump(config, fp)
+		else:
+			create_menu()
+			url = os.path.join(os.path.dirname(sys.argv[0]),'cache','settings.html')
+			webbrowser.open(url, new=2)
+		installer()
+	adv_settings()
+	if 'install' in sys.argv:
+		installer()
+
+
+############################################################
+# Logging
+############################################################
+
+# Setup logging
+log_formatter = logging.Formatter(
+	'%(asctime)s - %(levelname)-10s - %(name)-10s -  %(funcName)-25s- %(message)s')
+
+logger = logging.getLogger('SmoothStreamsProxy')
+logger.setLevel(logging.DEBUG)
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
+
+# Console logging
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)
+console_handler.setFormatter(log_formatter)
+logger.addHandler(console_handler)
+
+# Rotating Log Files
+if not os.path.isdir(os.path.join(os.path.dirname(sys.argv[0]), 'cache')):
+	os.mkdir(os.path.join(os.path.dirname(sys.argv[0]), 'cache'))
+file_handler = RotatingFileHandler(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'status.log'), maxBytes=1024 * 1024 * 2,
+								   backupCount=5)
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(log_formatter)
+logger.addHandler(file_handler)
+
+
 ############################################################
 # INSTALL
 ############################################################
@@ -176,6 +370,7 @@ def installer():
 	if not os.path.isdir(os.path.join(os.path.dirname(sys.argv[0]),'Templates')):
 		os.mkdir(os.path.join(os.path.dirname(sys.argv[0]),'Templates'))
 	writetemplate()
+
 
 def writetvGrabFile():
 	f = open(os.path.join('/usr','bin', 'tv_grab_sstv'), 'w')
@@ -214,6 +409,7 @@ if [ -n "$cflag" ]; then
 fi''' % (SERVER_HOST,SERVER_PATH)
 	f.write(tvGrabFile)
 	f.close()
+
 
 #lazy install, low priority
 def writesettings():
@@ -394,159 +590,6 @@ def writetemplate():
 </root>"""
 	f.write(xmldata)
 	f.close()
-############################################################
-# INIT
-############################################################
-
-serverList = [
-	[' EU-Mix', 'deu'],
-	['    DE-Frankfurt', 'deu-de'],
-	['    NL-Mix', 'deu-nl'],
-	['    NL-1', 'deu-nl1'],
-	['    NL-2', 'deu-nl2'],
-	['    NL-3 Ams', 'deu-nl3'],
-	['    NL-4 Breda', 'deu-nl4'],
-	['    NL-5 Enschede', 'deu-nl5'],
-	['    UK-Mix', 'deu-uk'],
-	['    UK-London1', 'deu-uk1'],
-	['    UK-London2', 'deu-uk2'],
-	[' US-Mix', 'dna'],
-	['   East-Mix', 'dnae'],
-	['   West-Mix', 'dnaw'],
-	['   East-NJ', 'dnae1'],
-	['   East-VA', 'dnae2'],
-	['   East-Mtl', 'dnae3'],
-	['   East-Tor', 'dnae4'],
-	['   East-NY', 'dnae6'],
-	['   West-Phx', 'dnaw1'],
-	['   West-LA', 'dnaw2'],
-	['   West-SJ', 'dnaw3'],
-	['   West-Chi', 'dnaw4'],
-	['Asia', 'dap'],
-	['Asia-Old', 'dsg']
-]
-
-providerList = [
-	['Live247', 'view247'],
-	['Mystreams/Usport', 'viewms'],
-	['StarStreams', 'viewss'],
-	['MMA SR+', 'viewmmasr'],
-	['StreamTVnow', 'viewstvn'],
-	['MMA-TV/MyShout', 'mmatv']
-]
-
-streamtype = ['hls','rtmp']
-
-qualityList = [
-	['HD', '1'],
-	['HQ', '2'],
-	['LQ', '3']
-]
-
-try:
-	with open(os.path.join(os.path.dirname(sys.argv[0]),'proxysettings.json')) as jsonConfig:
-		config = {}
-		config = load(jsonConfig)
-		if "quality" in config:
-			QUAL = config["quality"]
-		if "username" in config:
-			USER = config["username"]
-		if "password" in config:
-			PASS = config["password"]
-		if "server" in config:
-			SRVR = config["server"]
-		if "service" in config:
-			SITE = config["service"]
-		if "stream" in config:
-			STRM = config["stream"]
-		if "kodiport" in config:
-			KODIPORT = config["kodiport"]
-		if "externalip" in config:
-			EXTIP = config["externalip"]
-		if "ip" in config and "port" in config:
-			LISTEN_IP = config["ip"]
-			LISTEN_PORT = config["port"]
-			SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
-			EXT_HOST = "http://" + EXTIP + ":" + str(LISTEN_PORT)
-		#print("Using config file.")
-
-except:
-	config = {}
-	config["username"] = input("Username?")
-	config["password"] = input("Password?")
-	os.system('cls' if os.name == 'nt' else 'clear')
-	print("Type the number of the item you wish to select:")
-	for i in serverList:
-		print(serverList.index(i), serverList[serverList.index(i)][0])
-	config["server"] = serverList[int(input("Regional Server name?"))][1]
-	os.system('cls' if os.name == 'nt' else 'clear')
-	print("Type the number of the item you wish to select:")
-	for i in providerList:
-		print(providerList.index(i), providerList[providerList.index(i)][0])
-	config["service"] = providerList[int(input("Provider name?"))][1]
-	os.system('cls' if os.name == 'nt' else 'clear')
-	print("Type the number of the item you wish to select:")
-	for i in streamtype:
-		print(streamtype.index(i),i)
-	config["stream"] = streamtype[int(input("Dynamic Stream Type? (HLS/RTMP)"))]
-	os.system('cls' if os.name == 'nt' else 'clear')
-	for i in qualityList:
-		print(qualityList.index(i), qualityList[qualityList.index(i)][0])
-	config["quality"] = int(qualityList[int(input("Stream quality?"))][1])
-	os.system('cls' if os.name == 'nt' else 'clear')
-	config["ip"] = input("Listening IP address?(ie recommend 127.0.0.1 for beginners)")
-	config["port"] = int(input("and port?(ie 99, do not use 8080)"))
-	os.system('cls' if os.name == 'nt' else 'clear')
-	config["kodiport"] = int(input("Kodiport? (def is 8080)"))
-	os.system('cls' if os.name == 'nt' else 'clear')
-	config["externalip"] = input("External IP?")
-	os.system('cls' if os.name == 'nt' else 'clear')
-	QUAL = config["quality"]
-	USER = config["username"]
-	PASS = config["password"]
-	SRVR = config["server"]
-	SITE = config["service"]
-	STRM = config["stream"]
-	KODIPORT = config["kodiport"]
-	LISTEN_IP = config["ip"]
-	LISTEN_PORT = config["port"]
-	EXTIP = config["externalip"]
-	SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
-	EXT_HOST = "http://" + EXTIP + ":" + str(LISTEN_PORT)
-	with open(os.path.join(os.path.dirname(sys.argv[0]),'proxysettings.json'), 'w') as fp:
-		dump(config, fp)
-	installer()
-if len(sys.argv) > 1:
-	if sys.argv[1] == 'install':
-		installer()
-
-
-############################################################
-# Logging
-############################################################
-
-# Setup logging
-log_formatter = logging.Formatter(
-	'%(asctime)s - %(levelname)-10s - %(name)-10s -  %(funcName)-25s- %(message)s')
-
-logger = logging.getLogger('SmoothStreamsProxy')
-logger.setLevel(logging.DEBUG)
-logging.getLogger('werkzeug').setLevel(logging.ERROR)
-
-# Console logging
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.DEBUG)
-console_handler.setFormatter(log_formatter)
-logger.addHandler(console_handler)
-
-# Rotating Log Files
-if not os.path.isdir(os.path.join(os.path.dirname(sys.argv[0]), 'cache')):
-	os.mkdir(os.path.join(os.path.dirname(sys.argv[0]), 'cache'))
-file_handler = RotatingFileHandler(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'status.log'), maxBytes=1024 * 1024 * 2,
-								   backupCount=5)
-file_handler.setLevel(logging.DEBUG)
-file_handler.setFormatter(log_formatter)
-logger.addHandler(file_handler)
 
 
 ############################################################
@@ -555,90 +598,90 @@ logger.addHandler(file_handler)
 
 
 crc32c_table = (
-    0x00000000, 0x77073096, 0xee0e612c, 0x990951ba,
-    0x076dc419, 0x706af48f, 0xe963a535, 0x9e6495a3,
-    0x0edb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988,
-    0x09b64c2b, 0x7eb17cbd, 0xe7b82d07, 0x90bf1d91,
-    0x1db71064, 0x6ab020f2, 0xf3b97148, 0x84be41de,
-    0x1adad47d, 0x6ddde4eb, 0xf4d4b551, 0x83d385c7,
-    0x136c9856, 0x646ba8c0, 0xfd62f97a, 0x8a65c9ec,
-    0x14015c4f, 0x63066cd9, 0xfa0f3d63, 0x8d080df5,
-    0x3b6e20c8, 0x4c69105e, 0xd56041e4, 0xa2677172,
-    0x3c03e4d1, 0x4b04d447, 0xd20d85fd, 0xa50ab56b,
-    0x35b5a8fa, 0x42b2986c, 0xdbbbc9d6, 0xacbcf940,
-    0x32d86ce3, 0x45df5c75, 0xdcd60dcf, 0xabd13d59,
-    0x26d930ac, 0x51de003a, 0xc8d75180, 0xbfd06116,
-    0x21b4f4b5, 0x56b3c423, 0xcfba9599, 0xb8bda50f,
-    0x2802b89e, 0x5f058808, 0xc60cd9b2, 0xb10be924,
-    0x2f6f7c87, 0x58684c11, 0xc1611dab, 0xb6662d3d,
-    0x76dc4190, 0x01db7106, 0x98d220bc, 0xefd5102a,
-    0x71b18589, 0x06b6b51f, 0x9fbfe4a5, 0xe8b8d433,
-    0x7807c9a2, 0x0f00f934, 0x9609a88e, 0xe10e9818,
-    0x7f6a0dbb, 0x086d3d2d, 0x91646c97, 0xe6635c01,
-    0x6b6b51f4, 0x1c6c6162, 0x856530d8, 0xf262004e,
-    0x6c0695ed, 0x1b01a57b, 0x8208f4c1, 0xf50fc457,
-    0x65b0d9c6, 0x12b7e950, 0x8bbeb8ea, 0xfcb9887c,
-    0x62dd1ddf, 0x15da2d49, 0x8cd37cf3, 0xfbd44c65,
-    0x4db26158, 0x3ab551ce, 0xa3bc0074, 0xd4bb30e2,
-    0x4adfa541, 0x3dd895d7, 0xa4d1c46d, 0xd3d6f4fb,
-    0x4369e96a, 0x346ed9fc, 0xad678846, 0xda60b8d0,
-    0x44042d73, 0x33031de5, 0xaa0a4c5f, 0xdd0d7cc9,
-    0x5005713c, 0x270241aa, 0xbe0b1010, 0xc90c2086,
-    0x5768b525, 0x206f85b3, 0xb966d409, 0xce61e49f,
-    0x5edef90e, 0x29d9c998, 0xb0d09822, 0xc7d7a8b4,
-    0x59b33d17, 0x2eb40d81, 0xb7bd5c3b, 0xc0ba6cad,
-    0xedb88320, 0x9abfb3b6, 0x03b6e20c, 0x74b1d29a,
-    0xead54739, 0x9dd277af, 0x04db2615, 0x73dc1683,
-    0xe3630b12, 0x94643b84, 0x0d6d6a3e, 0x7a6a5aa8,
-    0xe40ecf0b, 0x9309ff9d, 0x0a00ae27, 0x7d079eb1,
-    0xf00f9344, 0x8708a3d2, 0x1e01f268, 0x6906c2fe,
-    0xf762575d, 0x806567cb, 0x196c3671, 0x6e6b06e7,
-    0xfed41b76, 0x89d32be0, 0x10da7a5a, 0x67dd4acc,
-    0xf9b9df6f, 0x8ebeeff9, 0x17b7be43, 0x60b08ed5,
-    0xd6d6a3e8, 0xa1d1937e, 0x38d8c2c4, 0x4fdff252,
-    0xd1bb67f1, 0xa6bc5767, 0x3fb506dd, 0x48b2364b,
-    0xd80d2bda, 0xaf0a1b4c, 0x36034af6, 0x41047a60,
-    0xdf60efc3, 0xa867df55, 0x316e8eef, 0x4669be79,
-    0xcb61b38c, 0xbc66831a, 0x256fd2a0, 0x5268e236,
-    0xcc0c7795, 0xbb0b4703, 0x220216b9, 0x5505262f,
-    0xc5ba3bbe, 0xb2bd0b28, 0x2bb45a92, 0x5cb36a04,
-    0xc2d7ffa7, 0xb5d0cf31, 0x2cd99e8b, 0x5bdeae1d,
-    0x9b64c2b0, 0xec63f226, 0x756aa39c, 0x026d930a,
-    0x9c0906a9, 0xeb0e363f, 0x72076785, 0x05005713,
-    0x95bf4a82, 0xe2b87a14, 0x7bb12bae, 0x0cb61b38,
-    0x92d28e9b, 0xe5d5be0d, 0x7cdcefb7, 0x0bdbdf21,
-    0x86d3d2d4, 0xf1d4e242, 0x68ddb3f8, 0x1fda836e,
-    0x81be16cd, 0xf6b9265b, 0x6fb077e1, 0x18b74777,
-    0x88085ae6, 0xff0f6a70, 0x66063bca, 0x11010b5c,
-    0x8f659eff, 0xf862ae69, 0x616bffd3, 0x166ccf45,
-    0xa00ae278, 0xd70dd2ee, 0x4e048354, 0x3903b3c2,
-    0xa7672661, 0xd06016f7, 0x4969474d, 0x3e6e77db,
-    0xaed16a4a, 0xd9d65adc, 0x40df0b66, 0x37d83bf0,
-    0xa9bcae53, 0xdebb9ec5, 0x47b2cf7f, 0x30b5ffe9,
-    0xbdbdf21c, 0xcabac28a, 0x53b39330, 0x24b4a3a6,
-    0xbad03605, 0xcdd70693, 0x54de5729, 0x23d967bf,
-    0xb3667a2e, 0xc4614ab8, 0x5d681b02, 0x2a6f2b94,
-    0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d,
+	0x00000000, 0x77073096, 0xee0e612c, 0x990951ba,
+	0x076dc419, 0x706af48f, 0xe963a535, 0x9e6495a3,
+	0x0edb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988,
+	0x09b64c2b, 0x7eb17cbd, 0xe7b82d07, 0x90bf1d91,
+	0x1db71064, 0x6ab020f2, 0xf3b97148, 0x84be41de,
+	0x1adad47d, 0x6ddde4eb, 0xf4d4b551, 0x83d385c7,
+	0x136c9856, 0x646ba8c0, 0xfd62f97a, 0x8a65c9ec,
+	0x14015c4f, 0x63066cd9, 0xfa0f3d63, 0x8d080df5,
+	0x3b6e20c8, 0x4c69105e, 0xd56041e4, 0xa2677172,
+	0x3c03e4d1, 0x4b04d447, 0xd20d85fd, 0xa50ab56b,
+	0x35b5a8fa, 0x42b2986c, 0xdbbbc9d6, 0xacbcf940,
+	0x32d86ce3, 0x45df5c75, 0xdcd60dcf, 0xabd13d59,
+	0x26d930ac, 0x51de003a, 0xc8d75180, 0xbfd06116,
+	0x21b4f4b5, 0x56b3c423, 0xcfba9599, 0xb8bda50f,
+	0x2802b89e, 0x5f058808, 0xc60cd9b2, 0xb10be924,
+	0x2f6f7c87, 0x58684c11, 0xc1611dab, 0xb6662d3d,
+	0x76dc4190, 0x01db7106, 0x98d220bc, 0xefd5102a,
+	0x71b18589, 0x06b6b51f, 0x9fbfe4a5, 0xe8b8d433,
+	0x7807c9a2, 0x0f00f934, 0x9609a88e, 0xe10e9818,
+	0x7f6a0dbb, 0x086d3d2d, 0x91646c97, 0xe6635c01,
+	0x6b6b51f4, 0x1c6c6162, 0x856530d8, 0xf262004e,
+	0x6c0695ed, 0x1b01a57b, 0x8208f4c1, 0xf50fc457,
+	0x65b0d9c6, 0x12b7e950, 0x8bbeb8ea, 0xfcb9887c,
+	0x62dd1ddf, 0x15da2d49, 0x8cd37cf3, 0xfbd44c65,
+	0x4db26158, 0x3ab551ce, 0xa3bc0074, 0xd4bb30e2,
+	0x4adfa541, 0x3dd895d7, 0xa4d1c46d, 0xd3d6f4fb,
+	0x4369e96a, 0x346ed9fc, 0xad678846, 0xda60b8d0,
+	0x44042d73, 0x33031de5, 0xaa0a4c5f, 0xdd0d7cc9,
+	0x5005713c, 0x270241aa, 0xbe0b1010, 0xc90c2086,
+	0x5768b525, 0x206f85b3, 0xb966d409, 0xce61e49f,
+	0x5edef90e, 0x29d9c998, 0xb0d09822, 0xc7d7a8b4,
+	0x59b33d17, 0x2eb40d81, 0xb7bd5c3b, 0xc0ba6cad,
+	0xedb88320, 0x9abfb3b6, 0x03b6e20c, 0x74b1d29a,
+	0xead54739, 0x9dd277af, 0x04db2615, 0x73dc1683,
+	0xe3630b12, 0x94643b84, 0x0d6d6a3e, 0x7a6a5aa8,
+	0xe40ecf0b, 0x9309ff9d, 0x0a00ae27, 0x7d079eb1,
+	0xf00f9344, 0x8708a3d2, 0x1e01f268, 0x6906c2fe,
+	0xf762575d, 0x806567cb, 0x196c3671, 0x6e6b06e7,
+	0xfed41b76, 0x89d32be0, 0x10da7a5a, 0x67dd4acc,
+	0xf9b9df6f, 0x8ebeeff9, 0x17b7be43, 0x60b08ed5,
+	0xd6d6a3e8, 0xa1d1937e, 0x38d8c2c4, 0x4fdff252,
+	0xd1bb67f1, 0xa6bc5767, 0x3fb506dd, 0x48b2364b,
+	0xd80d2bda, 0xaf0a1b4c, 0x36034af6, 0x41047a60,
+	0xdf60efc3, 0xa867df55, 0x316e8eef, 0x4669be79,
+	0xcb61b38c, 0xbc66831a, 0x256fd2a0, 0x5268e236,
+	0xcc0c7795, 0xbb0b4703, 0x220216b9, 0x5505262f,
+	0xc5ba3bbe, 0xb2bd0b28, 0x2bb45a92, 0x5cb36a04,
+	0xc2d7ffa7, 0xb5d0cf31, 0x2cd99e8b, 0x5bdeae1d,
+	0x9b64c2b0, 0xec63f226, 0x756aa39c, 0x026d930a,
+	0x9c0906a9, 0xeb0e363f, 0x72076785, 0x05005713,
+	0x95bf4a82, 0xe2b87a14, 0x7bb12bae, 0x0cb61b38,
+	0x92d28e9b, 0xe5d5be0d, 0x7cdcefb7, 0x0bdbdf21,
+	0x86d3d2d4, 0xf1d4e242, 0x68ddb3f8, 0x1fda836e,
+	0x81be16cd, 0xf6b9265b, 0x6fb077e1, 0x18b74777,
+	0x88085ae6, 0xff0f6a70, 0x66063bca, 0x11010b5c,
+	0x8f659eff, 0xf862ae69, 0x616bffd3, 0x166ccf45,
+	0xa00ae278, 0xd70dd2ee, 0x4e048354, 0x3903b3c2,
+	0xa7672661, 0xd06016f7, 0x4969474d, 0x3e6e77db,
+	0xaed16a4a, 0xd9d65adc, 0x40df0b66, 0x37d83bf0,
+	0xa9bcae53, 0xdebb9ec5, 0x47b2cf7f, 0x30b5ffe9,
+	0xbdbdf21c, 0xcabac28a, 0x53b39330, 0x24b4a3a6,
+	0xbad03605, 0xcdd70693, 0x54de5729, 0x23d967bf,
+	0xb3667a2e, 0xc4614ab8, 0x5d681b02, 0x2a6f2b94,
+	0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d,
 )
 
 def add(crc, buf):
-    buf = array.array('B', buf)
-    for b in buf:
-        crc = (crc >> 8) ^ crc32c_table[(crc ^ b) & 0xff]
-    return crc
+	buf = array.array('B', buf)
+	for b in buf:
+		crc = (crc >> 8) ^ crc32c_table[(crc ^ b) & 0xff]
+	return crc
 
 def done(crc):
-    tmp = ~crc & 0xffffffff
-    b0 = tmp & 0xff
-    b1 = (tmp >> 8) & 0xff
-    b2 = (tmp >> 16) & 0xff
-    b3 = (tmp >> 24) & 0xff
-    crc = (b0 << 24) | (b1 << 16) | (b2 << 8) | b3
-    return crc
+	tmp = ~crc & 0xffffffff
+	b0 = tmp & 0xff
+	b1 = (tmp >> 8) & 0xff
+	b2 = (tmp >> 16) & 0xff
+	b3 = (tmp >> 24) & 0xff
+	crc = (b0 << 24) | (b1 << 16) | (b2 << 8) | b3
+	return crc
 
 def cksum(buf):
-    """Return computed CRC-32c checksum."""
-    return done(add(0xffffffff, buf))
+	"""Return computed CRC-32c checksum."""
+	return done(add(0xffffffff, buf))
 
 
 ############################################################
@@ -827,7 +870,7 @@ def get_auth_token(user, passwd, site):
 	data = json.loads(requests.urlopen('http://auth.SmoothStreams.tv/hash_api.php?username=%s&password=%s&site=%s' % (user,passwd,site)).read().decode("utf-8"))
 	if 'hash' not in data or 'valid' not in data:
 		logger.error("There was no hash auth token returned from auth.SmoothStreams.tv...")
-		exit(1)
+		return
 	else:
 		token['hash'] = data['hash']
 		token['expires'] = (datetime.now() + timedelta(minutes=data['valid'])).strftime("%Y-%m-%d %H:%M:%S.%f")
@@ -1393,7 +1436,7 @@ def build_kodi_playlist():
 
 
 def rescan_channels():
-	credentials = b'kodi:'
+	credentials = str.encode(KODIUSER+':'+KODIPASS)
 	encoded_credentials = base64.b64encode(credentials)
 	authorization = b'Basic ' + encoded_credentials
 	apiheaders = { 'Content-Type': 'application/json', 'Authorization': authorization }
@@ -1416,7 +1459,7 @@ def rescan_channels():
 # Change this to change the style of the web page generated
 style = """
 <style type="text/css">
-	body { max-width: 60em; background-color: white; color: black; }
+	body { max-width: 20em; background-color: white; color: black; }
 	h1 { color: white; background-color: black; padding: 0.5ex }
 	h2 { color: white; background-color: #404040; padding: 0.3ex }
 	.gap { color: darkred; }
@@ -1433,28 +1476,6 @@ style = """
 
 def create_menu():
 	with open("./cache/settings.html", "w") as html:
-		with open(os.path.join(os.path.dirname(sys.argv[0]),'proxysettings.json')) as jsonConfig:
-			config = {}
-			config = load(jsonConfig)
-			if "quality" in config:
-				QUAL = config["quality"]
-			if "username" in config:
-				USER = config["username"]
-			if "password" in config:
-				PASS = config["password"]
-			if "server" in config:
-				SRVR = config["server"]
-			if "service" in config:
-				SITE = config["service"]
-			if "stream" in config:
-				STRM = config["stream"]
-			if "kodiport" in config:
-				KODIPORT = config["kodiport"]
-			if "ip" in config and "port" in config:
-				LISTEN_IP = config["ip"]
-				LISTEN_PORT = config["port"]
-				SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
-
 		html.write("""<html>
 		<head>
 		<meta charset="UTF-8">
@@ -1467,33 +1488,43 @@ def create_menu():
 		channelmap = {}
 		chanindex = 0
 		list = ["Username","Password","Quality","Stream","Server","Service","IP","Port","Kodiport","ExternalIP"]
-		html.write('<table width="200" border="1">')
+		html.write('<table width="300" border="2">')
 		for setting in list:
-			#html.write("<h1><a name=\"%s\"></a>%s: %s</h1>" % (setting, setting, config[setting.lower()]))
 			if setting.lower() == 'service':
 				html.write('<tr><td>Service:</td><td><select name="Service" size="1">')
 				for option in providerList:
-					html.write('<option value="%s"%s>%s</option>' % (option[0],' selected' if config[setting.lower()] == option[1] else "", option[0]))
+					html.write('<option value="%s"%s>%s</option>' % (option[0],' selected' if SITE == option[1] else "", option[0]))
 				html.write('</select></td></tr>')
 			elif setting.lower() == 'server':
 				html.write('<tr><td>Server:</td><td><select name="Server" size="1">')
 				for option in serverList:
-					html.write('<option value="%s"%s>%s</option>' % (option[0],' selected' if config[setting.lower()] == option[1] else "", option[0]))
+					html.write('<option value="%s"%s>%s</option>' % (option[0],' selected' if SRVR == option[1] else "", option[0]))
 				html.write('</select></td></tr>')
 			elif setting.lower() == 'stream':
 				html.write('<tr><td>Stream:</td><td><select name="Stream" size="1">')
 				for option in streamtype:
-					html.write('<option value="%s"%s>%s</option>' % (option,' selected' if config[setting.lower()] == option else "", option))
+					html.write('<option value="%s"%s>%s</option>' % (option,' selected' if STRM == option else "", option))
 				html.write('</select></td></tr>')
 			elif setting.lower() == 'quality':
 				html.write('<tr><td>Quality:</td><td><select name="Quality" size="1">')
 				for option in qualityList:
-					html.write('<option value="%s"%s>%s</option>' % (option[0],' selected' if config[setting.lower()] == option[1] else "", option[0]))
+					html.write('<option value="%s"%s>%s</option>' % (option[0],' selected' if QUAL == option[1] else "", option[0]))
 				html.write('</select></td></tr>')
 			elif setting.lower() == 'password':
-				html.write('<tr><td>%s:</td><td><input name="%s" type="Password" value="%s"></td></tr>'% (setting, setting, config[setting.lower()]))
+				html.write('<tr><td>%s:</td><td><input name="%s" type="Password" value="%s"></td></tr>'% (setting, setting, PASS))
 			else:
-				html.write('<tr><td>%s:</td><td><input name="%s" type="text" value="%s"></td></tr>'% (setting, setting, config[setting.lower()]))
+				val = "Unknown"
+				if setting == "Username":
+					val = USER
+				elif setting == "IP":
+					val = LISTEN_IP
+				elif setting == "Port":
+					val = LISTEN_PORT
+				elif setting == "Kodiport":
+					val = KODIPORT
+				elif setting == "ExternalIP":
+					val = EXTIP
+				html.write('<tr><td>%s:</td><td><input name="%s" type="text" value="%s"></td></tr>'% (setting, setting, val))
 		html.write('</table>')
 		html.write('<input type="submit"  value="Submit">')
 		html.write('</form>')
@@ -1512,7 +1543,7 @@ def close_menu():
 ############################################################
 @app.route('/sstv/handle_data', methods=['POST'])
 def handle_data():
-	global playlist, kodiplaylist,QUAL,USER,PASS,SRVR,SITE,STRM,KODIPORT,LISTEN_IP,LISTEN_PORT,EXTIP,EXT_HOST
+	global playlist, kodiplaylist,QUAL,USER,PASS,SRVR,SITE,STRM,KODIPORT,LISTEN_IP,LISTEN_PORT,EXTIP,EXT_HOST,SERVER_HOST
 	inc_data = request.form
 	config = {}
 	config["username"] = inc_data['Username']
@@ -1542,9 +1573,11 @@ def handle_data():
 	LISTEN_PORT = config["port"]
 	EXTIP = config["externalip"]
 	EXT_HOST = "http://" + EXTIP + ":" + str(LISTEN_PORT)
+	SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
 	with open(os.path.join(os.path.dirname(sys.argv[0]),'proxysettings.json'), 'w') as fp:
 		dump(config, fp)
 	close_menu()
+	check_token()
 	playlist = build_playlist(SERVER_HOST)
 	kodiplaylist = build_kodi_playlist()
 	print(SRVR)
@@ -1571,7 +1604,6 @@ def index(request_file):
 
 @app.route('/%s/<request_file>' % SERVER_PATH)
 def bridge(request_file):
-	logger.info('%s requested by %s' % (request_file, request.environ.get('REMOTE_ADDR')))
 	global playlist, token, chan_map, kodiplaylist, tvhplaylist
 
 	#return epg
@@ -1596,13 +1628,10 @@ def bridge(request_file):
 
 	#return html epg guide based off of plex live
 	elif request_file.lower().startswith('guide'):
-		#try:
 		epgguide()
 		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'guide.html')
-		#except:
-		#    return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'empty.png')
-	
-	#return html epg guide based off of plex live
+
+	#return settings menu
 	elif request_file.lower().startswith('index'):
 		#try:
 		create_menu()
@@ -1689,9 +1718,9 @@ def bridge(request_file):
 		return lineup_post()
 	elif request_file.lower() == 'device.xml':
 		return device()
-	#else:
-	#	logger.info("Unknown requested %r by %s", request_file, request.environ.get('REMOTE_ADDR'))
-	#	abort(404, "Unknown request")
+	else:
+		logger.info("Unknown requested %r by %s", request_file, request.environ.get('REMOTE_ADDR'))
+		abort(404, "Unknown request")
 
 
 @app.route('/%s/auto/<request_file>' % SERVER_PATH)
@@ -1761,6 +1790,7 @@ def auto(request_file):
 
 if __name__ == "__main__":
 	logger.info("Initializing")
+	load_settings()
 	if os.path.exists(TOKEN_PATH):
 		load_token()
 	check_token()
