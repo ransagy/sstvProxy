@@ -104,7 +104,7 @@ latestfile = "https://raw.githubusercontent.com/vorghahn/sstvProxy/master/sstvPr
 if not sys.argv[0].endswith('.py'):
 	if platform.system() == 'Linux':
 		type = "Linux/"
-		latestfile = "https://raw.githubusercontent.com/vorghahn/sstvProxy/master/Linux/sstvproxy"
+		latestfile = "https://raw.githubusercontent.com/vorghahn/sstvProxy/master/Linux/sstvProxy"
 	elif platform.system() == 'Windows':
 		type  = "Windows/"
 		latestfile = "https://raw.githubusercontent.com/vorghahn/sstvProxy/master/Windows/sstvproxy.exe"
@@ -325,7 +325,7 @@ def load_settings():
 		else:
 			create_menu()
 			url = os.path.join(os.path.dirname(sys.argv[0]),'cache','settings.html')
-			webbrowser.open(url, new=2)
+			webbrowser.open(url)
 		installer()
 	adv_settings()
 	if 'install' in sys.argv:
