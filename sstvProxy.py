@@ -97,17 +97,17 @@ opener = requests.build_opener()
 opener.addheaders = [('User-agent', 'YAP - %s - %s - %s' % (sys.argv[0], platform.system(), str(__version__)))]
 requests.install_opener(opener)
 type = ""
-latestfile = "https://github.com/vorghahn/sstvProxy/blob/master/sstvProxy.py"
+latestfile = "https://raw.githubusercontent.com/vorghahn/sstvProxy/master/sstvProxy.py"
 if not sys.argv[0].endswith('.py'):
 	if platform.system() == 'Linux':
 		type = "Linux/"
-		latestfile = "https://github.com/vorghahn/sstvProxy/blob/master/Linux/sstvproxy"
+		latestfile = "https://raw.githubusercontent.com/vorghahn/sstvProxy/master/Linux/sstvproxy"
 	elif platform.system() == 'Windows':
 		type  = "Windows/"
-		latestfile = "https://github.com/vorghahn/sstvProxy/blob/master/Windows/sstvproxy.exe"
+		latestfile = "https://raw.githubusercontent.com/vorghahn/sstvProxy/master/Windows/sstvproxy.exe"
 	elif platform.system() == 'Darwin':
 		type = "Macintosh/"
-		latestfile = "https://github.com/vorghahn/sstvProxy/blob/master/Macintosh/sstvproxy"
+		latestfile = "https://raw.githubusercontent.com/vorghahn/sstvProxy/master/Macintosh/sstvproxy"
 url = "https://raw.githubusercontent.com/vorghahn/sstvProxy/master/%sversion.txt" % type
 latest_ver = float(json.loads(requests.urlopen(url).read().decode('utf-8'))['Version'])
 
@@ -732,6 +732,18 @@ def dl_icons(channum):
 			#logger.debug("No icon for channel:%s"% i)
 	logger.debug("Icon download completed.")
 
+
+def thread_updater():
+	while True:
+		time.sleep(21600)
+		if __version__ < latest_ver:
+			logger.info(
+				"Your version (%s%s) is out of date, the latest is %s, which has now be downloaded for you into the 'updates' subdirectory." % (
+				type, __version__, latest_ver))
+			newfilename = ntpath.basename(latestfile)
+			if not os.path.isdir(os.path.join(os.path.dirname(sys.argv[0]), 'updates')):
+				os.mkdir(os.path.join(os.path.dirname(sys.argv[0]), 'updates'))
+			requests.urlretrieve(latestfile, os.path.join(os.path.dirname(sys.argv[0]), 'updates', newfilename))
 
 ############################################################
 # EPG
@@ -1842,6 +1854,7 @@ if __name__ == "__main__":
 		requests.urlretrieve(latestfile, os.path.join(os.path.dirname(sys.argv[0]), 'updates', newfilename))
 	else:
 		logger.info("Your version (%s) is up to date." % (__version__))
+	thread_updater()
 	if netdiscover:
 		try:
 			a = threading.Thread(target=udpServer)
