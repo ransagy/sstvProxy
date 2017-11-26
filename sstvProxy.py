@@ -1772,7 +1772,7 @@ def auto(request_file):
 	# 	sanitized_channel = '01'
 	# 	sanitized_qual = '3'
 	# 	url =  template.format(SRVR, SITE, sanitized_channel,sanitized_qual, token['hash'])
-	if 'install' in sys.argv:
+	if 'tvh' in sys.argv:
 		logger.debug("TVH Trickery happening")
 		sanitized_channel = '01'
 		sanitized_qual = '3'
