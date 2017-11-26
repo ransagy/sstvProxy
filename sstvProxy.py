@@ -278,7 +278,7 @@ def load_settings():
 			logger.debug("Using config file.")
 
 	except:
-		if 'headless' in sys.argv or (sys.argv[0].lower() != 'sstvproxy.py' and platform.system() != 'Windows'):
+		if True:
 			config = {}
 			config["username"] = input("Username?")
 			config["password"] = input("Password?")
