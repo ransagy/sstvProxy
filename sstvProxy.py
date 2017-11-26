@@ -75,8 +75,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.45
+__version__ = 1.46
 #Changelog
+#1.46 - REmoved startup gui from mac and linux exes, fixed linux url
 #1.45 - Added restart required message, Change of piping checks, manual trigger now for easy mux detection (forcing channel 1), use 'python sstvproxy install'
 #1.44 - Change of initial launch to use the gui, if not desired launch with 'python sstvproxy.py headless'. Added adv settings parsing see advancedsettings.json for example
 #1.43 - Bugfix settings menu
@@ -277,7 +278,7 @@ def load_settings():
 			logger.debug("Using config file.")
 
 	except:
-		if 'headless' in sys.argv:
+		if 'headless' in sys.argv or (sys.argv[0].lower() != 'sstvproxy.py' and platform.system() != 'Windows'):
 			config = {}
 			config["username"] = input("Username?")
 			config["password"] = input("Password?")
@@ -325,7 +326,7 @@ def load_settings():
 		else:
 			create_menu()
 			url = os.path.join(os.path.dirname(sys.argv[0]),'cache','settings.html')
-			webbrowser.open(url)
+			webbrowser.open(url, new=2)
 		installer()
 	adv_settings()
 	if 'install' in sys.argv:
