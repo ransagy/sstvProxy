@@ -75,8 +75,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.46
+__version__ = 1.47
 #Changelog
+#1.47 - TVH scanning fixed.
 #1.46 - REmoved startup gui from mac and linux exes, fixed linux url
 #1.45 - Added restart required message, Change of piping checks, manual trigger now for easy mux detection (forcing channel 1), use 'python sstvproxy install'
 #1.44 - Change of initial launch to use the gui, if not desired launch with 'python sstvproxy.py headless'. Added adv settings parsing see advancedsettings.json for example
@@ -1761,22 +1762,24 @@ def auto(request_file):
 	sanitized_channel = ("0%d" % int(channel)) if int(channel) < 10 else channel
 	sanitized_qual = 1 if int(channel) > 60 else QUAL
 	template = "http://{0}.smoothstreams.tv:9100/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}"
-	url =  template.format(SRVR, SITE, sanitized_channel,sanitized_qual, token['hash'])
-	# print("sanitized_channel: %s sanitized_qual: %s" % (sanitized_channel,sanitized_qual))
-	# print(url)
-	# try:
-	# 	urllib.request.urlopen(url, timeout=2).getcode()
+	url = template.format(SRVR, SITE, sanitized_channel,sanitized_qual, token['hash'])
+	print("sanitized_channel: %s sanitized_qual: %s" % (sanitized_channel,sanitized_qual))
+	print(url)
+	try:
+		urllib.request.urlopen(url, timeout=2).getcode()
+	except:
+		a = 1
 	# except timeout:
 	# 	#special arg for tricking tvh into saving every channel first time
 	# 	print("timeout")
 	# 	sanitized_channel = '01'
 	# 	sanitized_qual = '3'
-	# 	url =  template.format(SRVR, SITE, sanitized_channel,sanitized_qual, token['hash'])
+	# 	url = template.format(SRVR, SITE, sanitized_channel,sanitized_qual, token['hash'])
 	if 'tvh' in sys.argv:
 		logger.debug("TVH Trickery happening")
 		sanitized_channel = '01'
 		sanitized_qual = '3'
-		url =  template.format(SRVR, SITE, sanitized_channel,sanitized_qual, token['hash'])
+		url = template.format(SRVR, SITE, sanitized_channel,sanitized_qual, token['hash'])
 	print(url)
 	import subprocess
 
