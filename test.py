@@ -307,3 +307,46 @@ root.title("YAP Setup")
 root.geometry('600x450')
 app = GUI(root) #calling the class to run
 root.mainloop()
+
+
+
+<settings>
+<timespan>1</timespan>
+<update></update>
+<mode>n</mode>
+<filename>C:\Users\Vaughan\SkyDrive\Documents\GIT\sstvProxy\cache\xmltv.xml</filename>
+<channel update="i" site="zap2it.com" site_id="16485&amp;channel=142&amp;aid=zap2it" xmltv_id="ESPNews">ESPNews</channel>
+<channel update="i" site="zap2it.com" site_id="10179&amp;channel=140&amp;aid=zap2it" xmltv_id="ESPN">ESPN</channel>
+<channel update="i" site="zap2it.com" site_id="12444&amp;channel=143&amp;aid=zap2it" xmltv_id="ESPN 2">ESPN 2</channel>
+<channel update="i" site="zap2it.com" site_id="45654&amp;channel=141&amp;aid=zap2it" xmltv_id="ESPNU">ESPNU</channel>
+<channel update="i" site="zap2it.com" site_id="82541&amp;channel=150&amp;aid=zap2it" xmltv_id="FS1">FS1</channel>
+<channel update="i" site="zap2it.com" site_id="33178&amp;channel=397&amp;aid=zap2it" xmltv_id="FS2">FS2</channel>
+<channel update="i" site="zap2it.com" site_id="45399&amp;channel=5507&amp;aid=zap2it" xmltv_id="NFL HD">NFL HD</channel>
+<channel update="i" site="zap2it.com" site_id="32281&amp;channel=156&amp;aid=zap2it" xmltv_id="NBATV">NBATV</channel>
+<channel update="i" site="zap2it.com" site_id="62079&amp;channel=152&amp;aid=zap2it" xmltv_id="MLB">MLB</channel>
+<channel update="i" site="zap2it.com" site_id="58570&amp;channel=157&amp;aid=zap2it" xmltv_id="NHLNET">NHLNET</channel>
+<channel update="i" site="zap2it.com" site_id="15952&amp;channel=159&amp;aid=zap2it" xmltv_id="NBCSN">NBCSN</channel>
+<channel update="i" site="zap2it.com" site_id="14899&amp;channel=401&amp;aid=zap2it" xmltv_id="Golf">Golf</channel>
+<channel update="i" site="zap2it.com" site_id="33395&amp;channel=400&amp;aid=zap2it" xmltv_id="Tennis">Tennis</channel>
+<channel update="i" site="zap2it.com" site_id="16365&amp;channel=158&amp;aid=zap2it" xmltv_id="CBS Sports">CBS Sports</channel>
+
+<channel update="i" site="wwe.com" site_id="wwe" xmltv_id="WWE">WWE</channel>
+<channel update="i" site="tvhebdo.com" site_id="seta/SNWL" xmltv_id="Sportsnet World">Sportsnet World</channel>
+<channel update="i" site="tvhebdo.com" site_id="scor/SN360" xmltv_id="The Score">The Score</channel>
+<channel update="i" site="tvhebdo.com" site_id="snet/RSNO" xmltv_id="Sports Net Ontario">Sports Net Ontario</channel>
+<channel update="i" site="tvhebdo.com" site_id="snet/SNONE" xmltv_id="Sports Net One">Sports Net One</channel>
+<channel update="i" site="tvhebdo.com" site_id="tsn/TSN5" xmltv_id="TSN">TSN</channel>
+
+
+<channel update="i" site="zap2it.com" site_id="10149&amp;channel=107&amp;aid=zap2it" xmltv_id="Comedy">Comedy</channel>
+<channel update="i" site="zap2it.com" site_id="11163&amp;channel=9506&amp;aid=zap2it" xmltv_id="Spike">Spike</channel>
+<channel update="i" site="zap2it.com" site_id="11207&amp;channel=105&amp;aid=zap2it" xmltv_id="USA">USA</channel>
+<channel update="i" site="zap2it.com" site_id="10035&amp;channel=118&amp;aid=zap2it" xmltv_id="A&amp;E">A&amp;E</channel>
+<channel update="i" site="zap2it.com" site_id="11867&amp;channel=139&amp;aid=zap2it" xmltv_id="TBS">TBS</channel>
+<channel update="i" site="zap2it.com" site_id="11164&amp;channel=138&amp;aid=zap2it" xmltv_id="TNT">TNT</channel>
+
+
+
+
+
+</settings>
