@@ -1,1 +1,1 @@
-{"networkdiscovery": 1, "ffmpegloc": "C:\\ffmpeg\\bin\\ffmpeg.exe", "kodiuser": "string", "kodipass": "string"}
+{"networkdiscovery": 0, "ffmpegloc": "C:\\ffmpeg\\bin\\ffmpeg.exe", "kodiuser": "kodi", "kodipass": "","extram3u8url":"","extram3u8name":"Custom","extram3u8file":"./blah.m3u"}

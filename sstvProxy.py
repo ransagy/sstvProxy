@@ -76,8 +76,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.50
+__version__ = 1.51
 #Changelog
+#1.51 - Inclusion of an m3u8 merger to add another m3u8 files contents to the end of the kodi.m3u8 playlist result is called combined.m3u8 refer advanced settings.
 #1.50 - GUI Redesign
 #1.47 - TVH scanning fixed.
 #1.46 - REmoved startup gui from mac and linux exes, fixed linux url
@@ -154,6 +155,9 @@ EXT_HOST = "http://" + EXTIP + ":" + str(LISTEN_PORT)
 KODIUSER = "kodi"
 KODIPASS = ""
 netdiscover = False
+EXTM3URL = ''
+EXTM3UNAME = ''
+EXTM3UFILE = ''
 
 #LINUX/WINDOWS
 if platform.system() == 'Linux':
@@ -250,6 +254,18 @@ def adv_settings():
 				logger.debug("Overriding kodi port")
 				global KODIPORT
 				KODIPORT = advconfig["kodiport"]
+			if "extram3u8url" in advconfig:
+				logger.debug("Overriding EXTM3URL")
+				global EXTM3URL
+				EXTM3URL = advconfig["extram3u8url"]
+			if "extram3u8name" in advconfig:
+				logger.debug("Overriding EXTM3UNAME")
+				global EXTM3UNAME
+				EXTM3UNAME = advconfig["extram3u8name"]
+			if "extram3u8file" in advconfig:
+				logger.debug("Overriding EXTM3UFILE")
+				global EXTM3UFILE
+				EXTM3UFILE = advconfig["extram3u8file"]
 
 
 def load_settings():
@@ -839,13 +855,19 @@ class GUI(tkinter.Frame):
 			labelSetting7 = tkinter.Label(master, textvariable=self.labelSetting7, height=2)
 			labelSetting7.grid(row=8)
 
+			self.labelSetting8 = tkinter.StringVar()
+			self.labelSetting8.set("Combined m3u8 url is %s/combined.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
+			labelSetting8 = tkinter.Label(master, textvariable=self.labelSetting8, height=2)
+			labelSetting8.grid(row=9)
+
+
 			self.labelFooter = tkinter.StringVar()
 			self.labelFooter.set("These can also be found later on the YAP main screen after each launch")
 			labelFooter = tkinter.Label(master, textvariable=self.labelFooter, height=4)
-			labelFooter.grid(row=8)
+			labelFooter.grid(row=10)
 
 			button1 = tkinter.Button(master, text="Launch YAP!!", width=20, command=lambda: self.client_exit(master))
-			button1.grid(row=9)
+			button1.grid(row=11)
 
 		button1 = tkinter.Button(master, text="Submit", width=20,command=lambda: gather())
 		button1.grid(row=12, column=2)
@@ -1276,6 +1298,43 @@ def create_channel_playlist(sanitized_channel, qual, strm, hash):
 		#with open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'playlist.m3u8'), 'r+') as f:
 		#    f.write(file)
 		return rtmp_url
+
+
+############################################################
+# m3u8 merger
+############################################################
+
+def obtain_m3u8():
+	formatted_m3u8 = ''
+	url = EXTM3URL
+	name = EXTM3UNAME
+	file = EXTM3UFILE
+	if url != '':
+		print("url")
+		inputm3u8 = requests.urlopen(url).read().decode('utf-8')
+		inputm3u8 = inputm3u8.split("\n")[1:]
+	elif file != '':
+		print("file")
+		f = open(file,'r')
+		inputm3u8 = f.readlines()
+		inputm3u8 = inputm3u8[1:]
+		inputm3u8 = [x.strip("\n") for x in inputm3u8]
+	else:
+		print("nothing")
+		return formatted_m3u8
+
+	for i in range(len(inputm3u8)):
+		if inputm3u8[i] != "":
+			if i%2 == 0:
+				grouper = inputm3u8[i]
+				grouper = grouper.split(',')
+				grouper = grouper[0] + ' group-title="%s"' % (name) + "," + grouper[1]
+				if i != 0:
+					formatted_m3u8 += "\n"
+				formatted_m3u8+=grouper
+			else:
+				formatted_m3u8+="\n" + inputm3u8[i]
+	return formatted_m3u8
 
 ############################################################
 # TVHeadend
@@ -1936,6 +1995,13 @@ def bridge(request_file):
 		kodiplaylist = build_kodi_playlist()
 		logger.info("Kodi channels playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
 		return Response(kodiplaylist, mimetype='application/x-mpegURL')
+
+	#returns combined playlist
+	elif request_file.lower().startswith('combined'):
+		extraplaylist = build_kodi_playlist() + obtain_m3u8()
+		logger.info("Combined channels playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
+		logger.info("Sending playlist to %s", request.environ.get('REMOTE_ADDR'))
+		return Response(extraplaylist, mimetype='application/x-mpegURL')
 		
 	#returns external playlist
 	elif request_file.lower().startswith('external'):
@@ -2115,6 +2181,7 @@ if __name__ == "__main__":
 	print("Plex Live TV url is %s" % urljoin(SERVER_HOST, SERVER_PATH))
 	print("TVHeadend network url is %s/tvh.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
 	print("External m3u8 url is %s/external.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
+	print("Combined m3u8 url is %s/combined.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
 	print("##############################################################\n")
 
 	if __version__ < latest_ver:
