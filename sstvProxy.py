@@ -76,8 +76,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.52
+__version__ = 1.53
 #Changelog
+#1.53 - Sports only epg available at /sports.xml
 #1.52 - Addition of External Port
 #1.51 - Inclusion of an m3u8 merger to add another m3u8 files contents to the end of the kodi.m3u8 playlist result is called combined.m3u8 refer advanced settings.
 #1.50 - GUI Redesign
@@ -861,31 +862,35 @@ class GUI(tkinter.Frame):
 			self.labelSetting5 = tkinter.StringVar()
 			self.labelSetting5.set("Plex Live TV url is %s" % urljoin(SERVER_HOST, SERVER_PATH))
 			labelSetting5 = tkinter.Label(master, textvariable=self.labelSetting5, height=2)
-			labelSetting5.grid(row=6)
+			labelSetting5.grid(row=7)
 
 			self.labelSetting6 = tkinter.StringVar()
 			self.labelSetting6.set("TVHeadend network url is %s/tvh.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
 			labelSetting6 = tkinter.Label(master, textvariable=self.labelSetting6, height=2)
-			labelSetting6.grid(row=7)
+			labelSetting6.grid(row=8)
 
 			self.labelSetting7 = tkinter.StringVar()
 			self.labelSetting7.set("External m3u8 url is %s/external.m3u8" % urljoin(EXT_HOST, SERVER_PATH))
 			labelSetting7 = tkinter.Label(master, textvariable=self.labelSetting7, height=2)
-			labelSetting7.grid(row=8)
+			labelSetting7.grid(row=9)
 
 			self.labelSetting8 = tkinter.StringVar()
 			self.labelSetting8.set("Combined m3u8 url is %s/combined.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
 			labelSetting8 = tkinter.Label(master, textvariable=self.labelSetting8, height=2)
-			labelSetting8.grid(row=9)
+			labelSetting8.grid(row=10)
 
+			self.labelSetting9 = tkinter.StringVar()
+			self.labelSetting4.set("Sports EPG url is %s/sports.xml" % urljoin(SERVER_HOST, SERVER_PATH))
+			labelSetting4 = tkinter.Label(master, textvariable=self.labelSetting4, height=2)
+			labelSetting4.grid(row=6)
 
 			self.labelFooter = tkinter.StringVar()
 			self.labelFooter.set("These can also be found later on the YAP main screen after each launch")
 			labelFooter = tkinter.Label(master, textvariable=self.labelFooter, height=4)
-			labelFooter.grid(row=10)
+			labelFooter.grid(row=11)
 
 			button1 = tkinter.Button(master, text="Launch YAP!!", width=20, command=lambda: self.client_exit(master))
-			button1.grid(row=11)
+			button1.grid(row=12)
 
 		button1 = tkinter.Button(master, text="Submit", width=20,command=lambda: gather())
 		button1.grid(row=13, column=2)
@@ -1062,71 +1067,80 @@ def dl_epg(source=1):
 		if os.path.isfile(existing) and os.stat(existing).st_mtime > target_utc_datetime.timestamp():
 			logger.debug("Skipping download of epg")
 			return
+	to_process = []
 	if source == 1:
-		logger.debug("Downloading epg")
+		logger.info("Downloading epg")
 		requests.urlretrieve("https://sstv.fog.pt/epg/xmltv5.xml.gz", os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz'))
 		unzipped = gzip.open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz'))
+		to_process.append([unzipped,"epg.xml",'fog'])
+		requests.urlretrieve("http://speed.guide.smoothstreams.tv/feed.xml", os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml'))
+		unzippedsports = open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml'))
+		to_process.append([unzippedsports, "sports.xml",'sstv'])
 	else:
-		logger.debug("Downloading sstv epg")
-		requests.urlretrieve("http://speed.guide.smoothstreams.tv/feed.xml", os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml'))
-		unzipped = open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml'))
-	#try to categorise the sports events
-	tree = ET.parse(unzipped)
-	root = tree.getroot()
-	changelist={}
-	#remove fogs xmltv channel names for readability in PLex Live
-	if source == 1:
-		for a in tree.iterfind('channel'):
-			b = a.find('display-name')
-			newname = [chan_map[x].channum for x in range(len(chan_map)+1) if x!= 0 and chan_map[x].epg == a.attrib['id'] and chan_map[x].channame == b.text]
-			if len(newname) > 1:
-				logger.debug("EPG rename conflict")
-				print(a.attrib['id'], newname)
-			else:
-				newname = newname[0]
-				changelist[a.attrib['id']] = newname
-			a.attrib['id'] = newname
-	for a in tree.iterfind('programme'):
-		if source == 1:
-			a.attrib['channel'] = changelist[a.attrib['channel']]
-		for b in a.findall('title'):
-			if source == 2:
-				ET.SubElement(a, 'category')
-			c = a.find('category')
-			c.text="Sports"
-			if 'nba' in b.text.lower() or 'nba' in b.text.lower() or 'ncaam' in b.text.lower():
-				c.text="Basketball"
-			elif 'nfl' in b.text.lower() or 'football' in b.text.lower() or 'american football' in b.text.lower() or 'ncaaf' in b.text.lower() or 'cfb' in b.text.lower():
-				c.text="Football"
-			elif 'epl' in b.text.lower() or 'efl' in b.text.lower() or 'soccer' in b.text.lower() or 'ucl' in b.text.lower() or 'mls' in b.text.lower() or 'uefa' in b.text.lower() or 'fifa' in b.text.lower() or 'fc' in b.text.lower() or 'la liga' in b.text.lower() or 'serie a' in b.text.lower() or 'wcq' in b.text.lower():
-				c.text="Soccer"
-			elif 'rugby' in b.text.lower() or 'nrl' in b.text.lower() or 'afl' in b.text.lower():
-				c.text="Rugby"
-			elif 'cricket' in b.text.lower() or 't20' in b.text.lower():
-				c.text="Cricket"
-			elif 'tennis' in b.text.lower() or 'squash' in b.text.lower() or 'atp' in b.text.lower():
-				c.text="Tennis/Squash"
-			elif 'f1' in b.text.lower() or 'nascar' in b.text.lower() or 'motogp' in b.text.lower() or 'racing' in b.text.lower():
-				c.text="Motor Sport"
-			elif 'golf' in b.text.lower() or 'pga' in b.text.lower():
-				c.text="Golf"
-			elif 'boxing' in b.text.lower() or 'mma' in b.text.lower() or 'ufc' in b.text.lower() or 'wrestling' in b.text.lower() or 'wwe' in b.text.lower():
-				c.text="Martial Sports"
-			elif 'hockey' in b.text.lower() or 'nhl' in b.text.lower() or 'ice hockey' in b.text.lower():
-				c.text="Ice Hockey"
-			elif 'baseball' in b.text.lower() or 'mlb' in b.text.lower() or 'beisbol' in b.text.lower() or 'minor league' in b.text.lower():
-				c.text="Baseball"
-			#c = a.find('category')
-			#if c.text == 'Sports':
-			#    print(b.text)
-	tree.write(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'epg.xml'))
-	#add xml header to file for Kodi support
-	with open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'epg.xml'), 'r+') as f:
-		content = f.read()
-		staticinfo = '''<channel id="static_refresh"><display-name lang="en">Static Refresh</display-name><icon src="http://speed.guide.smoothstreams.tv/assets/images/channels/150.png" /></channel><programme channel="static_refresh" start="20170118213000 +0000" stop="20201118233000 +0000"><title lang="us">Press to refresh rtmp channels</title><desc lang="en">Select this channel in order to refresh the RTMP playlist. Only use from the channels list and NOT the guide page. Required every 4hrs.</desc><category lang="us">Other</category><episode-num system="">1</episode-num></programme></tv>'''
-		content = content[:-5] + staticinfo
-		f.seek(0, 0)
-		f.write('<?xml version="1.0" encoding="UTF-8"?>'.rstrip('\r\n') + content)
+		logger.info("Downloading sstv epg")
+		requests.urlretrieve("http://speed.guide.smoothstreams.tv/feed.xml", os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml'))
+		unzipped = open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml'))
+		to_process.append([unzipped, "epg.xml",'sstv'])
+		to_process.append([unzipped, "sports.xml",'sstv'])
+	for process in to_process:
+		#try to categorise the sports events
+		tree = ET.parse(process[0])
+		root = tree.getroot()
+		changelist={}
+		#remove fogs xmltv channel names for readability in PLex Live
+		if process[2] == 'fog':
+			for a in tree.iterfind('channel'):
+				b = a.find('display-name')
+				newname = [chan_map[x].channum for x in range(len(chan_map)+1) if x!= 0 and chan_map[x].epg == a.attrib['id'] and chan_map[x].channame == b.text]
+				if len(newname) > 1:
+					logger.debug("EPG rename conflict")
+					print(a.attrib['id'], newname)
+				else:
+					newname = newname[0]
+					changelist[a.attrib['id']] = newname
+				a.attrib['id'] = newname
+		for a in tree.iterfind('programme'):
+			if process[2] == 'fog':
+				a.attrib['channel'] = changelist[a.attrib['channel']]
+			for b in a.findall('title'):
+				if process[2] == 'sstv':
+					ET.SubElement(a, 'category')
+				c = a.find('category')
+				c.text="Sports"
+				if 'nba' in b.text.lower() or 'nba' in b.text.lower() or 'ncaam' in b.text.lower():
+					c.text="Basketball"
+				elif 'nfl' in b.text.lower() or 'football' in b.text.lower() or 'american football' in b.text.lower() or 'ncaaf' in b.text.lower() or 'cfb' in b.text.lower():
+					c.text="Football"
+				elif 'epl' in b.text.lower() or 'efl' in b.text.lower() or 'soccer' in b.text.lower() or 'ucl' in b.text.lower() or 'mls' in b.text.lower() or 'uefa' in b.text.lower() or 'fifa' in b.text.lower() or 'fc' in b.text.lower() or 'la liga' in b.text.lower() or 'serie a' in b.text.lower() or 'wcq' in b.text.lower():
+					c.text="Soccer"
+				elif 'rugby' in b.text.lower() or 'nrl' in b.text.lower() or 'afl' in b.text.lower():
+					c.text="Rugby"
+				elif 'cricket' in b.text.lower() or 't20' in b.text.lower():
+					c.text="Cricket"
+				elif 'tennis' in b.text.lower() or 'squash' in b.text.lower() or 'atp' in b.text.lower():
+					c.text="Tennis/Squash"
+				elif 'f1' in b.text.lower() or 'nascar' in b.text.lower() or 'motogp' in b.text.lower() or 'racing' in b.text.lower():
+					c.text="Motor Sport"
+				elif 'golf' in b.text.lower() or 'pga' in b.text.lower():
+					c.text="Golf"
+				elif 'boxing' in b.text.lower() or 'mma' in b.text.lower() or 'ufc' in b.text.lower() or 'wrestling' in b.text.lower() or 'wwe' in b.text.lower():
+					c.text="Martial Sports"
+				elif 'hockey' in b.text.lower() or 'nhl' in b.text.lower() or 'ice hockey' in b.text.lower():
+					c.text="Ice Hockey"
+				elif 'baseball' in b.text.lower() or 'mlb' in b.text.lower() or 'beisbol' in b.text.lower() or 'minor league' in b.text.lower():
+					c.text="Baseball"
+				#c = a.find('category')
+				#if c.text == 'Sports':
+				#    print(b.text)
+		tree.write(os.path.join(os.path.dirname(sys.argv[0]), 'cache', process[1]))
+		print("writing to %s" % process[1])
+		#add xml header to file for Kodi support
+		with open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', process[1]), 'r+') as f:
+			content = f.read()
+			staticinfo = '''<channel id="static_refresh"><display-name lang="en">Static Refresh</display-name><icon src="http://speed.guide.smoothstreams.tv/assets/images/channels/150.png" /></channel><programme channel="static_refresh" start="20170118213000 +0000" stop="20201118233000 +0000"><title lang="us">Press to refresh rtmp channels</title><desc lang="en">Select this channel in order to refresh the RTMP playlist. Only use from the channels list and NOT the guide page. Required every 4hrs.</desc><category lang="us">Other</category><episode-num system="">1</episode-num></programme></tv>'''
+			content = content[:-5] + staticinfo
+			f.seek(0, 0)
+			f.write('<?xml version="1.0" encoding="UTF-8"?>'.rstrip('\r\n') + content)
 
 
 #started to create epg based off of the json but not needed
@@ -1980,6 +1994,16 @@ def bridge(request_file):
 			logger.exception("EPG download failed. Trying SSTV.")
 			dl_epg(2)
 		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'epg.xml')
+
+	#return sports only epg
+	if request_file.lower().startswith('sports.'):
+		logger.info("Sports EPG was requested by %s", request.environ.get('REMOTE_ADDR'))
+		if not fallback:
+			dl_epg()
+		else:
+			logger.exception("EPG download failed. Trying SSTV.")
+			dl_epg(2)
+		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'sports.xml')
 
 	#return icons
 	elif request_file.lower().endswith('.png'):
