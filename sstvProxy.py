@@ -76,8 +76,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.51
+__version__ = 1.52
 #Changelog
+#1.52 - Addition of External Port
 #1.51 - Inclusion of an m3u8 merger to add another m3u8 files contents to the end of the kodi.m3u8 playlist result is called combined.m3u8 refer advanced settings.
 #1.50 - GUI Redesign
 #1.47 - TVH scanning fixed.
@@ -151,7 +152,8 @@ SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
 SERVER_PATH = "sstv"
 KODIPORT = 8080
 EXTIP = "127.0.0.1"
-EXT_HOST = "http://" + EXTIP + ":" + str(LISTEN_PORT)
+EXTPORT = 80
+EXT_HOST = "http://" + EXTIP + ":" + str(EXTPORT)
 KODIUSER = "kodi"
 KODIPASS = ""
 netdiscover = False
@@ -269,7 +271,7 @@ def adv_settings():
 
 
 def load_settings():
-	global QUAL, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, SERVER_HOST, EXTIP, EXT_HOST
+	global QUAL, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, SERVER_HOST, EXTIP, EXT_HOST, EXTPORT
 	if not os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'proxysettings.json')):
 		logger.debug("No config file found.")
 	try:
@@ -293,11 +295,13 @@ def load_settings():
 				KODIPORT = config["kodiport"]
 			if "externalip" in config:
 				EXTIP = config["externalip"]
+			if "externalport" in config:
+				EXTPORT = config["externalport"]
 			if "ip" in config and "port" in config:
 				LISTEN_IP = config["ip"]
 				LISTEN_PORT = config["port"]
 				SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
-				EXT_HOST = "http://" + EXTIP + ":" + str(LISTEN_PORT)
+				EXT_HOST = "http://" + EXTIP + ":" + str(EXTPORT)
 			logger.debug("Using config file.")
 
 	except:
@@ -331,6 +335,7 @@ def load_settings():
 			config["kodiport"] = int(input("Kodiport? (def is 8080)"))
 			os.system('cls' if os.name == 'nt' else 'clear')
 			config["externalip"] = input("External IP?")
+			config["externalport"] = int(input("and ext port?(ie 99, do not use 8080)"))
 			os.system('cls' if os.name == 'nt' else 'clear')
 			QUAL = config["quality"]
 			USER = config["username"]
@@ -342,8 +347,9 @@ def load_settings():
 			LISTEN_IP = config["ip"]
 			LISTEN_PORT = config["port"]
 			EXTIP = config["externalip"]
+			EXTPORT = config["externalport"]
 			SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
-			EXT_HOST = "http://" + EXTIP + ":" + str(LISTEN_PORT)
+			EXT_HOST = "http://" + EXTIP + ":" + str(EXTPORT)
 			with open(os.path.join(os.path.dirname(sys.argv[0]),'proxysettings.json'), 'w') as fp:
 				dump(config, fp)
 		else:
@@ -779,6 +785,16 @@ class GUI(tkinter.Frame):
 		noteExternalIP = tkinter.Label(master, textvariable=self.noteExternalIP, height=2)
 		noteExternalIP.grid(row=11, column=3)
 
+		self.labelExternalPort = tkinter.StringVar()
+		self.labelExternalPort.set("External Port")
+		labelExternalPort = tkinter.Label(master, textvariable=self.labelExternalPort, height=2)
+		labelExternalPort.grid(row=12, column=1)
+
+		userExternalPort = tkinter.IntVar(None)
+		userExternalPort.set(8080)
+		self.extport = tkinter.Entry(master, textvariable=userExternalPort, width=30)
+		self.extport.grid(row=12, column=2)
+
 		def gather():
 			config = {}
 			config["username"] = userUsername.get()
@@ -797,9 +813,10 @@ class GUI(tkinter.Frame):
 			config["port"] = userPort.get()
 			config["kodiport"] = userKodiPort.get()
 			config["externalip"] = userExternalIP.get()
+			config["externalip"] = userExternalPort.get()
 			for widget in master.winfo_children():
 				widget.destroy()
-			global playlist, kodiplaylist, QUAL, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, EXTIP, EXT_HOST, SERVER_HOST
+			global playlist, kodiplaylist, QUAL, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, EXTIP, EXT_HOST, SERVER_HOST, EXTPORT
 			with open(os.path.join(os.path.dirname(sys.argv[0]), 'proxysettings.json'), 'w') as fp:
 				dump(config, fp)
 			QUAL = config["quality"]
@@ -812,7 +829,8 @@ class GUI(tkinter.Frame):
 			LISTEN_IP = config["ip"]
 			LISTEN_PORT = config["port"]
 			EXTIP = config["externalip"]
-			EXT_HOST = "http://" + EXTIP + ":" + str(LISTEN_PORT)
+			EXTPORT = config["externalport"]
+			EXT_HOST = "http://" + EXTIP + ":" + str(EXTPORT)
 			SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
 
 			self.labelHeading = tkinter.StringVar()
@@ -851,7 +869,7 @@ class GUI(tkinter.Frame):
 			labelSetting6.grid(row=7)
 
 			self.labelSetting7 = tkinter.StringVar()
-			self.labelSetting7.set("External m3u8 url is %s/external.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
+			self.labelSetting7.set("External m3u8 url is %s/external.m3u8" % urljoin(EXT_HOST, SERVER_PATH))
 			labelSetting7 = tkinter.Label(master, textvariable=self.labelSetting7, height=2)
 			labelSetting7.grid(row=8)
 
@@ -870,7 +888,7 @@ class GUI(tkinter.Frame):
 			button1.grid(row=11)
 
 		button1 = tkinter.Button(master, text="Submit", width=20,command=lambda: gather())
-		button1.grid(row=12, column=2)
+		button1.grid(row=13, column=2)
 
 
 
@@ -1820,7 +1838,7 @@ def create_menu():
 
 		channelmap = {}
 		chanindex = 0
-		list = ["Username","Password","Quality","Stream","Server","Service","IP","Port","Kodiport","ExternalIP"]
+		list = ["Username","Password","Quality","Stream","Server","Service","IP","Port","Kodiport","ExternalIP","ExternalPort"]
 		html.write('<table width="300" border="2">')
 		for setting in list:
 			if setting.lower() == 'service':
@@ -1857,6 +1875,8 @@ def create_menu():
 					val = KODIPORT
 				elif setting == "ExternalIP":
 					val = EXTIP
+				elif setting == "ExternalPort":
+					val = EXTPORT
 				html.write('<tr><td>%s:</td><td><input name="%s" type="text" value="%s"></td></tr>'% (setting, setting, val))
 		html.write('</table>')
 		html.write('<input type="submit"  value="Submit">')
@@ -1879,7 +1899,7 @@ def close_menu(restart):
 @app.route('/sstv/handle_data', methods=['POST'])
 def handle_data():
 	logger.info("Received new settings from %s", request.environ.get('REMOTE_ADDR') )
-	global playlist, kodiplaylist,QUAL,USER,PASS,SRVR,SITE,STRM,KODIPORT,LISTEN_IP,LISTEN_PORT,EXTIP,EXT_HOST,SERVER_HOST
+	global playlist, kodiplaylist,QUAL,USER,PASS,SRVR,SITE,STRM,KODIPORT,LISTEN_IP,LISTEN_PORT,EXTIP,EXT_HOST,SERVER_HOST,EXTPORT
 	inc_data = request.form
 	config = {}
 	config["username"] = inc_data['Username']
@@ -1898,6 +1918,7 @@ def handle_data():
 	config["port"] = int(inc_data['Port'])
 	config["kodiport"] = int(inc_data['Kodiport'])
 	config["externalip"] = inc_data['ExternalIP']
+	config["externalport"] = inc_data['ExternalPort']
 	QUAL = config["quality"]
 	USER = config["username"]
 	PASS = config["password"]
@@ -1912,7 +1933,8 @@ def handle_data():
 	LISTEN_IP = config["ip"]
 	LISTEN_PORT = config["port"]
 	EXTIP = config["externalip"]
-	EXT_HOST = "http://" + EXTIP + ":" + str(LISTEN_PORT)
+	EXTPORT = config["externalport"]
+	EXT_HOST = "http://" + EXTIP + ":" + str(EXTPORT)
 	SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
 	with open(os.path.join(os.path.dirname(sys.argv[0]),'proxysettings.json'), 'w') as fp:
 		dump(config, fp)
