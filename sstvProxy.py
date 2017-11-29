@@ -1063,7 +1063,7 @@ def dl_epg(source=1):
 		cur_utc_hr = datetime.utcnow().replace(microsecond=0,second=0,minute=0).hour
 		target_utc_hr = (cur_utc_hr//3)*3
 		target_utc_datetime = datetime.utcnow().replace(microsecond=0,second=0,minute=0, hour=target_utc_hr)
-		print("utc time is: %s,    utc target time is: %s,    file time is: %s" % (datetime.utcnow(), target_utc_datetime, datetime.utcfromtimestamp(os.stat(existing).st_mtime)))
+		logger.debug("utc time is: %s,    utc target time is: %s,    file time is: %s" % (datetime.utcnow(), target_utc_datetime, datetime.utcfromtimestamp(os.stat(existing).st_mtime)))
 		if os.path.isfile(existing) and os.stat(existing).st_mtime > target_utc_datetime.timestamp():
 			logger.debug("Skipping download of epg")
 			return
@@ -1133,7 +1133,7 @@ def dl_epg(source=1):
 				#if c.text == 'Sports':
 				#    print(b.text)
 		tree.write(os.path.join(os.path.dirname(sys.argv[0]), 'cache', process[1]))
-		print("writing to %s" % process[1])
+		logger.debug("writing to %s" % process[1])
 		#add xml header to file for Kodi support
 		with open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', process[1]), 'r+') as f:
 			content = f.read()
@@ -1342,17 +1342,17 @@ def obtain_m3u8():
 	name = EXTM3UNAME
 	file = EXTM3UFILE
 	if url != '':
-		print("url")
+		logger.debug("extra m3u8 url")
 		inputm3u8 = requests.urlopen(url).read().decode('utf-8')
 		inputm3u8 = inputm3u8.split("\n")[1:]
 	elif file != '':
-		print("file")
+		logger.debug("extra m3u8 file")
 		f = open(file,'r')
 		inputm3u8 = f.readlines()
 		inputm3u8 = inputm3u8[1:]
 		inputm3u8 = [x.strip("\n") for x in inputm3u8]
 	else:
-		print("nothing")
+		logger.debug("extra m3u8 nothing")
 		return formatted_m3u8
 
 	for i in range(len(inputm3u8)):
@@ -2224,6 +2224,7 @@ if __name__ == "__main__":
 	print("m3u8 url is %s/playlist.m3u8" %  urljoin(SERVER_HOST, SERVER_PATH))
 	print("kodi m3u8 url is %s/kodi.m3u8" %  urljoin(SERVER_HOST, SERVER_PATH))
 	print("EPG url is %s/epg.xml" % urljoin(SERVER_HOST, SERVER_PATH))
+	print("Sports EPG url is %s/sports.xml" % urljoin(SERVER_HOST, SERVER_PATH))
 	print("Plex Live TV url is %s" % urljoin(SERVER_HOST, SERVER_PATH))
 	print("TVHeadend network url is %s/tvh.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
 	print("External m3u8 url is %s/external.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
