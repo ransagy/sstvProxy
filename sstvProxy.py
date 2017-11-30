@@ -76,8 +76,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.53
+__version__ = 1.54
 #Changelog
+#1.54 - Adjustment to kodi dynamic url links and fix to external hls suage.
 #1.53 - Sports only epg available at /sports.xml
 #1.52 - Addition of External Port
 #1.51 - Inclusion of an m3u8 merger to add another m3u8 files contents to the end of the kodi.m3u8 playlist result is called combined.m3u8 refer advanced settings.
@@ -1762,7 +1763,7 @@ def build_kodi_playlist():
 	new_playlist = "#EXTM3U\n"
 	for pos in range(1, len(chan_map) + 1):
 		# build channel url
-		url = "{0}/playlist.m3u8?ch={1}&strm={2}&qual={3}"
+		url = "{0}/playlist.m3u8?ch={1}&strm={2}&qual={3}&client=kodi"
 		rtmpTemplate = 'rtmp://{0}.smoothstreams.tv:3625/{1}/ch{2}q{3}.stream?wmsAuthSign={4}'
 		urlformatted = url.format(SERVER_PATH, chan_map[pos].channum,'hls', QUAL)
 		channel_url = urljoin(SERVER_HOST,urlformatted)
@@ -2077,7 +2078,6 @@ def bridge(request_file):
 				ss_url = rtmpTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
 			else:
 				strm = 'hls'
-				hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/chunks.m3u8?wmsAuthSign={4}=='
 				ss_url = create_channel_playlist(sanitized_channel, qual, strm, token['hash'])#hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
 
 			response = redirect(ss_url, code=302)
@@ -2089,8 +2089,19 @@ def bridge(request_file):
 			logger.debug("URL returned: %s" % ss_url)
 			if strm == 'rtmp':
 				return response
-			else:
+			elif request.args.get('redirect'):
+				hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}=='
+				ss_url = hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
 				#some players are having issues with http/https redirects
+				return redirect(ss_url, code=302)
+			elif request.args.get('file'):
+				return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'playlist.m3u8')
+			elif request.args.get('client') and request.args.get('client') == 'kodi':
+				#some players are having issues with http/https redirects
+				return ss_url
+			else:
+				hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}=='
+				ss_url = hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
 				return ss_url
 			#return redirect(ss_url, code=302)
 			#return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'playlist.m3u8')
