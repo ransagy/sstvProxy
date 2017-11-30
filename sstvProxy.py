@@ -175,7 +175,7 @@ elif platform.system() == 'Windows':
 		ADDONPATH = os.path.join(os.path.expanduser("~"), 'AppData','Roaming','Kodi','userdata','addon_data','pvr.iptvsimple')
 	else: ADDONPATH = False
 elif platform.system() == 'Darwin':
-	FFMPEGLOC = ''
+	FFMPEGLOC = '/usr/local/bin/ffmpeg'
 	if os.path.isdir(os.path.join(os.path.expanduser("~"),"Library","Application Support", 'Kodi','userdata','addon_data','pvr.iptvsimple')):
 		ADDONPATH = os.path.join(os.path.expanduser("~"),"Library","Application Support", 'Kodi','userdata','addon_data','pvr.iptvsimple')
 	else: ADDONPATH = False
