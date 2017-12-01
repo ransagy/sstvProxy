@@ -2090,18 +2090,23 @@ def bridge(request_file):
 			#useful for debugging
 			logger.debug("URL returned: %s" % ss_url)
 			if strm == 'rtmp' or request.args.get('response'):
+				logger.info("returning rtmp response")
 				return response
 			elif request.args.get('redirect'):
 				hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}=='
 				ss_url = hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
 				#some players are having issues with http/https redirects
+				logger.info("returning hls url redirect")
 				return redirect(ss_url, code=302)
 			elif request.args.get('file'):
+				logger.info("returning m3u8 as file")
 				return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'playlist.m3u8')
-			elif not (request.environ.get('REMOTE_ADDR').startswith('10.') or request.environ.get('REMOTE_ADDR').startswith('192.')):
+			elif not (request.environ.get('REMOTE_ADDR').startswith('10.') or request.environ.get('REMOTE_ADDR').startswith('192.') or request.environ.get('REMOTE_ADDR').startswith('127.')):
+				logger.info("returning hls url")
 				return hlsurl
 			else: #if request.args.get('client') and request.args.get('client') == 'kodi':
 				#some players are having issues with http/https redirects
+				logger.info("returning m3u8 as variable")
 				return ss_url
 			#return redirect(ss_url, code=302)
 			#return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'playlist.m3u8')
