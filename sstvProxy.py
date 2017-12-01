@@ -2078,6 +2078,8 @@ def bridge(request_file):
 				ss_url = rtmpTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
 			else:
 				strm = 'hls'
+				hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}=='
+				hlsurl = hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
 				ss_url = create_channel_playlist(sanitized_channel, qual, strm, token['hash'])#hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
 
 			response = redirect(ss_url, code=302)
@@ -2087,7 +2089,7 @@ def bridge(request_file):
 			logger.info("Channel %s playlist was requested by %s", sanitized_channel,request.environ.get('REMOTE_ADDR'))
 			#useful for debugging
 			logger.debug("URL returned: %s" % ss_url)
-			if strm == 'rtmp':
+			if strm == 'rtmp' or request.args.get('response'):
 				return response
 			elif request.args.get('redirect'):
 				hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}=='
@@ -2096,12 +2098,10 @@ def bridge(request_file):
 				return redirect(ss_url, code=302)
 			elif request.args.get('file'):
 				return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'playlist.m3u8')
-			elif request.args.get('client') and request.args.get('client') == 'kodi':
+			elif not (request.environ.get('REMOTE_ADDR').startswith('10.') or request.environ.get('REMOTE_ADDR').startswith('192.')):
+				return hlsurl
+			else: #if request.args.get('client') and request.args.get('client') == 'kodi':
 				#some players are having issues with http/https redirects
-				return ss_url
-			else:
-				hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}=='
-				ss_url = hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
 				return ss_url
 			#return redirect(ss_url, code=302)
 			#return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'playlist.m3u8')
