@@ -382,7 +382,7 @@ def load_settings():
 		else:
 			root = tkinter.Tk()
 			root.title("YAP Setup")
-			root.geometry('750x450')
+			root.geometry('750x600')
 			app = GUI(root)  # calling the class to run
 			root.mainloop()
 		installer()
@@ -755,7 +755,7 @@ class GUI(tkinter.Frame):
 		labelIP.grid(row=8, column=1)
 
 		userIP = tkinter.StringVar()
-		userIP.set("127.0.0.1")
+		userIP.set(LISTEN_IP)
 		self.ip = tkinter.Entry(master, textvariable=userIP, width=30)
 		self.ip.grid(row=8, column=2)
 
@@ -771,7 +771,7 @@ class GUI(tkinter.Frame):
 		labelPort.grid(row=9, column=1)
 
 		userPort = tkinter.IntVar()
-		userPort.set(80)
+		userPort.set(LISTEN_PORT)
 		self.port = tkinter.Entry(master, textvariable=userPort, width=30)
 		self.port.grid(row=9, column=2)
 
@@ -787,7 +787,7 @@ class GUI(tkinter.Frame):
 		labelKodiPort.grid(row=10, column=1)
 
 		userKodiPort = tkinter.IntVar(None)
-		userKodiPort.set(8080)
+		userKodiPort.set(KODIPORT)
 		self.kodiport = tkinter.Entry(master, textvariable=userKodiPort, width=30)
 		self.kodiport.grid(row=10, column=2)
 
@@ -803,7 +803,7 @@ class GUI(tkinter.Frame):
 		labelExternalIP.grid(row=11, column=1)
 
 		userExternalIP = tkinter.StringVar()
-		userExternalIP.set("127.0.0.1")
+		userExternalIP.set(EXTIP)
 		self.externalip = tkinter.Entry(master, textvariable=userExternalIP, width=30)
 		self.externalip.grid(row=11, column=2)
 
@@ -818,7 +818,7 @@ class GUI(tkinter.Frame):
 		labelExternalPort.grid(row=12, column=1)
 
 		userExternalPort = tkinter.IntVar(None)
-		userExternalPort.set(8080)
+		userExternalPort.set(EXTPORT)
 		self.extport = tkinter.Entry(master, textvariable=userExternalPort, width=30)
 		self.extport.grid(row=12, column=2)
 
@@ -840,7 +840,7 @@ class GUI(tkinter.Frame):
 			config["port"] = userPort.get()
 			config["kodiport"] = userKodiPort.get()
 			config["externalip"] = userExternalIP.get()
-			config["externalip"] = userExternalPort.get()
+			config["externalport"] = userExternalPort.get()
 			for widget in master.winfo_children():
 				widget.destroy()
 			global playlist, kodiplaylist, QUAL, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, EXTIP, EXT_HOST, SERVER_HOST, EXTPORT
