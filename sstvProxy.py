@@ -62,6 +62,7 @@ import socket
 import struct
 import ntpath
 import tkinter
+import requests as req
 
 
 
@@ -76,8 +77,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.55
+__version__ = 1.56
 #Changelog
+#1.56 - Addition of TVH proxy core role to this proxy, will disable SSTV to plex live though
 #1.55 - Addition of Static m3u8
 #1.54 - Adjustment to kodi dynamic url links and fix to external hls usage.
 #1.53 - Sports only epg available at /sports.xml
@@ -163,6 +165,12 @@ netdiscover = False
 EXTM3URL = ''
 EXTM3UNAME = ''
 EXTM3UFILE = ''
+TVHREDIRECT = False
+TVHURL = '127.0.0.1'
+TVHUSER = ''
+TVHPASS = ''
+tvhWeight = 300  # subscription priority
+tvhstreamProfile = 'pass' # specifiy a stream profile that you want to use for adhoc transcoding in tvh, e.g. mp4
 
 #LINUX/WINDOWS
 if platform.system() == 'Linux':
@@ -271,6 +279,22 @@ def adv_settings():
 				logger.debug("Overriding EXTM3UFILE")
 				global EXTM3UFILE
 				EXTM3UFILE = advconfig["extram3u8file"]
+			if "tvhredirect" in advconfig:
+				logger.debug("Overriding tvhredirect")
+				global TVHREDIRECT
+				TVHREDIRECT = advconfig["tvhredirect"]
+			if "tvhaddress" in advconfig:
+				logger.debug("Overriding tvhaddress")
+				global TVHURL
+				TVHURL = advconfig["tvhaddress"]
+			if "tvhuser" in advconfig:
+				logger.debug("Overriding tvhuser")
+				global TVHUSER
+				TVHUSER = advconfig["tvhuser"]
+			if "tvhpass" in advconfig:
+				logger.debug("Overriding tvhpass")
+				global TVHPASS
+				TVHPASS = advconfig["tvhpass"]
 
 
 def load_settings():
@@ -1279,7 +1303,7 @@ def build_playlist(host):
 	global chan_map
 
 	# build playlist using the data we have
-	new_playlist = "#EXTM3U\n"
+	new_playlist = "#EXTM3U x-tvg-url='%s'\n" % urljoin(host, SERVER_PATH, 'epg.xml')
 	for pos in range(1, len(chan_map) + 1):
 		# build channel url
 		url = "{0}/playlist.m3u8?ch={1}&strm={2}&qual={3}"
@@ -1302,7 +1326,7 @@ def build_playlist(host):
 def build_static_playlist():
 	global chan_map
 	# build playlist using the data we have
-	new_playlist = "#EXTM3U\n"
+	new_playlist = "#EXTM3U x-tvg-url='%s'\n" % urljoin(SERVER_HOST, SERVER_PATH, 'epg.xml')
 	for pos in range(1, len(chan_map) + 1):
 		# build channel url
 		template = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}q{5}.stream{6}?wmsAuthSign={7}'
@@ -1421,6 +1445,15 @@ def build_tvh_playlist():
 	return new_playlist
 
 
+def get_tvh_channels():
+	url = 'HTTP://%s:9981/api/channel/grid?start=0&limit=999999' % TVHURL
+	try:
+		r = req.get(url, auth=req.auth.HTTPBasicAuth(TVHUSER, TVHPASS)).text
+		data = json.loads(r)
+		return(data['entries'])
+	except:
+		print('An error occured')
+
 ############################################################
 # PLEX Live
 ############################################################
@@ -1466,6 +1499,16 @@ def lineup(chan_map):
 
 	return jsonify(lineup)
 
+def tvh_lineup():
+	lineup = []
+	for c in get_tvh_channels():
+		if c['enabled']:
+			url = 'HTTP://%s:9981/stream/channel/%s?profile=%s&weight=%s' % (TVHURL, c['uuid'], tvhstreamProfile, int(tvhWeight))
+			lineup.append({'GuideNumber': str(c['number']),
+			               'GuideName': c['name'],
+			               'URL': url
+			               })
+	return jsonify(lineup)
 
 def lineup_post():
 	return ''
@@ -1784,7 +1827,7 @@ def build_kodi_playlist():
 	#kodi playlist contains two copies of channels, first is dynmaic HLS and the second is static rtmp
 	global chan_map
 	# build playlist using the data we have
-	new_playlist = "#EXTM3U\n"
+	new_playlist = "#EXTM3U x-tvg-url='%s'\n"  % urljoin(SERVER_HOST, SERVER_PATH, 'epg.xml')
 	for pos in range(1, len(chan_map) + 1):
 		# build channel url
 		url = "{0}/playlist.m3u8?ch={1}&strm={2}&qual={3}&client=kodi"
@@ -2120,7 +2163,7 @@ def bridge(request_file):
 			#useful for debugging
 			logger.debug("URL returned: %s" % ss_url)
 			if strm == 'rtmp' or request.args.get('response'):
-				logger.info("returning rtmp response")
+				logger.info("returning response")
 				return response
 			elif request.args.get('redirect'):
 				hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}=='
@@ -2134,25 +2177,27 @@ def bridge(request_file):
 			elif not (request.environ.get('REMOTE_ADDR').startswith('10.') or request.environ.get('REMOTE_ADDR').startswith('192.') or request.environ.get('REMOTE_ADDR').startswith('127.')):
 				logger.info("returning hls url")
 				return hlsurl
-			else: #if request.args.get('client') and request.args.get('client') == 'kodi':
+			else:
 				#some players are having issues with http/https redirects
 				logger.info("returning m3u8 as variable")
 				return ss_url
-			#return redirect(ss_url, code=302)
-			#return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'playlist.m3u8')
 
 		#returning dynamic playlist
 		else:
 			playlist = build_playlist(SERVER_HOST)
 			logger.info("All channels playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
 			return Response(playlist, mimetype='application/x-mpegURL')
+
 	#HDHomeRun emulated json files for Plex Live tv.
 	elif request_file.lower() == 'lineup_status.json':
 		return status()
 	elif request_file.lower() == 'discover.json':
 		return discover()
 	elif request_file.lower() == 'lineup.json':
-		return lineup(chan_map)
+		if TVHREDIRECT == True:
+			return tvh_lineup()
+		else:
+			return lineup(chan_map)
 	elif request_file.lower() == 'lineup.post':
 		return lineup_post()
 	elif request_file.lower() == 'device.xml':
@@ -2276,6 +2321,8 @@ if __name__ == "__main__":
 	print("External m3u8 url is %s/external.m3u8" % urljoin(EXT_HOST, SERVER_PATH))
 	print("Combined m3u8 url is %s/combined.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
 	print("Static m3u8 url is %s/static.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
+	if TVHREDIRECT == True:
+		print("TVH's own EPG url is http://%s:9981/xmltv/channels" % TVHURL)
 	print("##############################################################\n")
 
 	if __version__ < latest_ver:
