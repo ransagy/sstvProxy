@@ -76,9 +76,10 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.54
+__version__ = 1.55
 #Changelog
-#1.54 - Adjustment to kodi dynamic url links and fix to external hls suage.
+#1.55 - Addition of Static m3u8
+#1.54 - Adjustment to kodi dynamic url links and fix to external hls usage.
 #1.53 - Sports only epg available at /sports.xml
 #1.52 - Addition of External Port
 #1.51 - Inclusion of an m3u8 merger to add another m3u8 files contents to the end of the kodi.m3u8 playlist result is called combined.m3u8 refer advanced settings.
@@ -881,17 +882,22 @@ class GUI(tkinter.Frame):
 			labelSetting8.grid(row=10)
 
 			self.labelSetting9 = tkinter.StringVar()
-			self.labelSetting4.set("Sports EPG url is %s/sports.xml" % urljoin(SERVER_HOST, SERVER_PATH))
-			labelSetting4 = tkinter.Label(master, textvariable=self.labelSetting4, height=2)
-			labelSetting4.grid(row=6)
+			self.labelSetting9.set("Static m3u8 url is %s/combined.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
+			labelSetting9 = tkinter.Label(master, textvariable=self.labelSetting9, height=2)
+			labelSetting9.grid(row=11)
+
+			self.labelSetting10 = tkinter.StringVar()
+			self.labelSetting10.set("Sports EPG url is %s/sports.xml" % urljoin(SERVER_HOST, SERVER_PATH))
+			labelSetting10 = tkinter.Label(master, textvariable=self.labelSetting10, height=2)
+			labelSetting10.grid(row=6)
 
 			self.labelFooter = tkinter.StringVar()
 			self.labelFooter.set("These can also be found later on the YAP main screen after each launch")
 			labelFooter = tkinter.Label(master, textvariable=self.labelFooter, height=4)
-			labelFooter.grid(row=11)
+			labelFooter.grid(row=12)
 
 			button1 = tkinter.Button(master, text="Launch YAP!!", width=20, command=lambda: self.client_exit(master))
-			button1.grid(row=12)
+			button1.grid(row=13)
 
 		button1 = tkinter.Button(master, text="Submit", width=20,command=lambda: gather())
 		button1.grid(row=13, column=2)
@@ -1293,6 +1299,24 @@ def build_playlist(host):
 
 	return new_playlist
 
+def build_static_playlist():
+	global chan_map
+	# build playlist using the data we have
+	new_playlist = "#EXTM3U\n"
+	for pos in range(1, len(chan_map) + 1):
+		# build channel url
+		template = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}q{5}.stream{6}?wmsAuthSign={7}'
+		urlformatted = template.format('http' if STRM == 'hls' else 'rtmp',SRVR,'9100' if STRM == 'hls' else '3625',SITE, "{:02}".format(pos),QUAL,'/playlist.m3u8' if STRM == 'hls' else '',token['hash'])
+		# build playlist entry
+		try:
+			new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s",%s\n' % (
+				chan_map[pos].channum, chan_map[pos].channame, SERVER_HOST, SERVER_PATH, chan_map[pos].channum, chan_map[pos].channum,
+				chan_map[pos].channame)
+			new_playlist += '%s\n' % urlformatted
+		except:
+			logger.exception("Exception while updating static playlist: ")
+	logger.info("Built static playlist")
+	return new_playlist
 
 def thread_playlist():
 	global playlist
@@ -1985,7 +2009,7 @@ def index(request_file):
 @app.route('/%s/<request_file>' % SERVER_PATH)
 def bridge(request_file):
 	global playlist, token, chan_map, kodiplaylist, tvhplaylist
-
+	check_token()
 	#return epg
 	if request_file.lower().startswith('epg.'):
 		logger.info("EPG was requested by %s", request.environ.get('REMOTE_ADDR'))
@@ -2036,6 +2060,12 @@ def bridge(request_file):
 		check_token()
 		rescan_channels()
 		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'empty.png')
+
+	#returns kodi playlist
+	elif request_file.lower().startswith('static'):
+		staticplaylist = build_static_playlist()
+		logger.info("Static playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
+		return Response(staticplaylist, mimetype='application/x-mpegURL')
 
 	#returns kodi playlist
 	elif request_file.lower().startswith('kodi'):
@@ -2243,8 +2273,9 @@ if __name__ == "__main__":
 	print("Sports EPG url is %s/sports.xml" % urljoin(SERVER_HOST, SERVER_PATH))
 	print("Plex Live TV url is %s" % urljoin(SERVER_HOST, SERVER_PATH))
 	print("TVHeadend network url is %s/tvh.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
-	print("External m3u8 url is %s/external.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
+	print("External m3u8 url is %s/external.m3u8" % urljoin(EXT_HOST, SERVER_PATH))
 	print("Combined m3u8 url is %s/combined.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
+	print("Static m3u8 url is %s/static.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
 	print("##############################################################\n")
 
 	if __version__ < latest_ver:
