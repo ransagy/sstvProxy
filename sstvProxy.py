@@ -77,8 +77,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.57
+__version__ = 1.58
 #Changelog
+#1.58 - A single dynamic channel can be requested with /ch##.m3u8  strm/qual options are still optional is /ch1.m3u8?strm=rtmp&qual=2
 #1.57 - Index.html enhancements
 #1.56 - Addition of TVH proxy core role to this proxy, will disable SSTV to plex live though
 #1.55 - Addition of Static m3u8
@@ -2154,11 +2155,14 @@ def bridge(request_file):
 		logger.info("TVH channels playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
 		return Response(tvhplaylist, mimetype='application/x-mpegURL')
 
-	elif request_file.lower() == 'playlist.m3u8':
+	elif request_file.lower() == 'playlist.m3u8' or request_file.lower().startswith('ch'):
 		#returning Dynamic channels
-		if request.args.get('ch'):
-			sanitized_channel = ("0%d" % int(request.args.get('ch'))) if int(
-				request.args.get('ch')) < 10 else request.args.get('ch')
+		if request.args.get('ch') or request_file.lower().startswith('ch'):
+			if request_file.lower().startswith('ch'):
+				chan = request_file.lower().replace("ch","").replace(".m3u8","")
+				sanitized_channel = "{:02.0f}".format(int(chan))
+			else:
+				sanitized_channel = ("0%d" % int(request.args.get('ch'))) if int(request.args.get('ch')) < 10 else request.args.get('ch')
 			check_token()
 
 			qual = '1'
@@ -2182,23 +2186,23 @@ def bridge(request_file):
 			#useful for debugging
 			logger.debug("URL returned: %s" % ss_url)
 			if strm == 'rtmp' or request.args.get('response'):
-				logger.info("returning response")
+				logger.debug("returning response")
 				return response
 			elif request.args.get('redirect'):
 				hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}=='
 				ss_url = hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
 				#some players are having issues with http/https redirects
-				logger.info("returning hls url redirect")
+				logger.debug("returning hls url redirect")
 				return redirect(ss_url, code=302)
 			elif request.args.get('file'):
-				logger.info("returning m3u8 as file")
+				logger.debug("returning m3u8 as file")
 				return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'playlist.m3u8')
 			elif not (request.environ.get('REMOTE_ADDR').startswith('10.') or request.environ.get('REMOTE_ADDR').startswith('192.') or request.environ.get('REMOTE_ADDR').startswith('127.')):
-				logger.info("returning hls url")
+				logger.debug("returning hls url")
 				return hlsurl
 			else:
 				#some players are having issues with http/https redirects
-				logger.info("returning m3u8 as variable")
+				logger.debug("returning m3u8 as variable")
 				return ss_url
 
 		#returning dynamic playlist
