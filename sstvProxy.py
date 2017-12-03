@@ -77,8 +77,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.56
+__version__ = 1.57
 #Changelog
+#1.57 - Index.html enhancements
 #1.56 - Addition of TVH proxy core role to this proxy, will disable SSTV to plex live though
 #1.55 - Addition of Static m3u8
 #1.54 - Adjustment to kodi dynamic url links and fix to external hls usage.
@@ -1525,24 +1526,6 @@ try:
 except:
 	dbpat = []
 
-# Change this to change the style of the web page generated
-style = """
-<style type="text/css">
-	body { max-width: 60em; background-color: white; color: black; }
-	h1 { color: white; background-color: black; padding: 0.5ex }
-	h2 { color: white; background-color: #404040; padding: 0.3ex }
-	.gap { color: darkred; }
-	.recorded { color: green; font-weight: bold; }
-	.summary { font-size: 85%%; color: #505050; margin-left: 4em; }
-	.genre { margin-left: 4em; }
-	.origdate { margin-left: 4em; }
-	.episodetitle { font-style: italic; font-weight: bold }
-	.channellink { display: inline-block; width: 10em; }
-	.channellink A { color: black; text-decoration: none; }
-</style>
-"""
-
-
 def create_list(dbname, epgsummaries=False, epggenres=False, epgorig=False):
 	with sqlite3.connect(dbname) as epgconn, open("./cache/guide.html", "w") as html:
 
@@ -1892,7 +1875,7 @@ def rescan_channels():
 # Change this to change the style of the web page generated
 style = """
 <style type="text/css">
-	body { max-width: 20em; background-color: white; color: black; }
+	body { max-width: 30em; background: white url("https://guide.smoothstreams.tv/assets/images/channels/150.png") no-repeat fixed center center; background-size: 500px 500px; color: black; }
 	h1 { color: white; background-color: black; padding: 0.5ex }
 	h2 { color: white; background-color: #404040; padding: 0.3ex }
 	.gap { color: darkred; }
@@ -1903,6 +1886,9 @@ style = """
 	.episodetitle { font-style: italic; font-weight: bold }
 	.channellink { display: inline-block; width: 10em; }
 	.channellink A { color: black; text-decoration: none; }
+    .container {display: table; width: 100%;}
+    .left-half {position: absolute;  left: 0px;  width: 50%;}
+    .right-half {position: absolute;  right: 0px;  width: 50%;}
 </style>
 """
 
@@ -1913,10 +1899,13 @@ def create_menu():
 		<head>
 		<meta charset="UTF-8">
 		%s
+		<title>YAP</title>
 		</head>
 		<body>\n""" % (style,))
-		html.write('<form action="%s/%s/handle_data" method="post">' % (SERVER_HOST, SERVER_PATH))
+		html.write('<section class="container"><div class="left-half">')
 		html.write("<h1>YAP Settings</h1>")
+		html.write('<form action="%s/%s/handle_data" method="post">' % (SERVER_HOST, SERVER_PATH))
+
 
 		channelmap = {}
 		chanindex = 0
@@ -1963,7 +1952,20 @@ def create_menu():
 		html.write('</table>')
 		html.write('<input type="submit"  value="Submit">')
 		html.write('</form>')
-		html.write("</body></html>\n")
+		html.write("<p>You are running version (%s %s), the latest is %s</p>" % (type, __version__, latest_ver))
+		html.write('</div><div class="right-half"><h1>YAP Outputs</h1>')
+		html.write("<p>m3u8 url is %s/playlist.m3u8</p>" % urljoin(SERVER_HOST, SERVER_PATH))
+		html.write("<p>kodi m3u8 url is %s/kodi.m3u8</p>" % urljoin(SERVER_HOST, SERVER_PATH))
+		html.write("<p>EPG url is %s/epg.xml</p>" % urljoin(SERVER_HOST, SERVER_PATH))
+		html.write("<p>Sports EPG url is %s/sports.xml</p>" % urljoin(SERVER_HOST, SERVER_PATH))
+		html.write("<p>Plex Live TV url is %s</p>" % urljoin(SERVER_HOST, SERVER_PATH))
+		html.write("<p>TVHeadend network url is %s/tvh.m3u8</p>" % urljoin(SERVER_HOST, SERVER_PATH))
+		html.write("<p>External m3u8 url is %s/external.m3u8</p>" % urljoin(EXT_HOST, SERVER_PATH))
+		html.write("<p>Combined m3u8 url is %s/combined.m3u8</p>" % urljoin(SERVER_HOST, SERVER_PATH))
+		html.write("<p>Static m3u8 url is %s/static.m3u8</p>" % urljoin(SERVER_HOST, SERVER_PATH))
+		if TVHREDIRECT == True:
+			html.write("<p>TVH's own EPG url is http://%s:9981/xmltv/channels</p>" % TVHURL)
+		html.write("</div></section></body></html>\n")
 		
 		
 def close_menu(restart):
@@ -1972,6 +1974,18 @@ def close_menu(restart):
 		html.write("<h1>Data Saved</h1>")
 		if restart:
 			html.write("<h1>You have change either the IP or Port, please restart this program.</h1>")
+		else:
+			html.write("<p>m3u8 url is %s/playlist.m3u8</p>" % urljoin(SERVER_HOST, SERVER_PATH))
+			html.write("<p>kodi m3u8 url is %s/kodi.m3u8</p>" % urljoin(SERVER_HOST, SERVER_PATH))
+			html.write("<p>EPG url is %s/epg.xml</p>" % urljoin(SERVER_HOST, SERVER_PATH))
+			html.write("<p>Sports EPG url is %s/sports.xml</p>" % urljoin(SERVER_HOST, SERVER_PATH))
+			html.write("<p>Plex Live TV url is %s</p>" % urljoin(SERVER_HOST, SERVER_PATH))
+			html.write("<p>TVHeadend network url is %s/tvh.m3u8</p>" % urljoin(SERVER_HOST, SERVER_PATH))
+			html.write("<p>External m3u8 url is %s/external.m3u8</p>" % urljoin(EXT_HOST, SERVER_PATH))
+			html.write("<p>Combined m3u8 url is %s/combined.m3u8</p>" % urljoin(SERVER_HOST, SERVER_PATH))
+			html.write("<p>Static m3u8 url is %s/static.m3u8</p>" % urljoin(SERVER_HOST, SERVER_PATH))
+			if TVHREDIRECT == True:
+				html.write("<p>TVH's own EPG url is http://%s:9981/xmltv/channels</p>" % TVHURL)
 		html.write("</body></html>\n")
 		
 		
@@ -2030,6 +2044,11 @@ def handle_data():
 		close_menu(False)
 	return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'close.html')
 
+@app.route('/')
+def landing_page():
+	logger.info("Index was requested by %s", request.environ.get('REMOTE_ADDR'))
+	create_menu()
+	return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'settings.html')
 
 @app.route('/<request_file>')
 def index(request_file):
