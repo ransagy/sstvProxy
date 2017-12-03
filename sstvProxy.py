@@ -77,10 +77,6 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-<<<<<<< HEAD
-__version__ = 1.47
-#Changelog
-=======
 __version__ = 1.57
 #Changelog
 #1.57 - Index.html enhancements
@@ -91,7 +87,6 @@ __version__ = 1.57
 #1.52 - Addition of External Port
 #1.51 - Inclusion of an m3u8 merger to add another m3u8 files contents to the end of the kodi.m3u8 playlist result is called combined.m3u8 refer advanced settings.
 #1.50 - GUI Redesign
->>>>>>> dev
 #1.47 - TVH scanning fixed.
 #1.46 - REmoved startup gui from mac and linux exes, fixed linux url
 #1.45 - Added restart required message, Change of piping checks, manual trigger now for easy mux detection (forcing channel 1), use 'python sstvproxy install'
@@ -2243,13 +2238,8 @@ def auto(request_file):
 	sanitized_qual = 1 if int(channel) > 60 else QUAL
 	template = "http://{0}.smoothstreams.tv:9100/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}"
 	url = template.format(SRVR, SITE, sanitized_channel,sanitized_qual, token['hash'])
-<<<<<<< HEAD
-	print("sanitized_channel: %s sanitized_qual: %s" % (sanitized_channel,sanitized_qual))
-	print(url)
-=======
 	logger.debug("sanitized_channel: %s sanitized_qual: %s" % (sanitized_channel,sanitized_qual))
 	logger.debug(url)
->>>>>>> dev
 	try:
 		urllib.request.urlopen(url, timeout=2).getcode()
 	except:
@@ -2265,11 +2255,7 @@ def auto(request_file):
 		sanitized_channel = '01'
 		sanitized_qual = '3'
 		url = template.format(SRVR, SITE, sanitized_channel,sanitized_qual, token['hash'])
-<<<<<<< HEAD
-	print(url)
-=======
 		logger.debug(url)
->>>>>>> dev
 	import subprocess
 
 	def generate():
