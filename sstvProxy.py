@@ -2099,7 +2099,13 @@ def bridge(request_file):
 		else:
 			logger.exception("EPG download failed. Trying SSTV.")
 			dl_epg(2)
-		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'epg.xml')
+		with open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'epg.xml'), 'r+') as f:
+			content = f.read()
+		response = Response(content, mimetype='text/xml')
+		headers = dict(response.headers)
+		headers.update({"Access-Control-Expose-Headers": "Accept-Ranges, Content-Encoding, Content-Length, Content-Range", "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Range", "Access-Control-Allow-Methods": "GET, POST, OPTIONS, HEAD"})
+		response.headers = headers
+		return response
 
 	#return sports only epg
 	if request_file.lower().startswith('sports.'):
