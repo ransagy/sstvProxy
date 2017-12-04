@@ -50,21 +50,24 @@ Refer: http://smoothstreams.tv/board/index.php?topic=1832.msg10698#msg10698
 You can have as many or as few as you want and the file itself is optional. If you don't care for the option then don't even include it in the file, just delete it.
 
 There now exists an advanced settings example file on git. If this is in the same folder as the proxy it will detect it on launch and parse any settings that are within. Currently the accepted settings are:
-Enable/disable network discovery - "networkdiscovery": 1 (1 or 0)
-Custom ffmpeg locations "ffmpegloc": "C:\\ffmpeg\\bin\\ffmpeg.exe" (note the double slashes)
-Custom kodi control username "kodiuser": "string"
-Custom kodi control password "kodipass": "string"
+
+    Enable/disable network discovery - "networkdiscovery": 1 (1 or 0)
+    Custom ffmpeg locations "ffmpegloc": "C:\\ffmpeg\\bin\\ffmpeg.exe" (note the double slashes)
+    Custom kodi control username "kodiuser": "string"
+    Custom kodi control password "kodipass": "string"
 
 If you want to output a playlist that combines the SSTV channels with another playlist you already have then these options are for you:
-A url source for the above EXTM3URL = 'url/string'
-A group name for the above, in order to fileter between them in client EXTM3UNAME = 'string'
-A file source for the above, url has priority though EXTM3UFILE = 'path/string'
+
+    A url source for the above EXTM3URL = 'url/string'
+    A group name for the above, in order to fileter between them in client EXTM3UNAME = 'string'
+    A file source for the above, url has priority though EXTM3UFILE = 'path/string'
 
 If you wish to use feed YAP into TVH and then TVH into Plex use the below:
-set true TVHREDIRECT = False
-TVH url you use TVHURL = '127.0.0.1'
-username TVHUSER = ''
-password TVHPASS = ''
+
+    set true TVHREDIRECT = False
+    TVH url you use TVHURL = '127.0.0.1'
+    username TVHUSER = ''
+    password TVHPASS = ''
 
 
 #### Commandline Arguments
