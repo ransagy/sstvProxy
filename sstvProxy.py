@@ -1305,7 +1305,7 @@ def build_playlist(host):
 	global chan_map
 
 	# build playlist using the data we have
-	new_playlist = "#EXTM3U x-tvg-url='%s'\n" % urljoin(host, SERVER_PATH, 'epg.xml')
+	new_playlist = "#EXTM3U x-tvg-url='%s/epg.xml'\n" % urljoin(host, SERVER_PATH)
 	for pos in range(1, len(chan_map) + 1):
 		# build channel url
 		url = "{0}/playlist.m3u8?ch={1}&strm={2}&qual={3}"
@@ -1328,7 +1328,7 @@ def build_playlist(host):
 def build_static_playlist():
 	global chan_map
 	# build playlist using the data we have
-	new_playlist = "#EXTM3U x-tvg-url='%s'\n" % urljoin(SERVER_HOST, SERVER_PATH, 'epg.xml')
+	new_playlist = "#EXTM3U x-tvg-url='%s/epg.xml'\n" % urljoin(SERVER_HOST, SERVER_PATH)
 	for pos in range(1, len(chan_map) + 1):
 		# build channel url
 		template = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}q{5}.stream{6}?wmsAuthSign={7}'
@@ -1811,7 +1811,7 @@ def build_kodi_playlist():
 	#kodi playlist contains two copies of channels, first is dynmaic HLS and the second is static rtmp
 	global chan_map
 	# build playlist using the data we have
-	new_playlist = "#EXTM3U x-tvg-url='%s'\n"  % urljoin(SERVER_HOST, SERVER_PATH, 'epg.xml')
+	new_playlist = "#EXTM3U x-tvg-url='%s/epg.xml'\n" % urljoin(SERVER_HOST, SERVER_PATH)
 	for pos in range(1, len(chan_map) + 1):
 		# build channel url
 		url = "{0}/playlist.m3u8?ch={1}&strm={2}&qual={3}&client=kodi"
