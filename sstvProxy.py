@@ -77,8 +77,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.58
+__version__ = 1.59
 #Changelog
+#1.59 - Removed need for TVH redirect, added a new path IP:PORT/tvh can be used in plex instead!
 #1.58 - A single dynamic channel can be requested with /ch##.m3u8  strm/qual options are still optional is /ch1.m3u8?strm=rtmp&qual=2
 #1.57 - Index.html enhancements
 #1.56 - Addition of TVH proxy core role to this proxy, will disable SSTV to plex live though
@@ -1474,9 +1475,26 @@ discoverData = {
 		'LineupURL': '%s/lineup.json' % (SERVER_HOST + "/" + SERVER_PATH)
 	}
 
+tvhdiscoverData = {
+		'FriendlyName': 'SSTVProxy',
+		'Manufacturer': 'Silicondust',
+		'ModelNumber': 'HDTC-2US',
+		'FirmwareName': 'hdhomeruntc_atsc',
+		'TunerCount': 6,
+		'FirmwareVersion': '20150826',
+		'DeviceID': '12345678',
+		'DeviceAuth': 'test1234',
+		'BaseURL': SERVER_HOST + "/tvh",
+		'LineupURL': '%s/lineup.json' % (SERVER_HOST + "/tvh")
+	}
+
 
 def discover():
 	return jsonify(discoverData)
+
+
+def tvh_discover():
+	return jsonify(tvhdiscoverData)
 
 
 def status():
@@ -2228,7 +2246,21 @@ def bridge(request_file):
 	else:
 		logger.info("Unknown requested %r by %s", request_file, request.environ.get('REMOTE_ADDR'))
 		abort(404, "Unknown request")
-
+@app.route('/tvh/<request_file>')
+def tvh_returns(request_file):
+	if request_file.lower() == 'lineup_status.json':
+		return status()
+	elif request_file.lower() == 'discover.json':
+		return tvh_discover()
+	elif request_file.lower() == 'lineup.json':
+		return tvh_lineup()
+	elif request_file.lower() == 'lineup.post':
+		return lineup_post()
+	elif request_file.lower() == 'device.xml':
+		return device()
+	else:
+		logger.info("Unknown requested %r by %s", request_file, request.environ.get('REMOTE_ADDR'))
+		abort(404, "Unknown request")
 
 @app.route('/%s/auto/<request_file>' % SERVER_PATH)
 #returns a piped stream, used for TVH/Plex Live TV
