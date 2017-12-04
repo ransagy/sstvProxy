@@ -1333,7 +1333,7 @@ def build_static_playlist():
 	for pos in range(1, len(chan_map) + 1):
 		# build channel url
 		template = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}q{5}.stream{6}?wmsAuthSign={7}'
-		urlformatted = template.format('http' if STRM == 'hls' else 'rtmp',SRVR,'9100' if STRM == 'hls' else '3625',SITE, "{:02}".format(pos),QUAL,'/playlist.m3u8' if STRM == 'hls' else '',token['hash'])
+		urlformatted = template.format('https' if STRM == 'hls' else 'rtmp',SRVR,'443' if STRM == 'hls' else '3625',SITE, "{:02}".format(pos),QUAL,'/playlist.m3u8' if STRM == 'hls' else '',token['hash'])
 		# build playlist entry
 		try:
 			new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s",%s\n' % (
