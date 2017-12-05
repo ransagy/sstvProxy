@@ -1084,6 +1084,22 @@ def thread_updater():
 				os.mkdir(os.path.join(os.path.dirname(sys.argv[0]), 'updates'))
 			requests.urlretrieve(latestfile, os.path.join(os.path.dirname(sys.argv[0]), 'updates', newfilename))
 
+def find_client(useragent):
+	if 'kodi' in useragent.lower():
+		return 'kodi'
+	elif 'vlc' in useragent.lower():
+		return 'vlc'
+	elif 'mozilla' in useragent.lower():
+		return 'browser'
+	elif 'mozilla' in useragent.lower():
+		return 'browser'
+	elif 'dalvik' in useragent.lower():
+		return 'perfectplayer'
+	elif 'lavf' in useragent.lower():
+		return 'plex'
+	elif 'tvheadend' in useragent.lower():
+		return 'tvh'
+
 ############################################################
 # EPG
 ############################################################
@@ -2091,7 +2107,10 @@ def index(request_file):
 def bridge(request_file):
 	global playlist, token, chan_map, kodiplaylist, tvhplaylist
 	check_token()
+	client = find_client(request.headers['User-Agent'])
 	#return epg
+	print(request)
+	print(request.stream)
 	if request_file.lower().startswith('epg.'):
 		logger.info("EPG was requested by %s", request.environ.get('REMOTE_ADDR'))
 		if not fallback:
@@ -2271,6 +2290,7 @@ def tvh_returns(request_file):
 @app.route('/%s/auto/<request_file>' % SERVER_PATH)
 #returns a piped stream, used for TVH/Plex Live TV
 def auto(request_file):
+	print(request.headers)
 	logger.debug("starting pipe function")
 	check_token()
 	channel = request_file.replace("v","")
