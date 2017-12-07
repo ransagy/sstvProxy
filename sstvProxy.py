@@ -77,8 +77,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.59
+__version__ = 1.60
 #Changelog
+#1.60 - Addition of XMLTV merger /combined.xml
 #1.59 - Removed need for TVH redirect, added a new path IP:PORT/tvh can be used in plex instead!
 #1.58 - A single dynamic channel can be requested with /ch##.m3u8  strm/qual options are still optional is /ch1.m3u8?strm=rtmp&qual=2
 #1.57 - Index.html enhancements
@@ -168,6 +169,7 @@ netdiscover = False
 EXTM3URL = ''
 EXTM3UNAME = ''
 EXTM3UFILE = ''
+EXTXMLURL = ''
 TVHREDIRECT = False
 TVHURL = '127.0.0.1'
 TVHUSER = ''
@@ -282,6 +284,10 @@ def adv_settings():
 				logger.debug("Overriding EXTM3UFILE")
 				global EXTM3UFILE
 				EXTM3UFILE = advconfig["extram3u8file"]
+			if "extraxmlurl" in advconfig:
+				logger.debug("Overriding EXTXMLURL")
+				global EXTXMLURL
+				EXTXMLURL = advconfig["extraxmlurl"]
 			if "tvhredirect" in advconfig:
 				logger.debug("Overriding tvhredirect")
 				global TVHREDIRECT
@@ -909,22 +915,27 @@ class GUI(tkinter.Frame):
 			labelSetting8.grid(row=10)
 
 			self.labelSetting9 = tkinter.StringVar()
-			self.labelSetting9.set("Static m3u8 url is %s/combined.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
+			self.labelSetting9.set("Combined m3u8 url is %s/combined.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
 			labelSetting9 = tkinter.Label(master, textvariable=self.labelSetting9, height=2)
 			labelSetting9.grid(row=11)
 
 			self.labelSetting10 = tkinter.StringVar()
-			self.labelSetting10.set("Sports EPG url is %s/sports.xml" % urljoin(SERVER_HOST, SERVER_PATH))
+			self.labelSetting10.set("Static m3u8 url is %s/combined.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
 			labelSetting10 = tkinter.Label(master, textvariable=self.labelSetting10, height=2)
-			labelSetting10.grid(row=6)
+			labelSetting10.grid(row=12)
+
+			self.labelSetting11 = tkinter.StringVar()
+			self.labelSetting11.set("Sports EPG url is %s/sports.xml" % urljoin(SERVER_HOST, SERVER_PATH))
+			labelSetting11 = tkinter.Label(master, textvariable=self.labelSetting11, height=2)
+			labelSetting11.grid(row=6)
 
 			self.labelFooter = tkinter.StringVar()
 			self.labelFooter.set("These can also be found later on the YAP main screen after each launch")
 			labelFooter = tkinter.Label(master, textvariable=self.labelFooter, height=4)
-			labelFooter.grid(row=12)
+			labelFooter.grid(row=13)
 
 			button1 = tkinter.Button(master, text="Launch YAP!!", width=20, command=lambda: self.client_exit(master))
-			button1.grid(row=13)
+			button1.grid(row=14)
 
 		button1 = tkinter.Button(master, text="Submit", width=20,command=lambda: gather())
 		button1.grid(row=13, column=2)
@@ -1441,6 +1452,24 @@ def obtain_m3u8():
 				formatted_m3u8+="\n" + inputm3u8[i]
 	return formatted_m3u8
 
+def xmltv_merger():
+	requests.urlretrieve(EXTXMLURL, os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'extra.xml'))
+	xml_files = ['./cache/epg.xml','./cache/extra.xml']
+	master = ET.Element('TV')
+	mtree = ET.ElementTree(master)
+	mroot = mtree.getroot()
+	for file in xml_files:
+		tree = ET.parse(file)
+		for channel in tree.iter('channel'):
+			mroot.append(channel)
+	for file in xml_files:
+		tree = ET.parse(file)
+		for programme in tree.iter('programme'):
+			mroot.append(programme)
+		# if xml_element_tree is not None:
+		# 	print(ET.tostring(xml_element_tree))
+	mtree.write(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'combined.xml'))
+
 ############################################################
 # TVHeadend
 ############################################################
@@ -1546,9 +1575,9 @@ def tvh_lineup():
 		if c['enabled']:
 			url = 'HTTP://%s:9981/stream/channel/%s?profile=%s&weight=%s' % (TVHURL, c['uuid'], tvhstreamProfile, int(tvhWeight))
 			lineup.append({'GuideNumber': str(c['number']),
-			               'GuideName': c['name'],
-			               'URL': url
-			               })
+						   'GuideName': c['name'],
+						   'URL': url
+						   })
 	return jsonify(lineup)
 
 def lineup_post():
@@ -1953,9 +1982,9 @@ style = """
 	.episodetitle { font-style: italic; font-weight: bold }
 	.channellink { display: inline-block; width: 10em; }
 	.channellink A { color: black; text-decoration: none; }
-    .container {display: table; width: 100%;}
-    .left-half {position: absolute;  left: 0px;  width: 50%;}
-    .right-half {position: absolute;  right: 0px;  width: 50%;}
+	.container {display: table; width: 100%;}
+	.left-half {position: absolute;  left: 0px;  width: 50%;}
+	.right-half {position: absolute;  right: 0px;  width: 50%;}
 </style>
 """
 
@@ -2029,6 +2058,7 @@ def create_menu():
 		html.write("<p>TVHeadend network url is %s/tvh.m3u8</p>" % urljoin(SERVER_HOST, SERVER_PATH))
 		html.write("<p>External m3u8 url is %s/external.m3u8</p>" % urljoin(EXT_HOST, SERVER_PATH))
 		html.write("<p>Combined m3u8 url is %s/combined.m3u8</p>" % urljoin(SERVER_HOST, SERVER_PATH))
+		html.write("<p>Combined epg url is %s/combined.xml</p>" % urljoin(SERVER_HOST, SERVER_PATH))
 		html.write("<p>Static m3u8 url is %s/static.m3u8</p>" % urljoin(SERVER_HOST, SERVER_PATH))
 		if TVHREDIRECT == True:
 			html.write("<p>TVH's own EPG url is http://%s:9981/xmltv/channels</p>" % TVHURL)
@@ -2050,6 +2080,7 @@ def close_menu(restart):
 			html.write("<p>TVHeadend network url is %s/tvh.m3u8</p>" % urljoin(SERVER_HOST, SERVER_PATH))
 			html.write("<p>External m3u8 url is %s/external.m3u8</p>" % urljoin(EXT_HOST, SERVER_PATH))
 			html.write("<p>Combined m3u8 url is %s/combined.m3u8</p>" % urljoin(SERVER_HOST, SERVER_PATH))
+			html.write("<p>Combined epg url is %s/combined.xml</p>" % urljoin(SERVER_HOST, SERVER_PATH))
 			html.write("<p>Static m3u8 url is %s/static.m3u8</p>" % urljoin(SERVER_HOST, SERVER_PATH))
 			if TVHREDIRECT == True:
 				html.write("<p>TVH's own EPG url is http://%s:9981/xmltv/channels</p>" % TVHURL)
@@ -2140,9 +2171,8 @@ def bridge(request_file):
 	global playlist, token, chan_map, kodiplaylist, tvhplaylist
 	check_token()
 	client = find_client(request.headers['User-Agent'])
+
 	#return epg
-	print(request)
-	print(request.stream)
 	if request_file.lower().startswith('epg.'):
 		logger.info("EPG was requested by %s", request.environ.get('REMOTE_ADDR'))
 		if not fallback:
@@ -2167,6 +2197,18 @@ def bridge(request_file):
 			logger.exception("EPG download failed. Trying SSTV.")
 			dl_epg(2)
 		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'sports.xml')
+
+	#return combined epg
+	if request_file.lower() == 'combined.xml':
+		logger.info("Combined EPG was requested by %s", request.environ.get('REMOTE_ADDR'))
+		if not fallback:
+			dl_epg()
+			xmltv_merger()
+		else:
+			logger.exception("EPG download failed. Trying SSTV.")
+			dl_epg(2)
+			xmltv_merger()
+		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'combined.xml')
 
 	#return icons
 	elif request_file.lower().endswith('.png'):
@@ -2322,7 +2364,6 @@ def tvh_returns(request_file):
 @app.route('/%s/auto/<request_file>' % SERVER_PATH)
 #returns a piped stream, used for TVH/Plex Live TV
 def auto(request_file):
-	print(request.headers)
 	logger.debug("starting pipe function")
 	check_token()
 	channel = request_file.replace("v","")
@@ -2433,6 +2474,7 @@ if __name__ == "__main__":
 	print("TVHeadend network url is %s/tvh.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
 	print("External m3u8 url is %s/external.m3u8" % urljoin(EXT_HOST, SERVER_PATH))
 	print("Combined m3u8 url is %s/combined.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
+	print("Combined EPG url is %s/combined.xml" % urljoin(SERVER_HOST, SERVER_PATH))
 	print("Static m3u8 url is %s/static.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
 	if TVHREDIRECT == True:
 		print("TVH's own EPG url is http://%s:9981/xmltv/channels" % TVHURL)
