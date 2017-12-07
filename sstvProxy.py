@@ -1483,7 +1483,11 @@ def get_tvh_channels():
 ############################################################
 
 
-discoverData = {
+
+
+
+def discover():
+	discoverData = {
 		'FriendlyName': 'SSTVProxy',
 		'Manufacturer': 'Silicondust',
 		'ModelNumber': 'HDTC-2US',
@@ -1492,11 +1496,14 @@ discoverData = {
 		'FirmwareVersion': '20150826',
 		'DeviceID': '12345678',
 		'DeviceAuth': 'test1234',
-		'BaseURL': SERVER_HOST + "/" + SERVER_PATH,
-		'LineupURL': '%s/lineup.json' % (SERVER_HOST + "/" + SERVER_PATH)
+		'BaseURL':  SERVER_HOST + "/" + SERVER_PATH,
+		'LineupURL': '%s/lineup.json' % urljoin(SERVER_HOST, SERVER_PATH)
 	}
+	return jsonify(discoverData)
 
-tvhdiscoverData = {
+
+def tvh_discover():
+	tvhdiscoverData = {
 		'FriendlyName': 'SSTVProxy',
 		'Manufacturer': 'Silicondust',
 		'ModelNumber': 'HDTC-2US',
@@ -1508,13 +1515,6 @@ tvhdiscoverData = {
 		'BaseURL': SERVER_HOST + "/tvh",
 		'LineupURL': '%s/lineup.json' % (SERVER_HOST + "/tvh")
 	}
-
-
-def discover():
-	return jsonify(discoverData)
-
-
-def tvh_discover():
 	return jsonify(tvhdiscoverData)
 
 
@@ -1555,7 +1555,34 @@ def lineup_post():
 	return ''
 
 def device():
+	discoverData = {
+		'FriendlyName': 'SSTVProxy',
+		'Manufacturer': 'Silicondust',
+		'ModelNumber': 'HDTC-2US',
+		'FirmwareName': 'hdhomeruntc_atsc',
+		'TunerCount': 6,
+		'FirmwareVersion': '20150826',
+		'DeviceID': '12345678',
+		'DeviceAuth': 'test1234',
+		'BaseURL': SERVER_HOST + "/" + SERVER_PATH,
+		'LineupURL': '%s/lineup.json' % urljoin(SERVER_HOST, SERVER_PATH)
+	}
 	return render_template('device.xml',data = discoverData),{'Content-Type': 'application/xml'}
+
+def tvh_device():
+	tvhdiscoverData = {
+		'FriendlyName': 'SSTVProxy',
+		'Manufacturer': 'Silicondust',
+		'ModelNumber': 'HDTC-2US',
+		'FirmwareName': 'hdhomeruntc_atsc',
+		'TunerCount': 6,
+		'FirmwareVersion': '20150826',
+		'DeviceID': '12345678',
+		'DeviceAuth': 'test1234',
+		'BaseURL': SERVER_HOST + "/tvh",
+		'LineupURL': '%s/lineup.json' % (SERVER_HOST + "/tvh")
+	}
+	return render_template('device.xml',data = tvhdiscoverData),{'Content-Type': 'application/xml'}
 
 
 #PLEX DVR EPG from here
@@ -2287,7 +2314,7 @@ def tvh_returns(request_file):
 	elif request_file.lower() == 'lineup.post':
 		return lineup_post()
 	elif request_file.lower() == 'device.xml':
-		return device()
+		return tvh_device()
 	else:
 		logger.info("Unknown requested %r by %s", request_file, request.environ.get('REMOTE_ADDR'))
 		abort(404, "Unknown request")
