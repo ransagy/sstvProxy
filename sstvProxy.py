@@ -1573,7 +1573,7 @@ def tvh_lineup():
 	lineup = []
 	for c in get_tvh_channels():
 		if c['enabled']:
-			url = 'HTTP://%s:9981/stream/channel/%s?profile=%s&weight=%s' % (TVHURL, c['uuid'], tvhstreamProfile, int(tvhWeight))
+			url = 'http://%s:%s@%s:9981/stream/channel/%s?profile=%s&weight=%s' % (TVHUSER, TVHPASS, TVHURL, c['uuid'], tvhstreamProfile, int(tvhWeight))
 			lineup.append({'GuideNumber': str(c['number']),
 						   'GuideName': c['name'],
 						   'URL': url
