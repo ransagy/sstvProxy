@@ -79,7 +79,7 @@ app = Flask(__name__, static_url_path='')
 
 __version__ = 1.60
 #Changelog
-#1.60 - Addition of XMLTV merger /combined.xml
+#1.60 - Addition of XMLTV merger /combined.xml, TVH CHNUM addition, Addition of MMA tv auth.
 #1.59 - Removed need for TVH redirect, added a new path IP:PORT/tvh can be used in plex instead!
 #1.58 - A single dynamic channel can be requested with /ch##.m3u8  strm/qual options are still optional is /ch1.m3u8?strm=rtmp&qual=2
 #1.57 - Index.html enhancements
