@@ -1440,16 +1440,19 @@ def obtain_m3u8():
 		return formatted_m3u8
 
 	for i in range(len(inputm3u8)):
-		if inputm3u8[i] != "":
-			if i%2 == 0:
-				grouper = inputm3u8[i]
-				grouper = grouper.split(',')
-				grouper = grouper[0] + ' group-title="%s"' % (name) + "," + grouper[1]
-				if i != 0:
-					formatted_m3u8 += "\n"
-				formatted_m3u8+=grouper
-			else:
-				formatted_m3u8+="\n" + inputm3u8[i]
+		if inputm3u8[i] != "" or inputm3u8[i] != "\n":
+			try:
+				if inputm3u8[i].startswith("#"):
+					grouper = inputm3u8[i]
+					grouper = grouper.split(',')
+					grouper = grouper[0] + ' group-title="%s"' % (name) + "," + grouper[1]
+					if i != 0:
+						formatted_m3u8 += "\n"
+					formatted_m3u8+=grouper
+				else:
+					formatted_m3u8 += "\n" + inputm3u8[i]
+			except:
+				logger.debug("skipped:", inputm3u8[i])
 	return formatted_m3u8
 
 def xmltv_merger():
