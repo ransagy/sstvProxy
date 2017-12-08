@@ -6,6 +6,7 @@
   "extram3u8url":"",
   "extram3u8name":"Custom",
   "extram3u8file":"./blah.m3u",
+  "extraxmlurl":"",
   "tvhredirect": "False",
   "tvhaddress":"127.0.0.1",
   "tvhuser":"",
