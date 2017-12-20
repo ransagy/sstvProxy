@@ -1226,7 +1226,20 @@ def json2xml(json_obj, line_padding=""):
 
 
 def get_auth_token(user, passwd, site):
-	data = json.loads(requests.urlopen('http://auth.SmoothStreams.tv/hash_api.php?username=%s&password=%s&site=%s' % (user,passwd,site)).read().decode("utf-8"))
+	if site == 'viewmmasr' or site == 'mmatv':
+		baseUrl = 'https://www.mma-tv.net/loginForm.php'
+	else:
+		baseUrl = 'http://auth.smoothstreams.tv/hash_api.php?'
+
+	params = {
+		"username": user,
+		"password": passwd,
+		"site": site
+	}
+	url = baseUrl + urllib.parse.urlencode(params)
+	data = json.loads(requests.urlopen(url).read().decode("utf--8"))
+	# old
+	# data = json.loads(requests.urlopen('http://auth.SmoothStreams.tv/hash_api.php?username=%s&password=%s&site=%s' % (user,passwd,site)).read().decode("utf-8"))
 	if 'hash' not in data or 'valid' not in data:
 		logger.error("There was no hash auth token returned from auth.SmoothStreams.tv...")
 		return
