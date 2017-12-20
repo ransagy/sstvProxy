@@ -77,8 +77,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.58
+__version__ = 1.581
 #Changelog
+#1.581 - SSTV url update and url encode for auth method
 #1.58 - A single dynamic channel can be requested with /ch##.m3u8  strm/qual options are still optional is /ch1.m3u8?strm=rtmp&qual=2
 #1.57 - Index.html enhancements
 #1.56 - Addition of TVH proxy core role to this proxy, will disable SSTV to plex live though
