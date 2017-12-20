@@ -1207,6 +1207,7 @@ def dl_epg(source=1):
 #started to create epg based off of the json but not needed
 def dl_sstv_epg():
 	#download epg xml
+	#https://guide.smoothstreams.tv/feed-new-full-latest.zip
 	if os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'epg.xml')):
 		existing = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'epg.xml')
 		cur_utc_hr = datetime.utcnow().replace(microsecond=0,second=0,minute=0).hour
