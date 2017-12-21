@@ -1135,17 +1135,21 @@ def dl_epg(source=1):
 		unzipped = gzip.open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz'))
 		to_process.append([unzipped,"epg.xml",'fog'])
 		requests.urlretrieve("https://fast-guide.smoothstreams.tv/feed.xml", os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml'))
-		unzippedsports = open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml'))
+		unzippedsports = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml')
 		to_process.append([unzippedsports, "sports.xml",'sstv'])
 	else:
 		logger.info("Downloading sstv epg")
-		requests.urlretrieve("https://fast-guide.smoothstreams.tv/feed.xml", os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml'))
-		unzipped = open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml'))
+		requests.urlretrieve("https://fast-guide.smoothstreams.tv/feed.xml", os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml'))
+		unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'repg.xml')
 		to_process.append([unzipped, "epg.xml",'sstv'])
 		to_process.append([unzipped, "sports.xml",'sstv'])
 	for process in to_process:
 		#try to categorise the sports events
-		tree = ET.parse(process[0])
+		if process[0].endswith('.gz'):
+			opened = gzip.open(process[0], encoding="UTF-8")
+		else:
+			opened = open(process[0], encoding="UTF-8")
+		tree = ET.parse(opened)
 		root = tree.getroot()
 		changelist={}
 		#remove fogs xmltv channel names for readability in PLex Live
@@ -1155,7 +1159,7 @@ def dl_epg(source=1):
 				newname = [chan_map[x].channum for x in range(len(chan_map)+1) if x!= 0 and chan_map[x].epg == a.attrib['id'] and chan_map[x].channame == b.text]
 				if len(newname) > 1:
 					logger.debug("EPG rename conflict")
-					print(a.attrib['id'], newname)
+					# print(a.attrib['id'], newname)
 				else:
 					newname = newname[0]
 					changelist[a.attrib['id']] = newname
