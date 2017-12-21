@@ -1113,7 +1113,7 @@ def dl_epg(source=1):
 	else:
 		logger.info("Downloading sstv epg")
 		requests.urlretrieve("https://fast-guide.smoothstreams.tv/feed.xml", os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml'))
-		unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'repg.xml')
+		unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml')
 		to_process.append([unzipped, "epg.xml",'sstv'])
 		to_process.append([unzipped, "sports.xml",'sstv'])
 	for process in to_process:
