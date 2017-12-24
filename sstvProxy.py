@@ -61,9 +61,8 @@ from io import StringIO
 import socket
 import struct
 import ntpath
-import tkinter
 import requests as req
-
+import tkinter
 
 
 try:
@@ -77,8 +76,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.60
+__version__ = 1.61
 #Changelog
+#1.61 - Addition of test.m3u8 to help identify client requirements
 #1.60 - Addition of XMLTV merger /combined.xml, TVH CHNUM addition, Addition of MMA tv auth, change of returns based on detected client
 #1.59 - Removed need for TVH redirect, added a new path IP:PORT/tvh can be used in plex instead!
 #1.58 - A single dynamic channel can be requested with /ch##.m3u8  strm/qual options are still optional is /ch1.m3u8?strm=rtmp&qual=2
@@ -389,6 +389,7 @@ def load_settings():
 			with open(os.path.join(os.path.dirname(sys.argv[0]),'proxysettings.json'), 'w') as fp:
 				dump(config, fp)
 		else:
+			import tkinter
 			root = tkinter.Tk()
 			root.title("YAP Setup")
 			root.geometry('750x600')
@@ -1398,6 +1399,35 @@ def build_static_playlist():
 	logger.info("Built static playlist")
 	return new_playlist
 
+def build_test_playlist(hosts):
+	# build playlist using the data we have
+	new_playlist = "#EXTM3U x-tvg-url='%s/epg.xml'\n" % urljoin(SERVER_HOST, SERVER_PATH)
+	template = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}q{5}.stream{6}?wmsAuthSign={7}'
+	url = "{0}/playlist.m3u8?ch=1&strm=hls&qual=1&type={1}"
+	# build playlist entry
+	new_playlist += '#EXTINF:-1 tvg-id="1" tvg-name="Static HLS" channel-id="1","Static HLS"\n'
+	new_playlist += '%s\n' % template.format('https','dnaw1','3625',SITE,"01",1,'/playlist.m3u8',token['hash'])
+	new_playlist += '#EXTINF:-1 tvg-id="2" tvg-name="Static RTMP" channel-id="2","Static RTMP"\n'
+	new_playlist += '%s\n' % template.format('rtmp','dnaw1','3625',SITE, "01",1,'',token['hash'])
+	count = 3
+	for host in hosts:
+		new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="Redirect" channel-id="%s","Redirect"\n' % (count,count)
+		new_playlist += '%s\n' % url.format(host,'1')
+		count += 1
+		new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="File" channel-id="%s","File"\n' % (count,count)
+		new_playlist += '%s\n' % url.format(host,'2')
+		count += 1
+		new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="Variable" channel-id="%s","Variable"\n' % (count,count)
+		new_playlist += '%s\n' % url.format(host,'3')
+		count += 1
+		new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="URL" channel-id="%s","URL"\n' % (count,count)
+		new_playlist += '%s\n' % url.format(host,'4')
+		count+=1
+
+	logger.info("Built static playlist")
+	return new_playlist
+
+
 def thread_playlist():
 	global playlist
 
@@ -2265,11 +2295,17 @@ def bridge(request_file):
 		rescan_channels()
 		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'empty.png')
 
-	#returns kodi playlist
+	#returns static playlist
 	elif request_file.lower().startswith('static'):
 		staticplaylist = build_static_playlist()
 		logger.info("Static playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
 		return Response(staticplaylist, mimetype='application/x-mpegURL')
+
+	#returns test playlist
+	elif request_file.lower() == "test.m3u8":
+		testplaylist = build_test_playlist([SERVER_HOST,EXT_HOST])
+		logger.info("Static playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
+		return Response(testplaylist, mimetype='application/x-mpegURL')
 
 	#returns kodi playlist
 	elif request_file.lower().startswith('kodi'):
@@ -2326,19 +2362,23 @@ def bridge(request_file):
 			logger.info("Channel %s playlist was requested by %s", sanitized_channel,request.environ.get('REMOTE_ADDR'))
 			#useful for debugging
 			logger.debug("URL returned: %s" % ss_url)
+			if request.args.get('type'):
+				returntype = request.args.get('type')
+			else:
+				returntype = 3
 			if strm == 'rtmp' or request.args.get('response'):
 				logger.debug("returning response")
 				return response
-			elif client == 'kodi':
+			elif returntype == 1 or client == 'kodi':
 				hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}=='
 				ss_url = hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
 				#some players are having issues with http/https redirects
 				logger.debug("returning hls url redirect")
 				return redirect(ss_url, code=302)
-			elif request.args.get('file'):
+			elif returntype == 2:
 				logger.debug("returning m3u8 as file")
 				return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'playlist.m3u8')
-			elif client == 'vlc':
+			elif returntype == 4 or client == 'vlc':
 				logger.debug("returning hls url")
 				return hlsurl
 			else:
