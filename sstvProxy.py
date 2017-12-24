@@ -79,7 +79,7 @@ app = Flask(__name__, static_url_path='')
 
 __version__ = 1.60
 #Changelog
-#1.60 - Addition of XMLTV merger /combined.xml, TVH CHNUM addition, Addition of MMA tv auth.
+#1.60 - Addition of XMLTV merger /combined.xml, TVH CHNUM addition, Addition of MMA tv auth, change of returns based on detected client
 #1.59 - Removed need for TVH redirect, added a new path IP:PORT/tvh can be used in plex instead!
 #1.58 - A single dynamic channel can be requested with /ch##.m3u8  strm/qual options are still optional is /ch1.m3u8?strm=rtmp&qual=2
 #1.57 - Index.html enhancements
@@ -1110,6 +1110,14 @@ def find_client(useragent):
 		return 'plex'
 	elif 'tvheadend' in useragent.lower():
 		return 'tvh'
+	elif 'apple tv' in useragent.lower():
+		return 'atv'
+	elif 'smarthub' in useragent.lower():
+		return 'samsung'
+	elif 'tv' in useragent.lower():
+		return 'tv'
+	else:
+		return 'unk'
 
 ############################################################
 # EPG
@@ -2321,7 +2329,7 @@ def bridge(request_file):
 			if strm == 'rtmp' or request.args.get('response'):
 				logger.debug("returning response")
 				return response
-			elif request.args.get('redirect'):
+			elif client == 'kodi':
 				hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}=='
 				ss_url = hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
 				#some players are having issues with http/https redirects
@@ -2330,7 +2338,7 @@ def bridge(request_file):
 			elif request.args.get('file'):
 				logger.debug("returning m3u8 as file")
 				return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'playlist.m3u8')
-			elif not (request.environ.get('REMOTE_ADDR').startswith('10.') or request.environ.get('REMOTE_ADDR').startswith('192.') or request.environ.get('REMOTE_ADDR').startswith('127.')):
+			elif client == 'vlc':
 				logger.debug("returning hls url")
 				return hlsurl
 			else:
