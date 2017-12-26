@@ -76,8 +76,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.61
+__version__ = 1.62
 #Changelog
+#1.62 - xmltv merger bugfix and speedup, kodi settings overwrite disabled
 #1.61 - Addition of test.m3u8 to help identify client requirements
 #1.60 - Addition of XMLTV merger /combined.xml, TVH CHNUM addition, Addition of MMA tv auth, change of returns based on detected client
 #1.59 - Removed need for TVH redirect, added a new path IP:PORT/tvh can be used in plex instead!
@@ -1126,8 +1127,9 @@ def find_client(useragent):
 
 
 def dl_epg(source=1):
-	global chan_map
+	global chan_map, fallback
 	#download epg xml
+	source = 2 if fallback == True else 1
 	if os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'epg.xml')):
 		existing = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'epg.xml')
 		cur_utc_hr = datetime.utcnow().replace(microsecond=0,second=0,minute=0).hour
@@ -1507,9 +1509,18 @@ def obtain_m3u8():
 	return formatted_m3u8
 
 def xmltv_merger():
+	if os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'combined.xml')):
+		existing = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'combined.xml')
+		cur_utc_hr = datetime.utcnow().replace(microsecond=0,second=0,minute=0).hour
+		target_utc_hr = (cur_utc_hr//3)*3
+		target_utc_datetime = datetime.utcnow().replace(microsecond=0,second=0,minute=0, hour=target_utc_hr)
+		logger.debug("utc time is: %s,    utc target time is: %s,    file time is: %s" % (datetime.utcnow(), target_utc_datetime, datetime.utcfromtimestamp(os.stat(existing).st_mtime)))
+		if os.path.isfile(existing) and os.stat(existing).st_mtime > target_utc_datetime.timestamp():
+			logger.debug("Skipping download of epg")
+			return
 	requests.urlretrieve(EXTXMLURL, os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'extra.xml'))
 	xml_files = ['./cache/epg.xml','./cache/extra.xml']
-	master = ET.Element('TV')
+	master = ET.Element('tv')
 	mtree = ET.ElementTree(master)
 	mroot = mtree.getroot()
 	for file in xml_files:
@@ -1523,6 +1534,11 @@ def xmltv_merger():
 		# if xml_element_tree is not None:
 		# 	print(ET.tostring(xml_element_tree))
 	mtree.write(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'combined.xml'))
+	with open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'combined.xml'), 'r+') as f:
+		content = f.read()
+		f.seek(0, 0)
+		f.write('<?xml version="1.0" encoding="UTF-8"?>'.rstrip('\r\n') + content)
+	return
 
 ############################################################
 # TVHeadend
@@ -1984,20 +2000,20 @@ def build_kodi_playlist():
 	new_playlist += '%s/%s/refresh.m3u8\n' % (SERVER_HOST, SERVER_PATH)
 	logger.info("Built Kodi playlist")
 
-	if ADDONPATH and os.path.isdir(ADDONPATH):
-		#lazy install, low priority tbh
-		tree = ET.parse(os.path.join(ADDONPATH, 'settings.xml'))
-		root = tree.getroot()
-		for child in root:
-			if child.attrib['id'] == 'epgUrl':
-				child.attrib['value'] = '%s/%s/epg.xml' % (SERVER_HOST, SERVER_PATH)
-			elif child.attrib['id'] == 'm3uUrl':
-				child.attrib['value'] = '%s/%s/kodi.m3u8' % (SERVER_HOST, SERVER_PATH)
-			elif child.attrib['id'] == 'epgPathType':
-				child.attrib['value'] = '1'
-			elif child.attrib['id'] == 'm3uPathType':
-				child.attrib['value'] = '1'
-		tree.write(os.path.join(ADDONPATH, 'settings.xml'))
+	# if ADDONPATH and os.path.isdir(ADDONPATH):
+	# 	#lazy install, low priority tbh
+	# 	tree = ET.parse(os.path.join(ADDONPATH, 'settings.xml'))
+	# 	root = tree.getroot()
+	# 	for child in root:
+	# 		if child.attrib['id'] == 'epgUrl':
+	# 			child.attrib['value'] = '%s/%s/epg.xml' % (SERVER_HOST, SERVER_PATH)
+	# 		elif child.attrib['id'] == 'm3uUrl':
+	# 			child.attrib['value'] = '%s/%s/kodi.m3u8' % (SERVER_HOST, SERVER_PATH)
+	# 		elif child.attrib['id'] == 'epgPathType':
+	# 			child.attrib['value'] = '1'
+	# 		elif child.attrib['id'] == 'm3uPathType':
+	# 			child.attrib['value'] = '1'
+	# 	tree.write(os.path.join(ADDONPATH, 'settings.xml'))
 	return new_playlist
 
 
@@ -2222,7 +2238,7 @@ def index(request_file):
 
 @app.route('/%s/<request_file>' % SERVER_PATH)
 def bridge(request_file):
-	global playlist, token, chan_map, kodiplaylist, tvhplaylist
+	global playlist, token, chan_map, kodiplaylist, tvhplaylist, fallback
 	check_token()
 	client = find_client(request.headers['User-Agent'])
 
@@ -2232,7 +2248,7 @@ def bridge(request_file):
 		if not fallback:
 			dl_epg()
 		else:
-			logger.exception("EPG download failed. Trying SSTV.")
+			logger.exception("EPG build, EPG download failed. Trying SSTV.")
 			dl_epg(2)
 		with open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'epg.xml'), 'r+') as f:
 			content = f.read()
@@ -2243,12 +2259,12 @@ def bridge(request_file):
 		return response
 
 	#return sports only epg
-	if request_file.lower().startswith('sports.'):
+	if request_file.lower() == 'sports.xml':
 		logger.info("Sports EPG was requested by %s", request.environ.get('REMOTE_ADDR'))
 		if not fallback:
 			dl_epg()
 		else:
-			logger.exception("EPG download failed. Trying SSTV.")
+			logger.exception("Sports EPG build, EPG download failed. Trying SSTV.")
 			dl_epg(2)
 		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'sports.xml')
 
@@ -2257,11 +2273,10 @@ def bridge(request_file):
 		logger.info("Combined EPG was requested by %s", request.environ.get('REMOTE_ADDR'))
 		if not fallback:
 			dl_epg()
-			xmltv_merger()
 		else:
-			logger.exception("EPG download failed. Trying SSTV.")
+			logger.exception("Combined EPG build, EPG download failed. Trying SSTV.")
 			dl_epg(2)
-			xmltv_merger()
+		xmltv_merger()
 		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'combined.xml')
 
 	#return icons
@@ -2314,8 +2329,8 @@ def bridge(request_file):
 		return Response(kodiplaylist, mimetype='application/x-mpegURL')
 
 	#returns combined playlist
-	elif request_file.lower().startswith('combined'):
-		extraplaylist = build_kodi_playlist() + obtain_m3u8()
+	elif request_file.lower() == 'combined.m3u8':
+		extraplaylist = build_playlist(SERVER_HOST) + obtain_m3u8()
 		logger.info("Combined channels playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
 		logger.info("Sending playlist to %s", request.environ.get('REMOTE_ADDR'))
 		return Response(extraplaylist, mimetype='application/x-mpegURL')
