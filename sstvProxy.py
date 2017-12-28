@@ -76,8 +76,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.62
+__version__ = 1.63
 #Changelog
+#1.63 - Added satch for clients with no user agent at all
 #1.62 - xmltv merger bugfix and speedup, kodi settings overwrite disabled
 #1.61 - Addition of test.m3u8 to help identify client requirements
 #1.60 - Addition of XMLTV merger /combined.xml, TVH CHNUM addition, Addition of MMA tv auth, change of returns based on detected client
@@ -1143,7 +1144,7 @@ def dl_epg(source=1):
 	if source == 1:
 		logger.info("Downloading epg")
 		requests.urlretrieve("https://sstv.fog.pt/epg/xmltv5.xml.gz", os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz'))
-		unzipped = gzip.open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz'))
+		unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz')
 		to_process.append([unzipped,"epg.xml",'fog'])
 		requests.urlretrieve("https://fast-guide.smoothstreams.tv/feed.xml", os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml'))
 		unzippedsports = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml')
@@ -1157,7 +1158,7 @@ def dl_epg(source=1):
 	for process in to_process:
 		#try to categorise the sports events
 		if process[0].endswith('.gz'):
-			opened = gzip.open(process[0], encoding="UTF-8")
+			opened = gzip.open(process[0])
 		else:
 			opened = open(process[0], encoding="UTF-8")
 		tree = ET.parse(opened)
@@ -2240,7 +2241,11 @@ def index(request_file):
 def bridge(request_file):
 	global playlist, token, chan_map, kodiplaylist, tvhplaylist, fallback
 	check_token()
-	client = find_client(request.headers['User-Agent'])
+	try:
+		client = find_client(request.headers['User-Agent'])
+	except:
+		logger.debug("No user-agent provided by %s", request.environ.get('REMOTE_ADDR'))
+		client = 'unk'
 
 	#return epg
 	if request_file.lower().startswith('epg.'):
