@@ -62,7 +62,8 @@ import socket
 import struct
 import ntpath
 import requests as req
-import tkinter
+if not 'headless' in sys.argv:
+	import tkinter
 
 
 try:
@@ -76,8 +77,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.64
+__version__ = 1.65
 #Changelog
+#1.65 - Addition of strmtype 'mpegts' utilises ffmpeg pipe prev used only by TVH/Plex Live. Enhancement of Webpage incl update and restart buttons.
 #1.64 - Bugfixes
 #1.63 - Added catch for clients with no user agent at all
 #1.62 - xmltv merger bugfix and speedup, kodi settings overwrite disabled
@@ -242,7 +244,7 @@ providerList = [
 	['MMA-TV/MyShout', 'mmatv']
 ]
 
-streamtype = ['hls','rtmp']
+streamtype = ['hls','rtmp','mpegts']
 
 qualityList = [
 	['HD', '1'],
@@ -392,7 +394,6 @@ def load_settings():
 			with open(os.path.join(os.path.dirname(sys.argv[0]),'proxysettings.json'), 'w') as fp:
 				dump(config, fp)
 		else:
-			import tkinter
 			root = tkinter.Tk()
 			root.title("YAP Setup")
 			root.geometry('750x600')
@@ -673,276 +674,276 @@ def writetemplate():
 # INSTALL GUI
 ############################################################
 
+if not 'headless' in sys.argv:
+	class GUI(tkinter.Frame):
+		def client_exit(self,root):
+			root.destroy()
 
-class GUI(tkinter.Frame):
-	def client_exit(self,root):
-		root.destroy()
+		def __init__(self,master):
+			tkinter.Frame.__init__(self, master)
+			self.labelText = tkinter.StringVar()
+			self.labelText.set("Initial Setup")
+			label1 = tkinter.Label(master, textvariable=self.labelText, height=2)
+			label1.grid(row=1, column=2)
 
-	def __init__(self,master):
-		tkinter.Frame.__init__(self, master)
-		self.labelText = tkinter.StringVar()
-		self.labelText.set("Initial Setup")
-		label1 = tkinter.Label(master, textvariable=self.labelText, height=2)
-		label1.grid(row=1, column=2)
-
-		self.noteText = tkinter.StringVar()
-		self.noteText.set("Notes")
-		noteText = tkinter.Label(master, textvariable=self.noteText, height=2)
-		noteText.grid(row=1, column=3)
-
-
-		self.labelUsername = tkinter.StringVar()
-		self.labelUsername.set("Username")
-		labelUsername = tkinter.Label(master, textvariable=self.labelUsername, height=2)
-		labelUsername.grid(row=2, column=1)
-		#
-		userUsername = tkinter.StringVar()
-		userUsername.set("blogs@hotmail.com")
-		self.username = tkinter.Entry(master, textvariable=userUsername, width=30)
-		self.username.grid(row=2, column=2)
-		#
-		self.noteUsername = tkinter.StringVar()
-		self.noteUsername.set("mystreams will not be an email address")
-		noteUsername = tkinter.Label(master, textvariable=self.noteUsername, height=2)
-		noteUsername.grid(row=2, column=3)
+			self.noteText = tkinter.StringVar()
+			self.noteText.set("Notes")
+			noteText = tkinter.Label(master, textvariable=self.noteText, height=2)
+			noteText.grid(row=1, column=3)
 
 
-		self.labelPassword = tkinter.StringVar()
-		self.labelPassword.set("Password")
-		labelPassword = tkinter.Label(master, textvariable=self.labelPassword, height=2)
-		labelPassword.grid(row=3, column=1)
-		#
-		userPassword = tkinter.StringVar()
-		userPassword.set("blogs123")
-		self.password = tkinter.Entry(master, textvariable=userPassword, width=30)
-		self.password.grid(row=3, column=2)
+			self.labelUsername = tkinter.StringVar()
+			self.labelUsername.set("Username")
+			labelUsername = tkinter.Label(master, textvariable=self.labelUsername, height=2)
+			labelUsername.grid(row=2, column=1)
+			#
+			userUsername = tkinter.StringVar()
+			userUsername.set("blogs@hotmail.com")
+			self.username = tkinter.Entry(master, textvariable=userUsername, width=30)
+			self.username.grid(row=2, column=2)
+			#
+			self.noteUsername = tkinter.StringVar()
+			self.noteUsername.set("mystreams will not be an email address")
+			noteUsername = tkinter.Label(master, textvariable=self.noteUsername, height=2)
+			noteUsername.grid(row=2, column=3)
 
 
-		self.labelServer = tkinter.StringVar()
-		self.labelServer.set("Server")
-		labelServer = tkinter.Label(master, textvariable=self.labelServer, height=2)
-		labelServer.grid(row=4, column=1)
-
-		userServer = tkinter.StringVar()
-		userServer.set('East-NY')
-		self.server = tkinter.OptionMenu(master, userServer, *[x[0] for x in serverList])
-		self.server.grid(row=4, column=2)
-
-
-		self.labelSite = tkinter.StringVar()
-		self.labelSite.set("Site")
-		labelSite = tkinter.Label(master, textvariable=self.labelSite, height=2)
-		labelSite.grid(row=5, column=1)
-
-		userSite = tkinter.StringVar()
-		userSite.set('StreamTVnow')
-		self.site = tkinter.OptionMenu(master, userSite, *[x[0] for x in providerList])
-		self.site.grid(row=5, column=2)
+			self.labelPassword = tkinter.StringVar()
+			self.labelPassword.set("Password")
+			labelPassword = tkinter.Label(master, textvariable=self.labelPassword, height=2)
+			labelPassword.grid(row=3, column=1)
+			#
+			userPassword = tkinter.StringVar()
+			userPassword.set("blogs123")
+			self.password = tkinter.Entry(master, textvariable=userPassword, width=30)
+			self.password.grid(row=3, column=2)
 
 
-		self.labelStream = tkinter.StringVar()
-		self.labelStream.set("Stream Type")
-		labelStream = tkinter.Label(master, textvariable=self.labelStream, height=2)
-		labelStream.grid(row=6, column=1)
+			self.labelServer = tkinter.StringVar()
+			self.labelServer.set("Server")
+			labelServer = tkinter.Label(master, textvariable=self.labelServer, height=2)
+			labelServer.grid(row=4, column=1)
 
-		userStream = tkinter.StringVar()
-		userStream.set('HLS')
-		self.stream = tkinter.OptionMenu(master, userStream,*[x.upper() for x in streamtype])
-		self.stream.grid(row=6, column=2)
-
-
-		self.labelQuality = tkinter.StringVar()
-		self.labelQuality.set("Quality")
-		labelQuality = tkinter.Label(master, textvariable=self.labelQuality, height=2)
-		labelQuality.grid(row=7, column=1)
-
-		userQuality = tkinter.StringVar()
-		userQuality.set('HD')
-		self.quality = tkinter.OptionMenu(master, userQuality, *[x[0] for x in qualityList])
-		self.quality.grid(row=7, column=2)
+			userServer = tkinter.StringVar()
+			userServer.set('East-NY')
+			self.server = tkinter.OptionMenu(master, userServer, *[x[0] for x in serverList])
+			self.server.grid(row=4, column=2)
 
 
-		self.labelIP = tkinter.StringVar()
-		self.labelIP.set("Listen IP")
-		labelIP = tkinter.Label(master, textvariable=self.labelIP, height=2)
-		labelIP.grid(row=8, column=1)
+			self.labelSite = tkinter.StringVar()
+			self.labelSite.set("Site")
+			labelSite = tkinter.Label(master, textvariable=self.labelSite, height=2)
+			labelSite.grid(row=5, column=1)
 
-		userIP = tkinter.StringVar()
-		userIP.set(LISTEN_IP)
-		self.ip = tkinter.Entry(master, textvariable=userIP, width=30)
-		self.ip.grid(row=8, column=2)
-
-		self.noteIP = tkinter.StringVar()
-		self.noteIP.set("If using on other machines then set a static IP and use that.")
-		noteIP = tkinter.Label(master, textvariable=self.noteIP, height=2)
-		noteIP.grid(row=8, column=3)
+			userSite = tkinter.StringVar()
+			userSite.set('StreamTVnow')
+			self.site = tkinter.OptionMenu(master, userSite, *[x[0] for x in providerList])
+			self.site.grid(row=5, column=2)
 
 
-		self.labelPort = tkinter.StringVar()
-		self.labelPort.set("Listen Port")
-		labelPort = tkinter.Label(master, textvariable=self.labelPort, height=2)
-		labelPort.grid(row=9, column=1)
+			self.labelStream = tkinter.StringVar()
+			self.labelStream.set("Stream Type")
+			labelStream = tkinter.Label(master, textvariable=self.labelStream, height=2)
+			labelStream.grid(row=6, column=1)
 
-		userPort = tkinter.IntVar()
-		userPort.set(LISTEN_PORT)
-		self.port = tkinter.Entry(master, textvariable=userPort, width=30)
-		self.port.grid(row=9, column=2)
-
-		self.notePort = tkinter.StringVar()
-		self.notePort.set("If 80 doesn't work try 99")
-		notePort = tkinter.Label(master, textvariable=self.notePort, height=2)
-		notePort.grid(row=9, column=3)
+			userStream = tkinter.StringVar()
+			userStream.set('HLS')
+			self.stream = tkinter.OptionMenu(master, userStream,*[x.upper() for x in streamtype])
+			self.stream.grid(row=6, column=2)
 
 
-		self.labelKodiPort = tkinter.StringVar()
-		self.labelKodiPort.set("KodiPort")
-		labelKodiPort = tkinter.Label(master, textvariable=self.labelKodiPort, height=2)
-		labelKodiPort.grid(row=10, column=1)
+			self.labelQuality = tkinter.StringVar()
+			self.labelQuality.set("Quality")
+			labelQuality = tkinter.Label(master, textvariable=self.labelQuality, height=2)
+			labelQuality.grid(row=7, column=1)
 
-		userKodiPort = tkinter.IntVar(None)
-		userKodiPort.set(KODIPORT)
-		self.kodiport = tkinter.Entry(master, textvariable=userKodiPort, width=30)
-		self.kodiport.grid(row=10, column=2)
-
-		self.noteKodiPort = tkinter.StringVar()
-		self.noteKodiPort.set("Only change if you've had to change the Kodi port")
-		noteKodiPort = tkinter.Label(master, textvariable=self.noteKodiPort, height=2)
-		noteKodiPort.grid(row=10, column=3)
+			userQuality = tkinter.StringVar()
+			userQuality.set('HD')
+			self.quality = tkinter.OptionMenu(master, userQuality, *[x[0] for x in qualityList])
+			self.quality.grid(row=7, column=2)
 
 
-		self.labelExternalIP = tkinter.StringVar()
-		self.labelExternalIP.set("External IP")
-		labelExternalIP = tkinter.Label(master, textvariable=self.labelExternalIP, height=2)
-		labelExternalIP.grid(row=11, column=1)
+			self.labelIP = tkinter.StringVar()
+			self.labelIP.set("Listen IP")
+			labelIP = tkinter.Label(master, textvariable=self.labelIP, height=2)
+			labelIP.grid(row=8, column=1)
 
-		userExternalIP = tkinter.StringVar()
-		userExternalIP.set(EXTIP)
-		self.externalip = tkinter.Entry(master, textvariable=userExternalIP, width=30)
-		self.externalip.grid(row=11, column=2)
+			userIP = tkinter.StringVar()
+			userIP.set(LISTEN_IP)
+			self.ip = tkinter.Entry(master, textvariable=userIP, width=30)
+			self.ip.grid(row=8, column=2)
 
-		self.noteExternalIP = tkinter.StringVar()
-		self.noteExternalIP.set("Enter your public IP or Dynamic DNS,\nfor use when you wish to use this remotely.")
-		noteExternalIP = tkinter.Label(master, textvariable=self.noteExternalIP, height=2)
-		noteExternalIP.grid(row=11, column=3)
+			self.noteIP = tkinter.StringVar()
+			self.noteIP.set("If using on other machines then set a static IP and use that.")
+			noteIP = tkinter.Label(master, textvariable=self.noteIP, height=2)
+			noteIP.grid(row=8, column=3)
 
-		self.labelExternalPort = tkinter.StringVar()
-		self.labelExternalPort.set("External Port")
-		labelExternalPort = tkinter.Label(master, textvariable=self.labelExternalPort, height=2)
-		labelExternalPort.grid(row=12, column=1)
 
-		userExternalPort = tkinter.IntVar(None)
-		userExternalPort.set(EXTPORT)
-		self.extport = tkinter.Entry(master, textvariable=userExternalPort, width=30)
-		self.extport.grid(row=12, column=2)
+			self.labelPort = tkinter.StringVar()
+			self.labelPort.set("Listen Port")
+			labelPort = tkinter.Label(master, textvariable=self.labelPort, height=2)
+			labelPort.grid(row=9, column=1)
 
-		def gather():
-			config = {}
-			config["username"] = userUsername.get()
-			config["password"] = userPassword.get()
-			config["stream"] = userStream.get().lower()
-			for sub in serverList:
-				if userServer.get() in sub[0]:
-					config["server"] = sub[1]
-			for sub in providerList:
-				if userSite.get() in sub[0]:
-					config["service"] = sub[1]
-			for sub in qualityList:
-				if userQuality.get() in sub[0]:
-					config["quality"] = sub[1]
-			config["ip"] = userIP.get()
-			config["port"] = userPort.get()
-			config["kodiport"] = userKodiPort.get()
-			config["externalip"] = userExternalIP.get()
-			config["externalport"] = userExternalPort.get()
-			for widget in master.winfo_children():
-				widget.destroy()
-			global playlist, kodiplaylist, QUAL, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, EXTIP, EXT_HOST, SERVER_HOST, EXTPORT
-			with open(os.path.join(os.path.dirname(sys.argv[0]), 'proxysettings.json'), 'w') as fp:
-				dump(config, fp)
-			QUAL = config["quality"]
-			USER = config["username"]
-			PASS = config["password"]
-			SRVR = config["server"]
-			SITE = config["service"]
-			STRM = config["stream"]
-			KODIPORT = config["kodiport"]
-			LISTEN_IP = config["ip"]
-			LISTEN_PORT = config["port"]
-			EXTIP = config["externalip"]
-			EXTPORT = config["externalport"]
-			EXT_HOST = "http://" + EXTIP + ":" + str(EXTPORT)
-			SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
+			userPort = tkinter.IntVar()
+			userPort.set(LISTEN_PORT)
+			self.port = tkinter.Entry(master, textvariable=userPort, width=30)
+			self.port.grid(row=9, column=2)
 
-			self.labelHeading = tkinter.StringVar()
-			self.labelHeading.set("Below are the URLs you have available for use")
-			labelHeading = tkinter.Label(master, textvariable=self.labelHeading, height=4)
-			labelHeading.grid(row=1)
+			self.notePort = tkinter.StringVar()
+			self.notePort.set("If 80 doesn't work try 99")
+			notePort = tkinter.Label(master, textvariable=self.notePort, height=2)
+			notePort.grid(row=9, column=3)
 
-			self.labelSetting1 = tkinter.StringVar()
-			self.labelSetting1.set("Change your settings at %s/index.html" % urljoin(SERVER_HOST, SERVER_PATH))
-			labelSetting1 = tkinter.Label(master, textvariable=self.labelSetting1, height=2)
-			labelSetting1.grid(row=2)
 
-			self.labelSetting2 = tkinter.StringVar()
-			self.labelSetting2.set("m3u8 url is %s/playlist.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
-			labelSetting2 = tkinter.Label(master, textvariable=self.labelSetting2, height=2)
-			labelSetting2.grid(row=3)
+			self.labelKodiPort = tkinter.StringVar()
+			self.labelKodiPort.set("KodiPort")
+			labelKodiPort = tkinter.Label(master, textvariable=self.labelKodiPort, height=2)
+			labelKodiPort.grid(row=10, column=1)
 
-			self.labelSetting3 = tkinter.StringVar()
-			self.labelSetting3.set("kodi m3u8 url is %s/kodi.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
-			labelSetting3 = tkinter.Label(master, textvariable=self.labelSetting3, height=2)
-			labelSetting3.grid(row=4)
+			userKodiPort = tkinter.IntVar(None)
+			userKodiPort.set(KODIPORT)
+			self.kodiport = tkinter.Entry(master, textvariable=userKodiPort, width=30)
+			self.kodiport.grid(row=10, column=2)
 
-			self.labelSetting4 = tkinter.StringVar()
-			self.labelSetting4.set("EPG url is %s/epg.xml" % urljoin(SERVER_HOST, SERVER_PATH))
-			labelSetting4 = tkinter.Label(master, textvariable=self.labelSetting4, height=2)
-			labelSetting4.grid(row=5)
+			self.noteKodiPort = tkinter.StringVar()
+			self.noteKodiPort.set("Only change if you've had to change the Kodi port")
+			noteKodiPort = tkinter.Label(master, textvariable=self.noteKodiPort, height=2)
+			noteKodiPort.grid(row=10, column=3)
 
-			self.labelSetting5 = tkinter.StringVar()
-			self.labelSetting5.set("Plex Live TV url is %s" % urljoin(SERVER_HOST, SERVER_PATH))
-			labelSetting5 = tkinter.Label(master, textvariable=self.labelSetting5, height=2)
-			labelSetting5.grid(row=7)
 
-			self.labelSetting6 = tkinter.StringVar()
-			self.labelSetting6.set("TVHeadend network url is %s/tvh.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
-			labelSetting6 = tkinter.Label(master, textvariable=self.labelSetting6, height=2)
-			labelSetting6.grid(row=8)
+			self.labelExternalIP = tkinter.StringVar()
+			self.labelExternalIP.set("External IP")
+			labelExternalIP = tkinter.Label(master, textvariable=self.labelExternalIP, height=2)
+			labelExternalIP.grid(row=11, column=1)
 
-			self.labelSetting7 = tkinter.StringVar()
-			self.labelSetting7.set("External m3u8 url is %s/external.m3u8" % urljoin(EXT_HOST, SERVER_PATH))
-			labelSetting7 = tkinter.Label(master, textvariable=self.labelSetting7, height=2)
-			labelSetting7.grid(row=9)
+			userExternalIP = tkinter.StringVar()
+			userExternalIP.set(EXTIP)
+			self.externalip = tkinter.Entry(master, textvariable=userExternalIP, width=30)
+			self.externalip.grid(row=11, column=2)
 
-			self.labelSetting8 = tkinter.StringVar()
-			self.labelSetting8.set("Combined m3u8 url is %s/combined.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
-			labelSetting8 = tkinter.Label(master, textvariable=self.labelSetting8, height=2)
-			labelSetting8.grid(row=10)
+			self.noteExternalIP = tkinter.StringVar()
+			self.noteExternalIP.set("Enter your public IP or Dynamic DNS,\nfor use when you wish to use this remotely.")
+			noteExternalIP = tkinter.Label(master, textvariable=self.noteExternalIP, height=2)
+			noteExternalIP.grid(row=11, column=3)
 
-			self.labelSetting9 = tkinter.StringVar()
-			self.labelSetting9.set("Combined m3u8 url is %s/combined.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
-			labelSetting9 = tkinter.Label(master, textvariable=self.labelSetting9, height=2)
-			labelSetting9.grid(row=11)
+			self.labelExternalPort = tkinter.StringVar()
+			self.labelExternalPort.set("External Port")
+			labelExternalPort = tkinter.Label(master, textvariable=self.labelExternalPort, height=2)
+			labelExternalPort.grid(row=12, column=1)
 
-			self.labelSetting10 = tkinter.StringVar()
-			self.labelSetting10.set("Static m3u8 url is %s/combined.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
-			labelSetting10 = tkinter.Label(master, textvariable=self.labelSetting10, height=2)
-			labelSetting10.grid(row=12)
+			userExternalPort = tkinter.IntVar(None)
+			userExternalPort.set(EXTPORT)
+			self.extport = tkinter.Entry(master, textvariable=userExternalPort, width=30)
+			self.extport.grid(row=12, column=2)
 
-			self.labelSetting11 = tkinter.StringVar()
-			self.labelSetting11.set("Sports EPG url is %s/sports.xml" % urljoin(SERVER_HOST, SERVER_PATH))
-			labelSetting11 = tkinter.Label(master, textvariable=self.labelSetting11, height=2)
-			labelSetting11.grid(row=6)
+			def gather():
+				config = {}
+				config["username"] = userUsername.get()
+				config["password"] = userPassword.get()
+				config["stream"] = userStream.get().lower()
+				for sub in serverList:
+					if userServer.get() in sub[0]:
+						config["server"] = sub[1]
+				for sub in providerList:
+					if userSite.get() in sub[0]:
+						config["service"] = sub[1]
+				for sub in qualityList:
+					if userQuality.get() in sub[0]:
+						config["quality"] = sub[1]
+				config["ip"] = userIP.get()
+				config["port"] = userPort.get()
+				config["kodiport"] = userKodiPort.get()
+				config["externalip"] = userExternalIP.get()
+				config["externalport"] = userExternalPort.get()
+				for widget in master.winfo_children():
+					widget.destroy()
+				global playlist, kodiplaylist, QUAL, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, EXTIP, EXT_HOST, SERVER_HOST, EXTPORT
+				with open(os.path.join(os.path.dirname(sys.argv[0]), 'proxysettings.json'), 'w') as fp:
+					dump(config, fp)
+				QUAL = config["quality"]
+				USER = config["username"]
+				PASS = config["password"]
+				SRVR = config["server"]
+				SITE = config["service"]
+				STRM = config["stream"]
+				KODIPORT = config["kodiport"]
+				LISTEN_IP = config["ip"]
+				LISTEN_PORT = config["port"]
+				EXTIP = config["externalip"]
+				EXTPORT = config["externalport"]
+				EXT_HOST = "http://" + EXTIP + ":" + str(EXTPORT)
+				SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
 
-			self.labelFooter = tkinter.StringVar()
-			self.labelFooter.set("These can also be found later on the YAP main screen after each launch")
-			labelFooter = tkinter.Label(master, textvariable=self.labelFooter, height=4)
-			labelFooter.grid(row=13)
+				self.labelHeading = tkinter.StringVar()
+				self.labelHeading.set("Below are the URLs you have available for use")
+				labelHeading = tkinter.Label(master, textvariable=self.labelHeading, height=4)
+				labelHeading.grid(row=1)
 
-			button1 = tkinter.Button(master, text="Launch YAP!!", width=20, command=lambda: self.client_exit(master))
-			button1.grid(row=14)
+				self.labelSetting1 = tkinter.StringVar()
+				self.labelSetting1.set("Change your settings at %s/index.html" % urljoin(SERVER_HOST, SERVER_PATH))
+				labelSetting1 = tkinter.Label(master, textvariable=self.labelSetting1, height=2)
+				labelSetting1.grid(row=2)
 
-		button1 = tkinter.Button(master, text="Submit", width=20,command=lambda: gather())
-		button1.grid(row=13, column=2)
+				self.labelSetting2 = tkinter.StringVar()
+				self.labelSetting2.set("m3u8 url is %s/playlist.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
+				labelSetting2 = tkinter.Label(master, textvariable=self.labelSetting2, height=2)
+				labelSetting2.grid(row=3)
+
+				self.labelSetting3 = tkinter.StringVar()
+				self.labelSetting3.set("kodi m3u8 url is %s/kodi.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
+				labelSetting3 = tkinter.Label(master, textvariable=self.labelSetting3, height=2)
+				labelSetting3.grid(row=4)
+
+				self.labelSetting4 = tkinter.StringVar()
+				self.labelSetting4.set("EPG url is %s/epg.xml" % urljoin(SERVER_HOST, SERVER_PATH))
+				labelSetting4 = tkinter.Label(master, textvariable=self.labelSetting4, height=2)
+				labelSetting4.grid(row=5)
+
+				self.labelSetting5 = tkinter.StringVar()
+				self.labelSetting5.set("Plex Live TV url is %s" % urljoin(SERVER_HOST, SERVER_PATH))
+				labelSetting5 = tkinter.Label(master, textvariable=self.labelSetting5, height=2)
+				labelSetting5.grid(row=7)
+
+				self.labelSetting6 = tkinter.StringVar()
+				self.labelSetting6.set("TVHeadend network url is %s/tvh.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
+				labelSetting6 = tkinter.Label(master, textvariable=self.labelSetting6, height=2)
+				labelSetting6.grid(row=8)
+
+				self.labelSetting7 = tkinter.StringVar()
+				self.labelSetting7.set("External m3u8 url is %s/external.m3u8" % urljoin(EXT_HOST, SERVER_PATH))
+				labelSetting7 = tkinter.Label(master, textvariable=self.labelSetting7, height=2)
+				labelSetting7.grid(row=9)
+
+				self.labelSetting8 = tkinter.StringVar()
+				self.labelSetting8.set("Combined m3u8 url is %s/combined.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
+				labelSetting8 = tkinter.Label(master, textvariable=self.labelSetting8, height=2)
+				labelSetting8.grid(row=10)
+
+				self.labelSetting9 = tkinter.StringVar()
+				self.labelSetting9.set("Combined m3u8 url is %s/combined.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
+				labelSetting9 = tkinter.Label(master, textvariable=self.labelSetting9, height=2)
+				labelSetting9.grid(row=11)
+
+				self.labelSetting10 = tkinter.StringVar()
+				self.labelSetting10.set("Static m3u8 url is %s/combined.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
+				labelSetting10 = tkinter.Label(master, textvariable=self.labelSetting10, height=2)
+				labelSetting10.grid(row=12)
+
+				self.labelSetting11 = tkinter.StringVar()
+				self.labelSetting11.set("Sports EPG url is %s/sports.xml" % urljoin(SERVER_HOST, SERVER_PATH))
+				labelSetting11 = tkinter.Label(master, textvariable=self.labelSetting11, height=2)
+				labelSetting11.grid(row=6)
+
+				self.labelFooter = tkinter.StringVar()
+				self.labelFooter.set("These can also be found later on the YAP main screen after each launch")
+				labelFooter = tkinter.Label(master, textvariable=self.labelFooter, height=4)
+				labelFooter.grid(row=13)
+
+				button1 = tkinter.Button(master, text="Launch YAP!!", width=20, command=lambda: self.client_exit(master))
+				button1.grid(row=14)
+
+			button1 = tkinter.Button(master, text="Submit", width=20,command=lambda: gather())
+			button1.grid(row=13, column=2)
 
 
 
@@ -2121,19 +2122,53 @@ def create_menu():
 		html.write('<input type="submit"  value="Submit">')
 		html.write('</form>')
 		html.write("<p>You are running version (%s %s), the latest is %s</p>" % (type, __version__, latest_ver))
+		html.write("</br><p>Restarts can take a while, it is not immediate.</p>")
+		html.write('<form action="%s/%s/handle_data" method="post">' % (SERVER_HOST, SERVER_PATH))
+		html.write('<input type="hidden" name="restart"  value="1">')
+		html.write('<input type="submit"  value="Restart">')
+		html.write('</form>')
+		html.write('<form action="%s/%s/handle_data" method="post">' % (SERVER_HOST, SERVER_PATH))
+		html.write('<input type="hidden" name="restart"  value="2">')
+		html.write('<input type="submit"  value="Update + Restart">')
+		html.write('</form>')
+		html.write('<form action="%s/%s/handle_data" method="post">' % (SERVER_HOST, SERVER_PATH))
+		html.write('<input type="hidden" name="restart"  value="3">')
+		html.write('<input type="submit"  value="Update(Dev Branch) + Restart">')
+		html.write('</form>')
 		html.write('</div><div class="right-half"><h1>YAP Outputs</h1>')
-		html.write("<p>m3u8 url is %s/playlist.m3u8</p>" % urljoin(SERVER_HOST, SERVER_PATH))
-		html.write("<p>kodi m3u8 url is %s/kodi.m3u8</p>" % urljoin(SERVER_HOST, SERVER_PATH))
-		html.write("<p>EPG url is %s/epg.xml</p>" % urljoin(SERVER_HOST, SERVER_PATH))
-		html.write("<p>Sports EPG url is %s/sports.xml</p>" % urljoin(SERVER_HOST, SERVER_PATH))
-		html.write("<p>Plex Live TV url is %s</p>" % urljoin(SERVER_HOST, SERVER_PATH))
-		html.write("<p>TVHeadend network url is %s/tvh.m3u8</p>" % urljoin(SERVER_HOST, SERVER_PATH))
-		html.write("<p>External m3u8 url is %s/external.m3u8</p>" % urljoin(EXT_HOST, SERVER_PATH))
-		html.write("<p>Combined m3u8 url is %s/combined.m3u8</p>" % urljoin(SERVER_HOST, SERVER_PATH))
-		html.write("<p>Combined epg url is %s/combined.xml</p>" % urljoin(SERVER_HOST, SERVER_PATH))
-		html.write("<p>Static m3u8 url is %s/static.m3u8</p>" % urljoin(SERVER_HOST, SERVER_PATH))
-		if TVHREDIRECT == True:
-			html.write("<p>TVH's own EPG url is http://%s:9981/xmltv/channels</p>" % TVHURL)
+
+		html.write("<table><tr><td rowspan='2'>Standard Outputs</td><td>m3u8 - %s/playlist.m3u8</td></tr>" % urljoin(SERVER_HOST, SERVER_PATH))
+		html.write("<tr><td>EPG - %s/epg.xml</td></tr>" % urljoin(SERVER_HOST, SERVER_PATH))
+		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
+		html.write("<tr><td>Sports EPG (Alternative)</td><td>%s/sports.xml</td></tr>" % urljoin(SERVER_HOST, SERVER_PATH))
+		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
+		html.write("<tr><td>Kodi RTMP supported</td><td>m3u8 - %s/kodi.m3u8</td></tr>" % urljoin(SERVER_HOST, SERVER_PATH))
+		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
+
+		html.write("<tr><td rowspan='2'>Plex Live<sup>1</sup></td><td>Tuner - %s</td></tr>" % urljoin(SERVER_HOST, SERVER_PATH))
+		html.write("<tr><td>EPG - %s/epg.xml</td></tr>" % urljoin(SERVER_HOST, SERVER_PATH))
+		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
+		html.write("<tr><td>TVHeadend<sup>1</sup></td><td>%s/tvh.m3u8</td></tr>" % urljoin(SERVER_HOST, SERVER_PATH))
+		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
+		html.write("<tr><td rowspan='2'>Remote Internet access<sup>2</sup></td><td>m3u8 - %s/external.m3u8</td></tr>" % urljoin(EXT_HOST, SERVER_PATH))
+		html.write("<tr><td>EPG - %s/epg.xml</td></tr>" % urljoin(EXT_HOST, SERVER_PATH))
+		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
+
+		html.write("<tr><td rowspan='2'>Combined Outputs<sup>2</sup></td><td>m3u8 - %s/combined.m3u8</td></tr>" % urljoin(SERVER_HOST, SERVER_PATH))
+		html.write("<tr><td>epg - %s/combined.xml</td></tr>" % urljoin(SERVER_HOST, SERVER_PATH))
+		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
+
+		html.write("<tr><td>Static Playlist</td><td>m3u8 - %s/static.m3u8</td></tr>" % urljoin(SERVER_HOST, SERVER_PATH))
+		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
+
+		html.write("<tr><td rowspan='2'>TVHProxy<sup>3</sup></td><td>Tuner - %s</td></tr>" % urljoin(SERVER_HOST, 'tvh'))
+		html.write("<tr><td>EPG - http://%s:9981/xmltv/channels</td></tr>" % TVHURL)
+		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
+		html.write("<tr><td>Test Playlist for troubleshooting</td><td>%s/test.m3u8</td></tr>" % urljoin(SERVER_HOST, SERVER_PATH))
+		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
+		html.write("<tr><td>Note 1:</td><td>Requires FFMPEG installation and setup</td></tr>")
+		html.write("<tr><td>Note 2:</td><td>Requires External IP and port in advancedsettings</td></tr>")
+		html.write("<tr><td>Note 3:</td><td>Requires TVH proxy setup in advancedsettings</td></tr></table>")
 		html.write("</div></section></body></html>\n")
 		
 		
@@ -2157,6 +2192,18 @@ def close_menu(restart):
 			if TVHREDIRECT == True:
 				html.write("<p>TVH's own EPG url is http://%s:9981/xmltv/channels</p>" % TVHURL)
 		html.write("</body></html>\n")
+
+def restart_program():
+	os.system('cls' if os.name == 'nt' else 'clear')
+	args = sys.argv[:]
+	logger.info('Re-spawning %s' % ' '.join(args))
+	#
+	# args.insert(0, sys.executable)
+	# if sys.platform == 'win32':
+	# 	args = ['"%s"' % arg for arg in args]
+
+	os.execl(sys.executable, *([sys.executable] + sys.argv))
+	# os.execv(sys.executable, args)
 		
 		
 ############################################################
@@ -2168,6 +2215,19 @@ def handle_data():
 	global playlist, kodiplaylist,QUAL,USER,PASS,SRVR,SITE,STRM,KODIPORT,LISTEN_IP,LISTEN_PORT,EXTIP,EXT_HOST,SERVER_HOST,EXTPORT
 	inc_data = request.form
 	config = {}
+	if inc_data["restart"] == '3':
+		logger.info('Updating YAP Dev')
+		newfilename = ntpath.basename(latestfile)
+		devname = latestfile.replace('master','dev')
+		requests.urlretrieve(devname, os.path.join(os.path.dirname(sys.argv[0]), newfilename))
+	if inc_data["restart"] == '2':
+		logger.info('Updating YAP')
+		newfilename = ntpath.basename(latestfile)
+		requests.urlretrieve(latestfile, os.path.join(os.path.dirname(sys.argv[0]), newfilename))
+	if inc_data["restart"]:
+		logger.info('Restarting YAP')
+		restart_program()
+		return
 	config["username"] = inc_data['Username']
 	config["password"] = inc_data['Password']
 	config["stream"] = inc_data['Stream']
@@ -2212,9 +2272,11 @@ def handle_data():
 		close_menu(True)
 	else:
 		close_menu(False)
+
 	return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'close.html')
 
 @app.route('/')
+@app.route('/sstv')
 def landing_page():
 	logger.info("Index was requested by %s", request.environ.get('REMOTE_ADDR'))
 	create_menu()
@@ -2370,6 +2432,9 @@ def bridge(request_file):
 				strm = 'rtmp'
 				rtmpTemplate = 'rtmp://{0}.smoothstreams.tv:3625/{1}/ch{2}q{3}.stream?wmsAuthSign={4}'
 				ss_url = rtmpTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
+			elif request.args.get('strm') and request.args.get('strm') == 'mpegts':
+				strm = 'mpegts'
+				return auto(sanitized_channel, qual)
 			else:
 				strm = 'hls'
 				hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}=='
@@ -2448,15 +2513,15 @@ def tvh_returns(request_file):
 
 @app.route('/%s/auto/<request_file>' % SERVER_PATH)
 #returns a piped stream, used for TVH/Plex Live TV
-def auto(request_file):
+def auto(request_file, qual=1):
 	logger.debug("starting pipe function")
 	check_token()
 	channel = request_file.replace("v","")
 	logger.info("Channel %s playlist was requested by %s", channel,
 			request.environ.get('REMOTE_ADDR'))
 	sanitized_channel = ("0%d" % int(channel)) if int(channel) < 10 else channel
-	sanitized_qual = 1 if int(channel) > 60 else QUAL
-	template = "http://{0}.smoothstreams.tv:9100/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}"
+	sanitized_qual = 1 if int(channel) > 60 else qual
+	template = "https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}"
 	url = template.format(SRVR, SITE, sanitized_channel,sanitized_qual, token['hash'])
 	logger.debug("sanitized_channel: %s sanitized_qual: %s" % (sanitized_channel,sanitized_qual))
 	logger.debug(url)
@@ -2549,8 +2614,11 @@ if __name__ == "__main__":
 	except:
 		_thread.start_new_thread(thread_playlist, ())
 
+	print("\n\n##############################################################")
+	print("Main Menu - %s/index.html" %  urljoin(SERVER_HOST, SERVER_PATH))
+	print("Contains all the information located here and more!")
+	print("##############################################################\n\n")
 	print("\n##############################################################")
-	print("Change your settings at %s/index.html" %  urljoin(SERVER_HOST, SERVER_PATH))
 	print("m3u8 url is %s/playlist.m3u8" %  urljoin(SERVER_HOST, SERVER_PATH))
 	print("kodi m3u8 url is %s/kodi.m3u8" %  urljoin(SERVER_HOST, SERVER_PATH))
 	print("EPG url is %s/epg.xml" % urljoin(SERVER_HOST, SERVER_PATH))
@@ -2561,8 +2629,7 @@ if __name__ == "__main__":
 	print("Combined m3u8 url is %s/combined.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
 	print("Combined EPG url is %s/combined.xml" % urljoin(SERVER_HOST, SERVER_PATH))
 	print("Static m3u8 url is %s/static.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
-	if TVHREDIRECT == True:
-		print("TVH's own EPG url is http://%s:9981/xmltv/channels" % TVHURL)
+	print("TVH's own EPG url is http://%s:9981/xmltv/channels" % TVHURL)
 	print("##############################################################\n")
 
 	if __version__ < latest_ver:
