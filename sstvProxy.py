@@ -76,9 +76,10 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.63
+__version__ = 1.64
 #Changelog
-#1.63 - Added satch for clients with no user agent at all
+#1.64 - Bugfixes
+#1.63 - Added catch for clients with no user agent at all
 #1.62 - xmltv merger bugfix and speedup, kodi settings overwrite disabled
 #1.61 - Addition of test.m3u8 to help identify client requirements
 #1.60 - Addition of XMLTV merger /combined.xml, TVH CHNUM addition, Addition of MMA tv auth, change of returns based on detected client
@@ -1406,10 +1407,10 @@ def build_test_playlist(hosts):
 	# build playlist using the data we have
 	new_playlist = "#EXTM3U x-tvg-url='%s/epg.xml'\n" % urljoin(SERVER_HOST, SERVER_PATH)
 	template = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}q{5}.stream{6}?wmsAuthSign={7}'
-	url = "{0}/playlist.m3u8?ch=1&strm=hls&qual=1&type={1}"
+	url = "{0}/sstv/playlist.m3u8?ch=1&strm=hls&qual=1&type={1}"
 	# build playlist entry
 	new_playlist += '#EXTINF:-1 tvg-id="1" tvg-name="Static HLS" channel-id="1","Static HLS"\n'
-	new_playlist += '%s\n' % template.format('https','dnaw1','3625',SITE,"01",1,'/playlist.m3u8',token['hash'])
+	new_playlist += '%s\n' % template.format('https','dnaw1','443',SITE,"01",1,'/playlist.m3u8',token['hash'])
 	new_playlist += '#EXTINF:-1 tvg-id="2" tvg-name="Static RTMP" channel-id="2","Static RTMP"\n'
 	new_playlist += '%s\n' % template.format('rtmp','dnaw1','3625',SITE, "01",1,'',token['hash'])
 	count = 3
