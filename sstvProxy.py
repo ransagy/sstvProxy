@@ -77,8 +77,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.65
+__version__ = 1.66
 #Changelog
+#1.66 - Added extra m3u8 to the standard Plex Live output, make sure to use combined.xml in this scenario instead too.
 #1.65 - Addition of strmtype 'mpegts' utilises ffmpeg pipe prev used only by TVH/Plex Live. Enhancement of Webpage incl update and restart buttons.
 #1.64 - Bugfixes
 #1.63 - Added catch for clients with no user agent at all
@@ -1628,6 +1629,26 @@ def status():
 		'SourceList': ['Cable']
 	})
 
+def m3u8_plex(lineup, inputm3u8):
+	for i in range(len(inputm3u8)):
+		if inputm3u8[i] != "" or inputm3u8[i] != "\n":
+			try:
+				if inputm3u8[i].startswith("#"):
+					grouper = inputm3u8[i]
+					grouper = grouper.split(',')
+					name = grouper[1]
+					lineup.append({'GuideNumber': str(len(lineup)+1),
+					               'GuideName': name,
+					               'URL': 'empty'
+					               })
+				elif inputm3u8[i].startswith("rtmp") or inputm3u8[i].startswith("http"):
+					template = "{0}/{1}/auto/v{2}?url={3}"
+					url = template.format(SERVER_HOST, SERVER_PATH, str(len(lineup)), inputm3u8[i])
+					lineup[-1]['URL'] = url
+
+			except:
+				logger.debug("skipped:", inputm3u8[i])
+	return lineup
 
 def lineup(chan_map):
 	lineup = []
@@ -1639,7 +1660,19 @@ def lineup(chan_map):
 						   'GuideName': chan_map[c].channame,
 						   'URL': url
 						   })
-
+	formatted_m3u8 = ''
+	if EXTM3URL != '':
+		logger.debug("extra m3u8 url")
+		inputm3u8 = requests.urlopen(EXTM3URL).read().decode('utf-8')
+		inputm3u8 = inputm3u8.split("\n")[1:]
+		return jsonify(m3u8_plex(lineup, inputm3u8))
+	elif EXTM3UFILE != '':
+		logger.debug("extra m3u8 file")
+		f = open(EXTM3UFILE,'r')
+		inputm3u8 = f.readlines()
+		inputm3u8 = inputm3u8[1:]
+		inputm3u8 = [x.strip("\n") for x in inputm3u8]
+		return jsonify(m3u8_plex(lineup, inputm3u8))
 	return jsonify(lineup)
 
 def tvh_lineup():
@@ -2540,6 +2573,12 @@ def auto(request_file, qual=1):
 		sanitized_channel = '01'
 		sanitized_qual = '3'
 		url = template.format(SRVR, SITE, sanitized_channel,sanitized_qual, token['hash'])
+		logger.debug(url)
+	if request.args.get('url'):
+		logger.info("Piping custom URL")
+		url = request.args.get('url')
+		if '|' in url:
+			url = url.split('|')[0]
 		logger.debug(url)
 	import subprocess
 
