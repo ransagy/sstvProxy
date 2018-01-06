@@ -77,8 +77,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.66
+__version__ = 1.67
 #Changelog
+#1.67 - Finished JSON to XML
 #1.66 - Added extra m3u8 to the standard Plex Live output, make sure to use combined.xml in this scenario instead too.
 #1.65 - Addition of strmtype 'mpegts' utilises ffmpeg pipe prev used only by TVH/Plex Live. Enhancement of Webpage incl update and restart buttons.
 #1.64 - Bugfixes
@@ -1227,46 +1228,100 @@ def dl_epg(source=1):
 def dl_sstv_epg():
 	#download epg xml
 	#https://guide.smoothstreams.tv/feed-new-full-latest.zip
-	if os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'epg.xml')):
-		existing = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'epg.xml')
+	if os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'sstv_full.xml')):
+		existing = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'sstv_full.xml')
 		cur_utc_hr = datetime.utcnow().replace(microsecond=0,second=0,minute=0).hour
 		target_utc_hr = (cur_utc_hr//3)*3
 		target_utc_datetime = datetime.utcnow().replace(microsecond=0,second=0,minute=0, hour=target_utc_hr)
 		print("utc time is: %s,    utc target time is: %s,    file time is: %s" % (datetime.utcnow(), target_utc_datetime, datetime.utcfromtimestamp(os.stat(existing).st_mtime)))
 		if os.path.isfile(existing) and os.stat(existing).st_mtime > target_utc_datetime.timestamp():
 			logger.debug("Skipping download of epg")
-			#return
+			return
 	logger.debug("Downloading sstv epg")
-	url = "https://speed.guide.smoothstreams.tv/feed-new.json"
-	jsonepg = json.loads(requests.urlopen(url).read().decode("utf-8"))
-	xml = json2xml(jsonepg)
-	f = open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'sstvepg.xml'), 'w')
-	f.write(xml)
-	f.close()
+	url = "https://guide.smoothstreams.tv/feed-new-full-latest.zip"
+	import zipfile
+	requests.urlretrieve(url, os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'testepg.zip'))
+	archive = zipfile.ZipFile(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'testepg.zip'), 'r')
+	jsonepg = archive.read('feed-new-full.json')
+	epg = json.loads(jsonepg.decode('utf-8'))
+	json2xml(epg)
 
 
-def json2xml(json_obj, line_padding=""):
-	result_list = list()
+def json2xml(json_obj):
+	master = ET.Element('tv')
+	mtree = ET.ElementTree(master)
+	mroot = mtree.getroot()
+	data = json_obj.get('data')
+	for i,j in data.items():
+		displayname = j['name']
+		id = j['number']
+		icon = j['img']
 
-	json_obj_type = type(json_obj)
+		subelement = ET.SubElement(master, 'channel', {'id':id})
+		ET.SubElement(subelement, 'icon', {'src':icon})
+		ET.SubElement(subelement, 'display-name')
 
-	if json_obj_type is list:
-		for sub_elem in json_obj:
-			result_list.append(json2xml(sub_elem, line_padding))
-
-		return "\n".join(result_list)
-
-	if json_obj_type is dict:
-		for tag_name in json_obj:
-			sub_obj = json_obj[tag_name]
-			result_list.append("%s<%s>" % (line_padding, tag_name))
-			result_list.append(json2xml(sub_obj, "\t" + line_padding))
-			result_list.append("%s</%s>" % (line_padding, tag_name))
-
-		return "\n".join(result_list)
-
-	return "%s%s" % (line_padding, json_obj)
-
+		c = subelement.find('display-name')
+		c.text = displayname
+		# input
+		# '''"851224591": {"name": "SportsCenter With Scott Van Pelt",
+		#               "description": "Scott Van Pelt presents the day in sports through his unique perspective with highlights, special guests and his ``One Big Thing'' commentary.",
+		#               "time": "1515232800", "runtime": 60, "version": "", "language": "us", "channel": "83",
+		#               "category": 0, "parent_id": "0", "quality": "HQLQ", "source": "XMLTV"}'''
+		#  sample output from fog
+		# <programme channel="I58690.labs.zap2it.com" start="20180105170000 +0000" stop="20180105180000 +0000">
+		# <title lang="en">NHL Hockey Central</title>
+		# <desc lang="en">News and highlights from around the NHL.</desc>
+		# <category lang="en">Ice Hockey</category><
+		# episode-num system="">EP02022073.0008</episode-num></programme>
+		for event in j['events']:
+			program = j['events'][event]
+			category = ""
+			if 'nba' in program['name'].lower() or 'nba' in program['name'].lower() or 'ncaam' in program[
+				'name'].lower():
+				category = "Basketball"
+			elif 'nfl' in program['name'].lower() or 'football' in program['name'].lower() or 'american football' in \
+					program['name'].lower() or 'ncaaf' in program['name'].lower() or 'cfb' in program['name'].lower():
+				category = "Football"
+			elif 'epl' in program['name'].lower() or 'efl' in program['name'].lower() or 'soccer' in program[
+				'name'].lower() or 'ucl' in program['name'].lower() or 'mls' in program['name'].lower() or 'uefa' in \
+					program['name'].lower() or 'fifa' in program['name'].lower() or 'fc' in program[
+				'name'].lower() or 'la liga' in program['name'].lower() or 'serie a' in program[
+				'name'].lower() or 'wcq' in program['name'].lower():
+				category = "Soccer"
+			elif 'rugby' in program['name'].lower() or 'nrl' in program['name'].lower() or 'afl' in program[
+				'name'].lower():
+				category = "Rugby"
+			elif 'cricket' in program['name'].lower() or 't20' in program['name'].lower():
+				category = "Cricket"
+			elif 'tennis' in program['name'].lower() or 'squash' in program['name'].lower() or 'atp' in program[
+				'name'].lower():
+				category = "Tennis/Squash"
+			elif 'f1' in program['name'].lower() or 'nascar' in program['name'].lower() or 'motogp' in program[
+				'name'].lower() or 'racing' in program['name'].lower():
+				category = "Motor Sport"
+			elif 'golf' in program['name'].lower() or 'pga' in program['name'].lower():
+				category = "Golf"
+			elif 'boxing' in program['name'].lower() or 'mma' in program['name'].lower() or 'ufc' in program[
+				'name'].lower() or 'wrestling' in program['name'].lower() or 'wwe' in program['name'].lower():
+				category = "Martial Sports"
+			elif 'hockey' in program['name'].lower() or 'nhl' in program['name'].lower() or 'ice hockey' in program[
+				'name'].lower():
+				category = "Ice Hockey"
+			elif 'baseball' in program['name'].lower() or 'mlb' in program['name'].lower() or 'beisbol' in program[
+				'name'].lower() or 'minor league' in program['name'].lower():
+				category = "Baseball"
+			start = datetime.utcfromtimestamp(int(program['time'])).strftime('%Y%m%d%H%M%S +0000')
+			stop = datetime.utcfromtimestamp(int(program['time'])+60*int(program['runtime'])).strftime('%Y%m%d%H%M%S +0000')
+			subelement = ET.SubElement(master, 'programme', {'id': id, 'start': start, 'stop': stop})
+			p_title = ET.SubElement(subelement, 'title', {'lang': program['language']})
+			p_title.text = program['name']
+			p_desc = ET.SubElement(subelement, 'desc', {'lang': program['language']})
+			p_desc.text = program['description']
+			p_genre = ET.SubElement(subelement, 'category', {'lang': program['language']})
+			p_genre.text = category
+	mtree.write(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'sstv_full.xml'))
+	return
 
 ############################################################
 # SSTV
