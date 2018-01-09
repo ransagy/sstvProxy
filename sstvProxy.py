@@ -2390,7 +2390,7 @@ def index(request_file):
 		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'empty.png')
 
 
-@app.route('/%s/<request_file>' % SERVER_PATH)
+@app.route('/%s/<request_file>' % SERVER_PATH, methods=['GET', 'POST'])
 def bridge(request_file):
 	global playlist, token, chan_map, kodiplaylist, tvhplaylist, fallback
 	check_token()
