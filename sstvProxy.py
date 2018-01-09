@@ -79,7 +79,7 @@ app = Flask(__name__, static_url_path='')
 
 __version__ = 1.67
 #Changelog
-#1.67 - Finished JSON to XML
+#1.67 - Finished JSON to XML, fixed quality setting and settings menu form posting
 #1.66 - Added extra m3u8 to the standard Plex Live output, make sure to use combined.xml in this scenario instead too.
 #1.65 - Addition of strmtype 'mpegts' utilises ffmpeg pipe prev used only by TVH/Plex Live. Enhancement of Webpage incl update and restart buttons.
 #1.64 - Bugfixes
@@ -370,7 +370,7 @@ def load_settings():
 			os.system('cls' if os.name == 'nt' else 'clear')
 			for i in qualityList:
 				print(qualityList.index(i), qualityList[qualityList.index(i)][0])
-			config["quality"] = int(qualityList[int(input("Stream quality?"))][1])
+			config["quality"] = qualityList[int(input("Stream quality?"))][1]
 			os.system('cls' if os.name == 'nt' else 'clear')
 			config["ip"] = input("Listening IP address?(ie recommend 127.0.0.1 for beginners)")
 			config["port"] = int(input("and port?(ie 99, do not use 8080)"))
@@ -1447,8 +1447,9 @@ def build_static_playlist():
 	new_playlist = "#EXTM3U x-tvg-url='%s/epg.xml'\n" % urljoin(SERVER_HOST, SERVER_PATH)
 	for pos in range(1, len(chan_map) + 1):
 		# build channel url
+
 		template = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}q{5}.stream{6}?wmsAuthSign={7}'
-		urlformatted = template.format('https' if STRM == 'hls' else 'rtmp',SRVR,'443' if STRM == 'hls' else '3625',SITE, "{:02}".format(pos),QUAL,'/playlist.m3u8' if STRM == 'hls' else '',token['hash'])
+		urlformatted = template.format('https' if STRM == 'hls' else 'rtmp',SRVR,'443' if STRM == 'hls' else '3625',SITE, "{:02}".format(pos),QUAL if pos <= 60 else '1','/playlist.m3u8' if STRM == 'hls' else '',token['hash'])
 		# build playlist entry
 		try:
 			new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s",%s\n' % (
@@ -2083,7 +2084,7 @@ def build_kodi_playlist():
 			new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s" group-title="Static RTMP",%s\n' % (
 				chan_map[pos].channum, chan_map[pos].channame, SERVER_HOST, SERVER_PATH, chan_map[pos].channum, chan_map[pos].channum,
 				chan_map[pos].channame)
-			new_playlist += '%s\n' % rtmpTemplate.format(SRVR, SITE, "{:02}".format(pos), QUAL, token['hash'])
+			new_playlist += '%s\n' % rtmpTemplate.format(SRVR, SITE, "{:02}".format(pos), QUAL if pos <= 60 else '1', token['hash'])
 		except:
 			logger.exception("Exception while updating kodi playlist: ")
 	new_playlist += '#EXTINF:-1 tvg-id="static_refresh" tvg-name="Static Refresh" tvg-logo="%s/%s/empty.png" channel-id="0" group-title="Static RTMP",Static Refresh\n' % (
@@ -2303,16 +2304,16 @@ def handle_data():
 	global playlist, kodiplaylist,QUAL,USER,PASS,SRVR,SITE,STRM,KODIPORT,LISTEN_IP,LISTEN_PORT,EXTIP,EXT_HOST,SERVER_HOST,EXTPORT
 	inc_data = request.form
 	config = {}
-	if inc_data["restart"] == '3':
-		logger.info('Updating YAP Dev')
-		newfilename = ntpath.basename(latestfile)
-		devname = latestfile.replace('master','dev')
-		requests.urlretrieve(devname, os.path.join(os.path.dirname(sys.argv[0]), newfilename))
-	if inc_data["restart"] == '2':
-		logger.info('Updating YAP')
-		newfilename = ntpath.basename(latestfile)
-		requests.urlretrieve(latestfile, os.path.join(os.path.dirname(sys.argv[0]), newfilename))
-	if inc_data["restart"]:
+	if 'restart' in inc_data:
+		if inc_data["restart"] == '3':
+			logger.info('Updating YAP Dev')
+			newfilename = ntpath.basename(latestfile)
+			devname = latestfile.replace('master', 'dev')
+			requests.urlretrieve(devname, os.path.join(os.path.dirname(sys.argv[0]), newfilename))
+		elif inc_data["restart"] == '2':
+			logger.info('Updating YAP')
+			newfilename = ntpath.basename(latestfile)
+			requests.urlretrieve(latestfile, os.path.join(os.path.dirname(sys.argv[0]), newfilename))
 		logger.info('Restarting YAP')
 		restart_program()
 		return
@@ -2327,7 +2328,7 @@ def handle_data():
 			config["service"] = sub[1]
 	for sub in qualityList:
 		if sub[0] == inc_data['Quality']:
-			config["quality"] = int(sub[1])
+			config["quality"] = sub[1]
 	config["ip"] = inc_data['IP']
 	config["port"] = int(inc_data['Port'])
 	config["kodiport"] = int(inc_data['Kodiport'])
@@ -2350,8 +2351,9 @@ def handle_data():
 	EXTPORT = config["externalport"]
 	EXT_HOST = "http://" + EXTIP + ":" + str(EXTPORT)
 	SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
-	with open(os.path.join(os.path.dirname(sys.argv[0]),'proxysettings.json'), 'w') as fp:
+	with open('./proxysettings.json', 'w') as fp:
 		dump(config, fp)
+	logger.info("Updated Settings file.")
 	check_token()
 	playlist = build_playlist(SERVER_HOST)
 	kodiplaylist = build_kodi_playlist()
@@ -2513,7 +2515,7 @@ def bridge(request_file):
 				sanitized_channel = ("0%d" % int(request.args.get('ch'))) if int(request.args.get('ch')) < 10 else request.args.get('ch')
 			check_token()
 
-			qual = '1'
+			qual = QUAL
 			if request.args.get('qual') and int(sanitized_channel) <= 60:
 				qual = request.args.get('qual')
 			if request.args.get('strm') and request.args.get('strm') == 'rtmp':
