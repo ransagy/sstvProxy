@@ -2515,9 +2515,11 @@ def bridge(request_file):
 				sanitized_channel = ("0%d" % int(request.args.get('ch'))) if int(request.args.get('ch')) < 10 else request.args.get('ch')
 			check_token()
 
-			qual = QUAL
+			qual = 1
 			if request.args.get('qual') and int(sanitized_channel) <= 60:
 				qual = request.args.get('qual')
+			elif int(sanitized_channel) <= 60:
+				qual = QUAL
 			if request.args.get('strm') and request.args.get('strm') == 'rtmp':
 				strm = 'rtmp'
 				rtmpTemplate = 'rtmp://{0}.smoothstreams.tv:3625/{1}/ch{2}q{3}.stream?wmsAuthSign={4}'
