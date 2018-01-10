@@ -77,8 +77,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.671
+__version__ = 1.672
 #Changelog
+#1.672 - Changed mpegts output default quality from 1 to what user has set.
 #1.671 - Correction of MMATV url
 #1.67 - Finished JSON to XML, fixed quality setting and settings menu form posting
 #1.66 - Added extra m3u8 to the standard Plex Live output, make sure to use combined.xml in this scenario instead too.
@@ -2606,7 +2607,7 @@ def tvh_returns(request_file):
 
 @app.route('/%s/auto/<request_file>' % SERVER_PATH)
 #returns a piped stream, used for TVH/Plex Live TV
-def auto(request_file, qual=1):
+def auto(request_file, qual=QUAL):
 	logger.debug("starting pipe function")
 	check_token()
 	channel = request_file.replace("v","")
