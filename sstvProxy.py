@@ -77,8 +77,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.67
+__version__ = 1.671
 #Changelog
+#1.671 - Correction of MMATV url
 #1.67 - Finished JSON to XML, fixed quality setting and settings menu form posting
 #1.66 - Added extra m3u8 to the standard Plex Live output, make sure to use combined.xml in this scenario instead too.
 #1.65 - Addition of strmtype 'mpegts' utilises ffmpeg pipe prev used only by TVH/Plex Live. Enhancement of Webpage incl update and restart buttons.
@@ -1330,7 +1331,7 @@ def json2xml(json_obj):
 
 def get_auth_token(user, passwd, site):
 	if site == 'viewmmasr' or site == 'mmatv':
-		baseUrl = 'https://www.mma-tv.net/loginForm.php'
+		baseUrl = 'https://www.mma-tv.net/loginForm.php?'
 	else:
 		baseUrl = 'http://auth.smoothstreams.tv/hash_api.php?'
 
