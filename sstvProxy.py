@@ -2614,15 +2614,15 @@ def auto(request_file, qual=QUAL):
 	logger.info("Channel %s playlist was requested by %s", channel,
 			request.environ.get('REMOTE_ADDR'))
 	sanitized_channel = ("0%d" % int(channel)) if int(channel) < 10 else channel
-	sanitized_qual = 1 if int(channel) > 60 else qual
+	sanitized_qual = '1' if int(channel) > 60 else qual
 	template = "https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}"
 	url = template.format(SRVR, SITE, sanitized_channel,sanitized_qual, token['hash'])
-	logger.debug("sanitized_channel: %s sanitized_qual: %s" % (sanitized_channel,sanitized_qual))
+	logger.debug("sanitized_channel: %s sanitized_qual: %s QUAL: %s qual: %s" % (sanitized_channel,sanitized_qual, QUAL, qual))
 	logger.debug(url)
-	try:
-		urllib.request.urlopen(url, timeout=2).getcode()
-	except:
-		a = 1
+	# try:
+	# 	urllib.request.urlopen(url, timeout=2).getcode()
+	# except:
+	# 	a = 1
 	# except timeout:
 	# 	#special arg for tricking tvh into saving every channel first time
 	# 	print("timeout")
