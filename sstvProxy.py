@@ -2607,7 +2607,7 @@ def tvh_returns(request_file):
 
 @app.route('/%s/auto/<request_file>' % SERVER_PATH)
 #returns a piped stream, used for TVH/Plex Live TV
-def auto(request_file, qual=QUAL):
+def auto(request_file, qual = ""):
 	logger.debug("starting pipe function")
 	check_token()
 	channel = request_file.replace("v","")
@@ -2617,7 +2617,10 @@ def auto(request_file, qual=QUAL):
 
 	sanitized_qual = '1'
 	if int(channel) <= 60:
-		sanitized_qual = qual
+		if qual == "":
+			sanitized_qual = QUAL
+		else:
+			sanitized_qual = qual
 	template = "https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}"
 	url = template.format(SRVR, SITE, sanitized_channel,sanitized_qual, token['hash'])
 	logger.debug("sanitized_channel: %s sanitized_qual: %s QUAL: %s qual: %s" % (sanitized_channel,sanitized_qual, QUAL, qual))
