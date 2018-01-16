@@ -185,8 +185,7 @@ TVHREDIRECT = False
 TVHURL = '127.0.0.1'
 TVHUSER = ''
 TVHPASS = ''
-OVRXMLFILE = ''
-OVRXMLURL = ''
+OVRXML = ''
 EXTUSER = 'test'
 EXTPASS = 'test'
 tvhWeight = 300  # subscription priority
@@ -322,14 +321,10 @@ def adv_settings():
 				logger.debug("Overriding tvhpass")
 				global TVHPASS
 				TVHPASS = advconfig["tvhpass"]
-			if "overridexmlfile" in advconfig:
-				logger.debug("Overriding XML from File")
-				global OVRXMLFILE
-				OVRXMLFILE = advconfig["overridexmlfile"]
-			if "overridexmlurl" in advconfig:
-				logger.debug("Overriding XML from URL")
-				global OVRXMLURL
-				OVRXMLURL = advconfig["overridexmlurl"]
+			if "overridexml" in advconfig:
+				logger.debug("Overriding XML")
+				global OVRXML
+				OVRXML = advconfig["overridexml"]
 
 
 def load_settings():
@@ -1160,32 +1155,31 @@ def dl_epg(source=1):
 			logger.debug("Skipping download of epg")
 			return
 	to_process = []
-	if OVRXMLURL != '':
-		if OVRXMLURL.endswith('.gz') or OVRXMLURL.endswith('.gz?raw=1'):
-			requests.urlretrieve(OVRXMLURL, os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml.gz'))
-			unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml.gz')
+	if OVRXML != '':
+		if OVRXML.startswith('http://') or OVRXML.startswith('https://'):
+			if OVRXML.endswith('.gz') or OVRXML.endswith('.gz?raw=1'):
+				requests.urlretrieve(OVRXML, os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml.gz'))
+				unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml.gz')
+			else:
+				requests.urlretrieve(OVRXML, os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml'))
+				unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml')
 		else:
-			requests.urlretrieve(OVRXMLURL, os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml'))
-			unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml')
+			unzipped = OVRXML
 		to_process.append([unzipped, "epg.xml", 'ovr'])
 		requests.urlretrieve("https://fast-guide.smoothstreams.tv/feed.xml",os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml'))
 		unzippedsports = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml')
 		to_process.append([unzippedsports, "sports.xml", 'sstv'])
-
 	elif source == 1:
 		logger.info("Downloading epg")
-		requests.urlretrieve("https://sstv.fog.pt/epg/xmltv5.xml.gz",
-		                     os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz'))
+		requests.urlretrieve("https://sstv.fog.pt/epg/xmltv5.xml.gz", os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz'))
 		unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz')
 		to_process.append([unzipped, "epg.xml", 'fog'])
-		requests.urlretrieve("https://fast-guide.smoothstreams.tv/feed.xml",
-		                     os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml'))
+		requests.urlretrieve("https://fast-guide.smoothstreams.tv/feed.xml", os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml'))
 		unzippedsports = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml')
 		to_process.append([unzippedsports, "sports.xml", 'sstv'])
 	else:
 		logger.info("Downloading sstv epg")
-		requests.urlretrieve("https://fast-guide.smoothstreams.tv/feed.xml",
-		                     os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml'))
+		requests.urlretrieve("https://fast-guide.smoothstreams.tv/feed.xml", os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml'))
 		unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml')
 		to_process.append([unzipped, "epg.xml", 'sstv'])
 		to_process.append([unzipped, "sports.xml", 'sstv'])
@@ -1202,8 +1196,7 @@ def dl_epg(source=1):
 		if process[2] == 'fog':
 			for a in tree.iterfind('channel'):
 				b = a.find('display-name')
-				newname = [chan_map[x].channum for x in range(len(chan_map) + 1) if
-				           x != 0 and chan_map[x].epg == a.attrib['id'] and chan_map[x].channame == b.text]
+				newname = [chan_map[x].channum for x in range(len(chan_map) + 1) if x != 0 and chan_map[x].epg == a.attrib['id'] and chan_map[x].channame == b.text]
 				if len(newname) > 1:
 					logger.debug("EPG rename conflict")
 				# print(a.attrib['id'], newname)
@@ -1215,10 +1208,13 @@ def dl_epg(source=1):
 			if process[2] == 'fog':
 				a.attrib['channel'] = changelist[a.attrib['channel']]
 			for b in a.findall('title'):
-				if process[2] == 'sstv':
+				try:
+					c = a.find('category')
+					c.text = "Sports"
+				except:
 					ET.SubElement(a, 'category')
-				c = a.find('category')
-				c.text = "Sports"
+					c = a.find('category')
+					c.text = "Sports"
 				if 'nba' in b.text.lower() or 'nba' in b.text.lower() or 'ncaam' in b.text.lower():
 					c.text = "Basketball"
 				elif 'nfl' in b.text.lower() or 'football' in b.text.lower() or 'american football' in b.text.lower() or 'ncaaf' in b.text.lower() or 'cfb' in b.text.lower():
