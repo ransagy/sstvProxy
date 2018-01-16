@@ -77,8 +77,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.68
+__version__ = 1.681
 # Changelog
+# 1.681 - Derestricted external use (WIP feature)
 # 1.68 - Addition of EPG override, in case you want to use your own!
 # 1.672 - Changed mpegts output default quality from 1 to what user has set.
 # 1.671 - Correction of MMATV url
@@ -2493,9 +2494,16 @@ def bridge(request_file):
 
 	# External protection
 	if not (request.environ.get('REMOTE_ADDR').startswith('10.') or request.environ.get('REMOTE_ADDR').startswith(
-			'192.') or request.environ.get('REMOTE_ADDR').startswith('127.')) and ('.m3u' in request_file or 'ch' in request_file):
+			'192.') or request.environ.get('REMOTE_ADDR').startswith('127.')):
+		logger.info("REQUEST IS FROM AN EXTERNAL SOURCE")
+		external = True
 		if not request.args.get('password') or request.args.get('password') != EXTPASS:
-			return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'empty.png')
+			external_auth = False
+		else:
+			external_auth = True
+	else:
+		external = False
+		external_auth = False
 
 	# return epg
 	if request_file.lower().startswith('epg.'):
