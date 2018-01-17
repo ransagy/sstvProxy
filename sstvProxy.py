@@ -73,9 +73,16 @@ except ImportError:
 	from urllib.parse import urljoin
 	import _thread
 
-from flask import Flask, redirect, abort, request, Response, send_from_directory, jsonify, render_template, stream_with_context, url_for
+from flask import Flask, redirect, abort, request, Response, send_from_directory, jsonify, render_template, flash, stream_with_context, url_for
+from flask_login import LoginManager, UserMixin, current_user, login_user, login_required, logout_user
 
 app = Flask(__name__, static_url_path='')
+app.config['SECRET_KEY'] = 'you-will-never-guess'
+
+login = LoginManager(app)
+login.login_view = 'login'
+
+
 
 __version__ = 1.681
 # Changelog
@@ -189,6 +196,8 @@ TVHPASS = ''
 OVRXML = ''
 EXTUSER = 'test'
 EXTPASS = 'test'
+user = {'username':'test','password':'test'}
+USERLIST = {}
 tvhWeight = 300  # subscription priority
 tvhstreamProfile = 'pass'  # specifiy a stream profile that you want to use for adhoc transcoding in tvh, e.g. mp4
 
@@ -436,7 +445,7 @@ logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 # Console logging
 console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
+console_handler.setLevel(logging.DEBUG)
 console_handler.setFormatter(log_formatter)
 logger.addHandler(console_handler)
 
@@ -444,8 +453,8 @@ logger.addHandler(console_handler)
 if not os.path.isdir(os.path.join(os.path.dirname(sys.argv[0]), 'cache')):
 	os.mkdir(os.path.join(os.path.dirname(sys.argv[0]), 'cache'))
 file_handler = RotatingFileHandler(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'status.log'),
-                                   maxBytes=1024 * 1024 * 2,
-                                   backupCount=5)
+								   maxBytes=1024 * 1024 * 2,
+								   backupCount=5)
 file_handler.setLevel(logging.DEBUG)
 file_handler.setFormatter(log_formatter)
 logger.addHandler(file_handler)
@@ -948,7 +957,7 @@ if not 'headless' in sys.argv:
 				labelFooter.grid(row=13)
 
 				button1 = tkinter.Button(master, text="Launch YAP!!", width=20,
-				                         command=lambda: self.client_exit(master))
+										 command=lambda: self.client_exit(master))
 				button1.grid(row=14)
 
 			button1 = tkinter.Button(master, text="Submit", width=20, command=lambda: gather())
@@ -1483,8 +1492,8 @@ def build_static_playlist():
 
 		template = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}q{5}.stream{6}?wmsAuthSign={7}'
 		urlformatted = template.format('https' if STRM == 'hls' else 'rtmp', SRVR, '443' if STRM == 'hls' else '3625',
-		                               SITE, "{:02}".format(pos), QUAL if pos <= 60 else '1',
-		                               '/playlist.m3u8' if STRM == 'hls' else '', token['hash'])
+									   SITE, "{:02}".format(pos), QUAL if pos <= 60 else '1',
+									   '/playlist.m3u8' if STRM == 'hls' else '', token['hash'])
 		# build playlist entry
 		try:
 			new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s",%s\n' % (
@@ -1737,9 +1746,9 @@ def m3u8_plex(lineup, inputm3u8):
 					grouper = grouper.split(',')
 					name = grouper[1]
 					lineup.append({'GuideNumber': str(len(lineup) + 1),
-					               'GuideName': name,
-					               'URL': 'empty'
-					               })
+								   'GuideName': name,
+								   'URL': 'empty'
+								   })
 				elif inputm3u8[i].startswith("rtmp") or inputm3u8[i].startswith("http"):
 					template = "{0}/{1}/auto/v{2}?url={3}"
 					url = template.format(SERVER_HOST, SERVER_PATH, str(len(lineup)), inputm3u8[i])
@@ -1757,9 +1766,9 @@ def lineup(chan_map):
 		template = "{0}/{1}/auto/v{2}"
 		url = template.format(SERVER_HOST, SERVER_PATH, chan_map[c].channum)
 		lineup.append({'GuideNumber': str(chan_map[c].channum),
-		               'GuideName': chan_map[c].channame,
-		               'URL': url
-		               })
+					   'GuideName': chan_map[c].channame,
+					   'URL': url
+					   })
 	formatted_m3u8 = ''
 	if EXTM3URL != '':
 		logger.debug("extra m3u8 url")
@@ -1783,9 +1792,9 @@ def tvh_lineup():
 			url = 'http://%s:%s@%s:9981/stream/channel/%s?profile=%s&weight=%s' % (
 			TVHUSER, TVHPASS, TVHURL, c['uuid'], tvhstreamProfile, int(tvhWeight))
 			lineup.append({'GuideNumber': str(c['number']),
-			               'GuideName': c['name'],
-			               'URL': url
-			               })
+						   'GuideName': c['name'],
+						   'URL': url
+						   })
 	return jsonify(lineup)
 
 
@@ -1831,8 +1840,8 @@ try:
 	epgpath = os.path.join(
 		os.path.join(os.path.expanduser("~"), "AppData", "Local", "Plex Media Server", "Plug-in Support", "Databases"))
 	dbpat = [[item for item in files if
-	          item.endswith(".db") and item.startswith("tv.plex.providers.epg.xmltv-") and "loading" not in item] for
-	         root, dirs, files in os.walk(epgpath)][0]
+			  item.endswith(".db") and item.startswith("tv.plex.providers.epg.xmltv-") and "loading" not in item] for
+			 root, dirs, files in os.walk(epgpath)][0]
 except:
 	dbpat = []
 
@@ -1854,10 +1863,10 @@ def create_list(dbname, epgsummaries=False, epggenres=False, epgorig=False):
 		# type 2 show, 3 season, 4 episode
 
 		query = "SELECT DISTINCT tags.tag as channel " \
-		        "FROM media_items AS bc " \
-		        "JOIN metadata_items AS it ON bc.metadata_item_id = it.id " \
-		        "JOIN tags ON tags.id = bc.channel_id " \
-		        "ORDER BY bc.channel_id "
+				"FROM media_items AS bc " \
+				"JOIN metadata_items AS it ON bc.metadata_item_id = it.id " \
+				"JOIN tags ON tags.id = bc.channel_id " \
+				"ORDER BY bc.channel_id "
 
 		html.write("<h1>Channel Index</h1>")
 
@@ -1868,22 +1877,22 @@ def create_list(dbname, epgsummaries=False, epggenres=False, epgorig=False):
 			channel = row["channel"]
 			channelmap[channel] = chanindex
 			html.write("<span class=\"channellink\"><a href=\"#%s\">%s</a></span>" %
-			           (chanindex, channel))
+					   (chanindex, channel))
 
 		query = "SELECT tags.tag as channel, " \
-		        "bc.begins_at, bc.ends_at, " \
-		        "it.title, it.user_thumb_url, it.year, it.summary, it.extra_data as subscribed, " \
-		        "it.\"index\" as episode, it.summary, it.tags_genre as itgenre, " \
-		        "it.originally_available_at as origdate, " \
-		        "seas.\"index\" AS season, " \
-		        "show.title as showtitle, show.tags_genre as showgenre " \
-		        "FROM media_items AS bc " \
-		        "JOIN metadata_items AS it ON bc.metadata_item_id = it.id " \
-		        "JOIN tags ON tags.id = bc.channel_id " \
-		        "LEFT JOIN metadata_items AS seas ON seas.id = it.parent_id " \
-		        "LEFT JOIN metadata_items AS show ON show.id = seas.parent_id " \
-		        "WHERE it.metadata_type IN (1,4) " \
-		        "ORDER BY bc.channel_id, bc.begins_at "
+				"bc.begins_at, bc.ends_at, " \
+				"it.title, it.user_thumb_url, it.year, it.summary, it.extra_data as subscribed, " \
+				"it.\"index\" as episode, it.summary, it.tags_genre as itgenre, " \
+				"it.originally_available_at as origdate, " \
+				"seas.\"index\" AS season, " \
+				"show.title as showtitle, show.tags_genre as showgenre " \
+				"FROM media_items AS bc " \
+				"JOIN metadata_items AS it ON bc.metadata_item_id = it.id " \
+				"JOIN tags ON tags.id = bc.channel_id " \
+				"LEFT JOIN metadata_items AS seas ON seas.id = it.parent_id " \
+				"LEFT JOIN metadata_items AS show ON show.id = seas.parent_id " \
+				"WHERE it.metadata_type IN (1,4) " \
+				"ORDER BY bc.channel_id, bc.begins_at "
 
 		prevChannel = None
 		prevEnd = None
@@ -1915,12 +1924,12 @@ def create_list(dbname, epgsummaries=False, epggenres=False, epgorig=False):
 				ep = ("%02d" % row["episode"]) if row["episode"] >= 0 else "??"
 				titlestr = ("&ndash; <span class=\"episodetitle\">" + row["title"] + "</span>" if row["title"] else "")
 				html.write("<p>%s &ndash; %s: <b>%s</b> S%02dE%s %s\n" %
-				           (start, shortend, row["showtitle"], row["season"], ep,
-				            titlestr))
+						   (start, shortend, row["showtitle"], row["season"], ep,
+							titlestr))
 			else:
 				# It's a movie
 				html.write("<p>%s &ndash; %s: <b>%s</b>\n" %  # (%d)\n" %
-				           (start, end, row["title"]))  # , row["year"]))
+						   (start, end, row["title"]))  # , row["year"]))
 
 			# Doesn't mean *this* broadcast will be recorded!
 			if row["subscribed"]:
@@ -2024,9 +2033,9 @@ def processPacket(packet, client, logPrefix=''):
 	if packetType == HDHOMERUN_TYPE_DISCOVER_REQ:
 		logger.debug('Discovery request received from ' + client[0])
 		responsePayload = struct.pack('>BBI', HDHOMERUN_TAG_DEVICE_TYPE, 0x04,
-		                              HDHOMERUN_DEVICE_TYPE_TUNER)  # Device Type Filter (tuner)
+									  HDHOMERUN_DEVICE_TYPE_TUNER)  # Device Type Filter (tuner)
 		responsePayload += struct.pack('>BBI', HDHOMERUN_TAG_DEVICE_ID, 0x04,
-		                               int('12345678', 16))  # Device ID Filter (any)
+									   int('12345678', 16))  # Device ID Filter (any)
 		responsePayload += struct.pack('>BB', HDHOMERUN_TAG_GETSET_NAME, len(SERVER_HOST)) + str.encode(
 			SERVER_HOST)  # Device ID Filter (any)
 		responsePayload += struct.pack('>BBB', HDHOMERUN_TAG_TUNER_COUNT, 0x01, 6)  # Device ID Filter (any)
@@ -2058,11 +2067,11 @@ def processPacket(packet, client, logPrefix=''):
 			return False
 		else:
 			responsePayload = struct.pack('>BB{0}'.format(len(getSetName)), HDHOMERUN_TAG_GETSET_NAME, len(getSetName),
-			                              getSetName)
+										  getSetName)
 
 			if getSetValue is not None:
 				responsePayload += struct.pack('>BB{0}'.format(len(getSetValue)), HDHOMERUN_TAG_GETSET_VALUE,
-				                               len(getSetValue), getSetValue)
+											   len(getSetValue), getSetValue)
 
 			return createPacket(HDHOMERUN_TYPE_GETSET_RPY, responsePayload)
 
@@ -2153,7 +2162,7 @@ def build_kodi_playlist():
 				chan_map[pos].channum,
 				chan_map[pos].channame)
 			new_playlist += '%s\n' % rtmpTemplate.format(SRVR, SITE, "{:02}".format(pos), QUAL if pos <= 60 else '1',
-			                                             token['hash'])
+														 token['hash'])
 		except:
 			logger.exception("Exception while updating kodi playlist: ")
 	new_playlist += '#EXTINF:-1 tvg-id="static_refresh" tvg-name="Static Refresh" tvg-logo="%s/%s/empty.png" channel-id="0" group-title="Static RTMP",Static Refresh\n' % (
@@ -2184,7 +2193,7 @@ def rescan_channels():
 	authorization = b'Basic ' + encoded_credentials
 	apiheaders = {'Content-Type': 'application/json', 'Authorization': authorization}
 	apidata = {"jsonrpc": "2.0", "method": "Addons.SetAddonEnabled",
-	           "params": {"addonid": "pvr.iptvsimple", "enabled": "toggle"}, "id": 1}
+			   "params": {"addonid": "pvr.iptvsimple", "enabled": "toggle"}, "id": 1}
 	apiurl = 'http://%s:%s/jsonrpc' % (request.environ.get('REMOTE_ADDR'), KODIPORT)
 	json_data = json.dumps(apidata)
 	post_data = json_data.encode('utf-8')
@@ -2237,7 +2246,7 @@ def create_menu():
 		channelmap = {}
 		chanindex = 0
 		list = ["Username", "Password", "Quality", "Stream", "Server", "Service", "IP", "Port", "Kodiport",
-		        "ExternalIP", "ExternalPort"]
+				"ExternalIP", "ExternalPort"]
 		html.write('<table width="300" border="2">')
 		for setting in list:
 			if setting.lower() == 'service':
@@ -2314,7 +2323,7 @@ def create_menu():
 		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
 
 		html.write("<tr><td rowspan='2'>Plex Live<sup>1</sup></td><td>Tuner - %s</td></tr>" % urljoin(SERVER_HOST,
-		                                                                                              SERVER_PATH))
+																									  SERVER_PATH))
 		html.write("<tr><td>EPG - %s/epg.xml</td></tr>" % urljoin(SERVER_HOST, SERVER_PATH))
 		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
 		html.write("<tr><td>TVHeadend<sup>1</sup></td><td>%s/tvh.m3u8</td></tr>" % urljoin(SERVER_HOST, SERVER_PATH))
@@ -2340,7 +2349,7 @@ def create_menu():
 		html.write("<tr><td>EPG - http://%s:9981/xmltv/channels</td></tr>" % TVHURL)
 		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
 		html.write("<tr><td>Test Playlist for troubleshooting</td><td>%s/test.m3u8</td></tr>" % urljoin(SERVER_HOST,
-		                                                                                                SERVER_PATH))
+																										SERVER_PATH))
 		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
 		html.write("<tr><td>Note 1:</td><td>Requires FFMPEG installation and setup</td></tr>")
 		html.write("<tr><td>Note 2:</td><td>Requires External IP and port in advancedsettings</td></tr>")
@@ -2384,6 +2393,196 @@ def restart_program():
 
 # os.execv(sys.executable, args)
 
+
+############################################################
+# authentication
+############################################################
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_sqlalchemy import SQLAlchemy
+
+db = SQLAlchemy(app)
+db.create_all()
+
+
+class User(db.Model):
+	__tablename__ = 'user'
+
+	username = db.Column(db.String, primary_key=True)
+	password = db.Column(db.String)
+	address = db.Column(db.String)
+
+	def is_authenticated(self):
+		return True
+
+	def is_active(self):
+		"""True, as all users are active."""
+		return True
+
+	def get_id(self):
+		"""Return the email address to satisfy Flask-Login's requirements."""
+		return self.username
+
+	def get_address(self):
+		"""Return True if the user is authenticated."""
+		return self.address()
+
+	def is_anonymous(self):
+		"""False, as anonymous users aren't supported."""
+		return False
+
+with app.app_context():
+	db.metadata.create_all(db.engine)
+	print(User.query.all())
+	if not User.query.all():
+		username = input('Enter username: ')
+		password = input("Enter password:")
+		assert password == input('Password (again):')
+
+		newuser = User(
+			username=username,
+			address='127.0.0.1',
+			password=generate_password_hash(password))
+		db.session.add(newuser)
+		db.session.commit()
+		print('User added.')
+		db.session.close()
+	print(User.query.all())
+
+@login.user_loader
+def user_loader(user_id):
+	"""Given *user_id*, return the associated User object.
+
+	:param unicode user_id: user_id (email) user to retrieve
+
+	"""
+	return User.query.get(user_id)
+
+@app.route("/%s/login" % SERVER_PATH, methods=["GET","POST"])
+def login():
+	if request.args.get('user') and request.args.get('pass'):
+		uname = request.args.get('user')
+		pword = request.args.get('pass')
+		"""For GET requests, display the login form.
+		For POSTS, login the current user by processing the form.
+		
+		"""
+		baseurl = urljoin(SERVER_HOST, SERVER_PATH)
+		print(db)
+		user = User.query.get(uname)
+		if user:
+			if check_password_hash(user.password, pword):
+				user.authenticated = True
+				db.session.add(user)
+				db.session.commit()
+				login_user(user, remember=True)
+				return redirect('%s/index.html' % baseurl, code=302)
+		else:
+			logger.error("Wrong credentials provided")
+			return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'close.html')
+	else:
+		logger.error("No credentials provided")
+		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'close.html')
+
+
+@app.route("/logout", methods=["GET"])
+@login_required
+def logout():
+	"""Logout the current user."""
+	user = current_user
+	user.authenticated = False
+	db.session.add(user)
+	db.session.commit()
+	logout_user()
+	return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'close.html')
+
+# class User(UserMixin):
+# 	username = ''
+# 	password_hash = ''
+# 	id = username
+#
+# 	def set_username(self, username):
+# 		self.username = username
+#
+# 	def set_password(self, password):
+# 		self.password_hash = password
+# 		# self.password_hash = generate_password_hash(password)
+#
+# 	def check_password(self, password):
+# 		print(self.password_hash, password)
+# 		return self.password_hash == password
+# 		# return check_password_hash(self.password_hash, password)
+#
+# def load_userlist():
+# 	path = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'userlist.json')
+# 	global USERLIST
+# 	if os.path.exists(path):
+# 		with open(path, 'r') as fp:
+# 			inlist = load(fp)
+# 		for item in inlist:
+#
+# 			user = User()
+# 			# print(item, str(inlist[item]))
+# 			user.set_username(item)
+# 			user.set_password(inlist[item])
+# 			USERLIST[item] = user
+#
+#
+# def dump_userlist():
+# 	USERLIST = {}
+# 	user = User()
+# 	user.set_password('test')
+# 	user.set_username('test')
+# 	USERLIST['test'] = user
+# 	user2 = User()
+# 	user2.set_password('test2')
+# 	user2.set_username('test2')
+# 	USERLIST['test2'] = user2
+# 	out_list = {}
+# 	for item in USERLIST:
+# 		out_list[USERLIST[item].username] = USERLIST[item].password_hash
+#
+# 	path = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'userlist.json')
+# 	# global USERLIST
+# 	with open(path, 'w') as fp:
+# 		dump(out_list, fp)
+#
+# def create_user(uname,pword):
+# 	global USERLIST
+# 	user = User()
+# 	user.set_username(uname)
+# 	user.set_password(pword)
+# 	USERLIST[uname] = user
+# 	dump_userlist()
+#
+# @login.user_loader
+# def load_user(id):
+# 	return USERLIST[id]
+#
+# def login(uname,pword):
+# 	logger.debug("in login")
+# 	baseurl = urljoin(SERVER_HOST, SERVER_PATH)
+# 	if not USERLIST:
+# 		load_userlist()
+# 	# if current_user.is_authenticated:
+# 	# 	return redirect(url_for('index'))
+# 	# form = LoginForm()
+# 	if True:
+# 		user = load_user(uname) #form.username.data).first()
+# 		if user is None or not user.check_password(pword): #form.password.data):
+# 			logger.debug("login failed")
+# 			flash('Invalid username or password')
+# 			return redirect('%s/close.html' % baseurl, code=302)
+# 		login_user(user, remember=True) #form.remember_me.data)
+# 		logger.debug('logged in user')
+# 		return redirect('%s/index.html' % baseurl)
+# 	logger.debug("user failed")
+# 	return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'empty.png')
+# 	# return render_template('login.html', title='Sign In', form=form)
+#
+# @app.route('/logout')
+# def logout():
+# 	logout_user()
+# 	return redirect('%s/index.html' % urljoin(SERVER_HOST, SERVER_PATH))
 
 ############################################################
 # CLIENT <-> SSTV BRIDGE
@@ -2482,7 +2681,8 @@ def index(request_file):
 		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'empty.png')
 
 
-@app.route('/%s/<request_file>' % SERVER_PATH)
+@app.route('/%s/<request_file>' % SERVER_PATH, methods=['GET', 'POST'])
+# @login_required
 def bridge(request_file):
 	global playlist, token, chan_map, kodiplaylist, tvhplaylist, fallback
 	check_token()
@@ -2648,7 +2848,7 @@ def bridge(request_file):
 			headers.update({'Content-Type': 'application/x-mpegURL', "Access-Control-Allow-Origin": "*"})
 			response.headers = headers
 			logger.info("Channel %s playlist was requested by %s", sanitized_channel,
-			            request.environ.get('REMOTE_ADDR'))
+						request.environ.get('REMOTE_ADDR'))
 			# useful for debugging
 			logger.debug("URL returned: %s" % ss_url)
 			if request.args.get('type'):
@@ -2724,7 +2924,7 @@ def auto(request_file, qual=""):
 	check_token()
 	channel = request_file.replace("v", "")
 	logger.info("Channel %s playlist was requested by %s", channel,
-	            request.environ.get('REMOTE_ADDR'))
+				request.environ.get('REMOTE_ADDR'))
 	sanitized_channel = ("0%d" % int(channel)) if int(channel) < 10 else channel
 
 	sanitized_qual = '1'
@@ -2790,8 +2990,8 @@ def auto(request_file, qual=""):
 			proc.kill()
 
 	return Response(response=generate(), status=200, mimetype='video/mp2t',
-	                headers={'Access-Control-Allow-Origin': '*', "Content-Type": "video/mp2t",
-	                         "Content-Disposition": "inline", "Content-Transfer-Enconding": "binary"})
+					headers={'Access-Control-Allow-Origin': '*', "Content-Type": "video/mp2t",
+							 "Content-Disposition": "inline", "Content-Transfer-Enconding": "binary"})
 
 
 ############################################################
