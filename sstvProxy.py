@@ -75,9 +75,16 @@ except ImportError:
 
 from flask import Flask, redirect, abort, request, Response, send_from_directory, jsonify, render_template, flash, stream_with_context, url_for
 from flask_login import LoginManager, UserMixin, current_user, login_user, login_required, logout_user
+from werkzeug.urls import url_parse
+
+class Config(object):
+	SECRET_KEY = 'you-will-never-guess'
+	SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
+		'sqlite:///' + os.path.join(os.path.dirname(sys.argv[0]),'cache', 'app.db')
+	SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 app = Flask(__name__, static_url_path='')
-app.config['SECRET_KEY'] = 'you-will-never-guess'
+app.config.from_object(Config)
 
 login = LoginManager(app)
 login.login_view = 'login'
@@ -2403,7 +2410,6 @@ from flask_sqlalchemy import SQLAlchemy
 db = SQLAlchemy(app)
 db.create_all()
 
-
 class User(db.Model):
 	__tablename__ = 'user'
 
@@ -2459,15 +2465,32 @@ def user_loader(user_id):
 
 @app.route("/%s/login" % SERVER_PATH, methods=["GET","POST"])
 def login():
-	if request.args.get('user') and request.args.get('pass'):
+	logger.debug("Login function")
+	outcome = False
+	form = False
+	baseurl = urljoin(SERVER_HOST, SERVER_PATH)
+	# Local logon detection, free logon
+	if request.environ.get('REMOTE_ADDR') and (request.environ.get('REMOTE_ADDR').startswith('10.') or request.environ.get('REMOTE_ADDR').startswith(
+			'192.') or request.environ.get('REMOTE_ADDR').startswith('127.') or request.environ.get('REMOTE_ADDR').startswith('169.')):
+		logger.debug("local logon")
+		user = User.query.get('test')
+		outcome = True
+
+	else:
+		# checks for previous logon, free logon
+		if request.environ.get('REMOTE_ADDR'):
+			user = User.query.get(str(request.environ.get('REMOTE_ADDR')))
+
+			if user:
+				outcome = True
+			else:
+				form = True
+		else:
+			form = True
+	if form:
+		# TODO form
 		uname = request.args.get('user')
 		pword = request.args.get('pass')
-		"""For GET requests, display the login form.
-		For POSTS, login the current user by processing the form.
-		
-		"""
-		baseurl = urljoin(SERVER_HOST, SERVER_PATH)
-		print(db)
 		user = User.query.get(uname)
 		if user:
 			if check_password_hash(user.password, pword):
@@ -2475,10 +2498,27 @@ def login():
 				db.session.add(user)
 				db.session.commit()
 				login_user(user, remember=True)
-				return redirect('%s/index.html' % baseurl, code=302)
+				next_page = request.args.get('next')
+				if not next_page or url_parse(next_page).netloc != '':
+					next_page = '%s/index.html' % baseurl
+				return redirect(next_page)
+
+			else:
+				logger.error("Wrong Password.")
 		else:
-			logger.error("Wrong credentials provided")
+			logger.error("User does not exist")
 			return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'close.html')
+
+	if user and outcome:
+		user.authenticated = True
+		db.session.add(user)
+		db.session.commit()
+		login_user(user, remember=True)
+		next_page = request.args.get('next')
+		if not next_page or url_parse(next_page).netloc != '':
+			next_page = '%s/index.html' % baseurl
+		return redirect(next_page)
+
 	else:
 		logger.error("No credentials provided")
 		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'close.html')
@@ -2493,6 +2533,7 @@ def logout():
 	db.session.add(user)
 	db.session.commit()
 	logout_user()
+	logger.debug("Logged out")
 	return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'close.html')
 
 # class User(UserMixin):
@@ -2588,6 +2629,7 @@ def logout():
 # CLIENT <-> SSTV BRIDGE
 ############################################################
 @app.route('/sstv/handle_data', methods=['POST'])
+@login_required
 def handle_data():
 	logger.info("Received new settings from %s", request.environ.get('REMOTE_ADDR'))
 	global playlist, kodiplaylist, QUAL, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, EXTIP, EXT_HOST, SERVER_HOST, EXTPORT
@@ -2657,6 +2699,7 @@ def handle_data():
 
 @app.route('/')
 @app.route('/sstv')
+@login_required
 def landing_page():
 	logger.info("Index was requested by %s", request.environ.get('REMOTE_ADDR'))
 	create_menu()
@@ -2682,7 +2725,7 @@ def index(request_file):
 
 
 @app.route('/%s/<request_file>' % SERVER_PATH, methods=['GET', 'POST'])
-# @login_required
+@login_required
 def bridge(request_file):
 	global playlist, token, chan_map, kodiplaylist, tvhplaylist, fallback
 	check_token()
@@ -2918,6 +2961,7 @@ def tvh_returns(request_file):
 
 
 @app.route('/%s/auto/<request_file>' % SERVER_PATH)
+@login_required
 # returns a piped stream, used for TVH/Plex Live TV
 def auto(request_file, qual=""):
 	logger.debug("starting pipe function")
