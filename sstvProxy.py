@@ -76,6 +76,12 @@ except ImportError:
 from flask import Flask, redirect, abort, request, Response, send_from_directory, jsonify, render_template, flash, stream_with_context, url_for
 from flask_login import LoginManager, UserMixin, current_user, login_user, login_required, logout_user
 from werkzeug.urls import url_parse
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_sqlalchemy import SQLAlchemy
+
+
+
+
 
 class Config(object):
 	SECRET_KEY = 'you-will-never-guess'
@@ -85,7 +91,8 @@ class Config(object):
 
 app = Flask(__name__, static_url_path='')
 app.config.from_object(Config)
-
+db = SQLAlchemy(app)
+db.create_all()
 login = LoginManager(app)
 login.login_view = 'login'
 
@@ -168,6 +175,31 @@ class channelinfo:
 	channum = 0
 	channame = ""
 
+class User(db.Model):
+	__tablename__ = 'user'
+
+	username = db.Column(db.String)
+	password = db.Column(db.String)
+	address = db.Column(db.String, primary_key=True)
+
+	def is_authenticated(self):
+		return True
+
+	def is_active(self):
+		"""True, as all users are active."""
+		return True
+
+	def get_id(self):
+		"""Return the email address to satisfy Flask-Login's requirements."""
+		return self.username
+
+	def get_address(self):
+		"""Return True if the user is authenticated."""
+		return self.address()
+
+	def is_anonymous(self):
+		"""False, as anonymous users aren't supported."""
+		return False
 
 ############################################################
 # CONFIG
@@ -203,8 +235,6 @@ TVHPASS = ''
 OVRXML = ''
 EXTUSER = 'test'
 EXTPASS = 'test'
-user = {'username':'test','password':'test'}
-USERLIST = {}
 tvhWeight = 300  # subscription priority
 tvhstreamProfile = 'pass'  # specifiy a stream profile that you want to use for adhoc transcoding in tvh, e.g. mp4
 
@@ -322,10 +352,6 @@ def adv_settings():
 				logger.debug("Overriding EXTXMLURL")
 				global EXTXMLURL
 				EXTXMLURL = advconfig["extraxmlurl"]
-			if "tvhredirect" in advconfig:
-				logger.debug("Overriding tvhredirect")
-				global TVHREDIRECT
-				TVHREDIRECT = advconfig["tvhredirect"]
 			if "tvhaddress" in advconfig:
 				logger.debug("Overriding tvhaddress")
 				global TVHURL
@@ -345,7 +371,8 @@ def adv_settings():
 
 
 def load_settings():
-	global QUAL, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, SERVER_HOST, EXTIP, EXT_HOST, EXTPORT
+	# print(User.query.all())
+	global QUAL, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, SERVER_HOST, EXTIP, EXT_HOST, EXTPORT, app
 	if not os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'proxysettings.json')):
 		logger.debug("No config file found.")
 	try:
@@ -426,11 +453,32 @@ def load_settings():
 			EXT_HOST = "http://" + EXTIP + ":" + str(EXTPORT)
 			with open(os.path.join(os.path.dirname(sys.argv[0]), 'proxysettings.json'), 'w') as fp:
 				dump(config, fp)
+
+			with app.app_context():
+				db.metadata.create_all(db.engine)
+				if not User.query.all():
+					username = input('Enter username: ')
+					password = input("Enter password:")
+					assert password == input('Password (again):')
+
+					newuser = User(
+						username=username,
+						address='127.0.0.1',
+						password=generate_password_hash(password))
+					db.session.add(newuser)
+					newuser = User(
+						username='admin',
+						address='127.0.0.1',
+						password=generate_password_hash('admin'))
+					db.session.add(newuser)
+					db.session.commit()
+					print('User added.')
+					db.session.close()
 		else:
 			root = tkinter.Tk()
 			root.title("YAP Setup")
 			root.geometry('750x600')
-			app = GUI(root)  # calling the class to run
+			gui = GUI(root)  # calling the class to run
 			root.mainloop()
 		installer()
 	adv_settings()
@@ -2404,55 +2452,7 @@ def restart_program():
 ############################################################
 # authentication
 ############################################################
-from werkzeug.security import generate_password_hash, check_password_hash
-from flask_sqlalchemy import SQLAlchemy
 
-db = SQLAlchemy(app)
-db.create_all()
-
-class User(db.Model):
-	__tablename__ = 'user'
-
-	username = db.Column(db.String, primary_key=True)
-	password = db.Column(db.String)
-	address = db.Column(db.String)
-
-	def is_authenticated(self):
-		return True
-
-	def is_active(self):
-		"""True, as all users are active."""
-		return True
-
-	def get_id(self):
-		"""Return the email address to satisfy Flask-Login's requirements."""
-		return self.username
-
-	def get_address(self):
-		"""Return True if the user is authenticated."""
-		return self.address()
-
-	def is_anonymous(self):
-		"""False, as anonymous users aren't supported."""
-		return False
-
-with app.app_context():
-	db.metadata.create_all(db.engine)
-	print(User.query.all())
-	if not User.query.all():
-		username = input('Enter username: ')
-		password = input("Enter password:")
-		assert password == input('Password (again):')
-
-		newuser = User(
-			username=username,
-			address='127.0.0.1',
-			password=generate_password_hash(password))
-		db.session.add(newuser)
-		db.session.commit()
-		print('User added.')
-		db.session.close()
-	print(User.query.all())
 
 @login.user_loader
 def user_loader(user_id):
