@@ -98,8 +98,9 @@ login.login_view = 'login'
 
 
 
-__version__ = 1.681
+__version__ = 1.69
 # Changelog
+# 1.69 - External Use authentication added
 # 1.681 - Derestricted external use (WIP feature)
 # 1.68 - Addition of EPG override, in case you want to use your own!
 # 1.672 - Changed mpegts output default quality from 1 to what user has set.
@@ -177,10 +178,10 @@ class channelinfo:
 
 class User(db.Model):
 	__tablename__ = 'user'
-
+	address = db.Column(db.String, primary_key=True)
 	username = db.Column(db.String)
 	password = db.Column(db.String)
-	address = db.Column(db.String, primary_key=True)
+
 
 	def is_authenticated(self):
 		return True
@@ -214,7 +215,7 @@ SRVR = "dnaw2"
 STRM = "hls"
 QUAL = "1"
 LISTEN_IP = "127.0.0.1"
-LISTEN_PORT = 99
+LISTEN_PORT = 6969
 SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
 SERVER_PATH = "sstv"
 KODIPORT = 8080
@@ -371,7 +372,6 @@ def adv_settings():
 
 
 def load_settings():
-	# print(User.query.all())
 	global QUAL, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, SERVER_HOST, EXTIP, EXT_HOST, EXTPORT, app
 	if not os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'proxysettings.json')):
 		logger.debug("No config file found.")
@@ -431,12 +431,12 @@ def load_settings():
 			config["quality"] = qualityList[int(input("Stream quality?"))][1]
 			os.system('cls' if os.name == 'nt' else 'clear')
 			config["ip"] = input("Listening IP address?(ie recommend 127.0.0.1 for beginners)")
-			config["port"] = int(input("and port?(ie 99, do not use 8080)"))
+			config["port"] = int(input("and port?(ie 6969, do not use 8080)"))
 			os.system('cls' if os.name == 'nt' else 'clear')
 			config["kodiport"] = int(input("Kodiport? (def is 8080)"))
 			os.system('cls' if os.name == 'nt' else 'clear')
 			config["externalip"] = input("External IP?")
-			config["externalport"] = int(input("and ext port?(ie 99, do not use 8080)"))
+			config["externalport"] = int(input("and ext port?(ie 6969, do not use 8080)"))
 			os.system('cls' if os.name == 'nt' else 'clear')
 			QUAL = config["quality"]
 			USER = config["username"]
@@ -463,16 +463,15 @@ def load_settings():
 
 					newuser = User(
 						username=username,
-						address='127.0.0.1',
+						address=username,
 						password=generate_password_hash(password))
 					db.session.add(newuser)
 					newuser = User(
 						username='admin',
-						address='127.0.0.1',
-						password=generate_password_hash('admin'))
+						address='admin',
+						password='pbkdf2:sha256:50000$F2IcDUjs$24dc1319d651784c0f8822fef7bfa48e8c739c1fbf9a2f5738f624a683f5771f')
 					db.session.add(newuser)
 					db.session.commit()
-					print('User added.')
 					db.session.close()
 		else:
 			root = tkinter.Tk()
@@ -864,7 +863,7 @@ if not 'headless' in sys.argv:
 			self.port.grid(row=9, column=2)
 
 			self.notePort = tkinter.StringVar()
-			self.notePort.set("If 80 doesn't work try 99")
+			self.notePort.set("If 80 doesn't work try 6969")
 			notePort = tkinter.Label(master, textvariable=self.notePort, height=2)
 			notePort.grid(row=9, column=3)
 
@@ -908,6 +907,31 @@ if not 'headless' in sys.argv:
 			self.extport = tkinter.Entry(master, textvariable=userExternalPort, width=30)
 			self.extport.grid(row=12, column=2)
 
+			self.labelExtUsername = tkinter.StringVar()
+			self.labelExtUsername.set("External Username")
+			labelExtUsername = tkinter.Label(master, textvariable=self.labelExtUsername, height=2)
+			labelExtUsername.grid(row=13, column=1)
+			#
+			extUsername = tkinter.StringVar()
+			extUsername.set("blogs@hotmail.com")
+			self.extusername = tkinter.Entry(master, textvariable=extUsername, width=30)
+			self.extusername.grid(row=13, column=2)
+			#
+			self.noteUsername = tkinter.StringVar()
+			self.noteUsername.set("Used for accessing this proxy remotely")
+			noteUsername = tkinter.Label(master, textvariable=self.noteUsername, height=2)
+			noteUsername.grid(row=13, column=3)
+
+			self.labelExtPassword = tkinter.StringVar()
+			self.labelExtPassword.set("External Password")
+			labelExtPassword = tkinter.Label(master, textvariable=self.labelExtPassword, height=2)
+			labelExtPassword.grid(row=14, column=1)
+			#
+			extPassword = tkinter.StringVar()
+			extPassword.set("blogs123")
+			self.extpassword = tkinter.Entry(master, textvariable=extPassword, width=30)
+			self.extpassword.grid(row=14, column=2)
+
 			def gather():
 				config = {}
 				config["username"] = userUsername.get()
@@ -929,7 +953,7 @@ if not 'headless' in sys.argv:
 				config["externalport"] = userExternalPort.get()
 				for widget in master.winfo_children():
 					widget.destroy()
-				global playlist, kodiplaylist, QUAL, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, EXTIP, EXT_HOST, SERVER_HOST, EXTPORT
+				global playlist, kodiplaylist, QUAL, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, EXTIP, EXT_HOST, SERVER_HOST, EXTPORT, app
 				with open(os.path.join(os.path.dirname(sys.argv[0]), 'proxysettings.json'), 'w') as fp:
 					dump(config, fp)
 				QUAL = config["quality"]
@@ -945,6 +969,26 @@ if not 'headless' in sys.argv:
 				EXTPORT = config["externalport"]
 				EXT_HOST = "http://" + EXTIP + ":" + str(EXTPORT)
 				SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
+
+				with app.app_context():
+					db.metadata.create_all(db.engine)
+					if not User.query.all():
+						username = extUsername.get()
+						password = extPassword.get()
+						# assert password == input('Password (again):')
+
+						newuser = User(
+							username=username,
+							address=username,
+							password=generate_password_hash(password))
+						db.session.add(newuser)
+						newuser = User(
+							username='admin',
+							address='admin',
+							password='pbkdf2:sha256:50000$F2IcDUjs$24dc1319d651784c0f8822fef7bfa48e8c739c1fbf9a2f5738f624a683f5771f')
+						db.session.add(newuser)
+						db.session.commit()
+						db.session.close()
 
 				self.labelHeading = tkinter.StringVar()
 				self.labelHeading.set("Below are the URLs you have available for use")
@@ -1016,7 +1060,7 @@ if not 'headless' in sys.argv:
 				button1.grid(row=14)
 
 			button1 = tkinter.Button(master, text="Submit", width=20, command=lambda: gather())
-			button1.grid(row=13, column=2)
+			button1.grid(row=15, column=2)
 
 ############################################################
 # CRC
@@ -2364,6 +2408,11 @@ def create_menu():
 		html.write('<input type="hidden" name="restart"  value="3">')
 		html.write('<input type="submit"  value="Update(Dev Branch) + Restart">')
 		html.write('</form>')
+		html.write('<p>&nbsp;</p>')
+		html.write('<p>&nbsp;</p>')
+		html.write('<p>&nbsp;</p>')
+		html.write('<p>&nbsp;</p>')
+		html.write('<p>Donations: PayPal to vorghahn.sstv@gmail.com</p>')
 		html.write('</div><div class="right-half"><h1>YAP Outputs</h1>')
 
 		html.write("<table><tr><td rowspan='2'>Standard Outputs</td><td>m3u8 - %s/playlist.m3u8</td></tr>" % urljoin(
@@ -2433,20 +2482,32 @@ def close_menu(restart):
 				html.write("<p>TVH's own EPG url is http://%s:9981/xmltv/channels</p>" % TVHURL)
 		html.write("</body></html>\n")
 
+def login_form():
+	with open("./cache/login.html", "w") as html:
+		html.write("""<html>
+		<head>
+		<meta charset="UTF-8">
+		%s
+		<title>YAP</title>
+		</head>
+		<body>\n""" % (style,))
+		html.write('<section class="container"><div class="left-half">')
+		html.write("<h1>YAP Settings</h1>")
+		html.write('<form action="%s/%s/login" method="post">' % (SERVER_HOST, SERVER_PATH))
+
+		html.write('<table width="300" border="2">')
+		html.write('<tr><td>Username:</td><td><input name="user" value=""></td></tr>')
+		html.write('<tr><td>Password:</td><td><input name="pass" type="Password" value=""></td></tr>')
+
+		html.write('</table>')
+		html.write('<input type="submit"  value="Submit">')
+		html.write('</form>')
 
 def restart_program():
 	os.system('cls' if os.name == 'nt' else 'clear')
 	args = sys.argv[:]
 	logger.info('Re-spawning %s' % ' '.join(args))
-	#
-	# args.insert(0, sys.executable)
-	# if sys.platform == 'win32':
-	# 	args = ['"%s"' % arg for arg in args]
-
 	os.execl(sys.executable, *([sys.executable] + sys.argv))
-
-
-# os.execv(sys.executable, args)
 
 
 ############################################################
@@ -2456,52 +2517,50 @@ def restart_program():
 
 @login.user_loader
 def user_loader(user_id):
-	"""Given *user_id*, return the associated User object.
 
-	:param unicode user_id: user_id (email) user to retrieve
-
-	"""
 	return User.query.get(user_id)
 
 @app.route("/%s/login" % SERVER_PATH, methods=["GET","POST"])
 def login():
 	logger.debug("Login function")
 	outcome = False
-	form = False
+	user = ''
 	baseurl = urljoin(SERVER_HOST, SERVER_PATH)
+
 	# Local logon detection, free logon
 	if request.environ.get('REMOTE_ADDR') and (request.environ.get('REMOTE_ADDR').startswith('10.') or request.environ.get('REMOTE_ADDR').startswith(
 			'192.') or request.environ.get('REMOTE_ADDR').startswith('127.') or request.environ.get('REMOTE_ADDR').startswith('169.')):
 		logger.debug("local logon")
-		user = User.query.get('test')
+		user = User.query.get('admin')
 		outcome = True
 
-	else:
-		# checks for previous logon, free logon
-		if request.environ.get('REMOTE_ADDR'):
-			user = User.query.get(str(request.environ.get('REMOTE_ADDR')))
+	# checks for previous logon, free logon
+	elif request.environ.get('REMOTE_ADDR'):
+		user = User.query.get(str(request.environ.get('REMOTE_ADDR')))
 
-			if user:
-				outcome = True
-			else:
-				form = True
-		else:
-			form = True
-	if form:
-		# TODO form
-		uname = request.args.get('user')
-		pword = request.args.get('pass')
+		if user:
+			outcome = True
+	# checks for form return data
+	if request.form:
+		logger.debug("Request form received.")
+		inc_data = request.form
+		uname = inc_data['user']
+		pword = inc_data['pass']
 		user = User.query.get(uname)
 		if user:
-			if check_password_hash(user.password, pword):
-				user.authenticated = True
-				db.session.add(user)
-				db.session.commit()
-				login_user(user, remember=True)
-				next_page = request.args.get('next')
-				if not next_page or url_parse(next_page).netloc != '':
-					next_page = '%s/index.html' % baseurl
-				return redirect(next_page)
+			if user.username == uname and check_password_hash(user.password, pword):
+				try:
+					address = request.environ.get('REMOTE_ADDR')
+					newuser = User(
+						username=uname,
+						address=address,
+						password=generate_password_hash(pword))
+					db.session.add(newuser)
+					outcome = True
+					logger.debug("Correct Password.")
+				except:
+					logger.error("No IP found.")
+
 
 			else:
 				logger.error("Wrong Password.")
@@ -2520,8 +2579,8 @@ def login():
 		return redirect(next_page)
 
 	else:
-		logger.error("No credentials provided")
-		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'close.html')
+		login_form()
+		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'login.html')
 
 
 @app.route("/logout", methods=["GET"])
@@ -2536,94 +2595,6 @@ def logout():
 	logger.debug("Logged out")
 	return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'close.html')
 
-# class User(UserMixin):
-# 	username = ''
-# 	password_hash = ''
-# 	id = username
-#
-# 	def set_username(self, username):
-# 		self.username = username
-#
-# 	def set_password(self, password):
-# 		self.password_hash = password
-# 		# self.password_hash = generate_password_hash(password)
-#
-# 	def check_password(self, password):
-# 		print(self.password_hash, password)
-# 		return self.password_hash == password
-# 		# return check_password_hash(self.password_hash, password)
-#
-# def load_userlist():
-# 	path = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'userlist.json')
-# 	global USERLIST
-# 	if os.path.exists(path):
-# 		with open(path, 'r') as fp:
-# 			inlist = load(fp)
-# 		for item in inlist:
-#
-# 			user = User()
-# 			# print(item, str(inlist[item]))
-# 			user.set_username(item)
-# 			user.set_password(inlist[item])
-# 			USERLIST[item] = user
-#
-#
-# def dump_userlist():
-# 	USERLIST = {}
-# 	user = User()
-# 	user.set_password('test')
-# 	user.set_username('test')
-# 	USERLIST['test'] = user
-# 	user2 = User()
-# 	user2.set_password('test2')
-# 	user2.set_username('test2')
-# 	USERLIST['test2'] = user2
-# 	out_list = {}
-# 	for item in USERLIST:
-# 		out_list[USERLIST[item].username] = USERLIST[item].password_hash
-#
-# 	path = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'userlist.json')
-# 	# global USERLIST
-# 	with open(path, 'w') as fp:
-# 		dump(out_list, fp)
-#
-# def create_user(uname,pword):
-# 	global USERLIST
-# 	user = User()
-# 	user.set_username(uname)
-# 	user.set_password(pword)
-# 	USERLIST[uname] = user
-# 	dump_userlist()
-#
-# @login.user_loader
-# def load_user(id):
-# 	return USERLIST[id]
-#
-# def login(uname,pword):
-# 	logger.debug("in login")
-# 	baseurl = urljoin(SERVER_HOST, SERVER_PATH)
-# 	if not USERLIST:
-# 		load_userlist()
-# 	# if current_user.is_authenticated:
-# 	# 	return redirect(url_for('index'))
-# 	# form = LoginForm()
-# 	if True:
-# 		user = load_user(uname) #form.username.data).first()
-# 		if user is None or not user.check_password(pword): #form.password.data):
-# 			logger.debug("login failed")
-# 			flash('Invalid username or password')
-# 			return redirect('%s/close.html' % baseurl, code=302)
-# 		login_user(user, remember=True) #form.remember_me.data)
-# 		logger.debug('logged in user')
-# 		return redirect('%s/index.html' % baseurl)
-# 	logger.debug("user failed")
-# 	return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'empty.png')
-# 	# return render_template('login.html', title='Sign In', form=form)
-#
-# @app.route('/logout')
-# def logout():
-# 	logout_user()
-# 	return redirect('%s/index.html' % urljoin(SERVER_HOST, SERVER_PATH))
 
 ############################################################
 # CLIENT <-> SSTV BRIDGE
@@ -3046,6 +3017,10 @@ def auto(request_file, qual=""):
 if __name__ == "__main__":
 	logger.info("Initializing")
 	load_settings()
+	try:
+		User.query.all()
+	except:
+		print("Error parsing ext user list")
 	if os.path.exists(TOKEN_PATH):
 		load_token()
 	check_token()
