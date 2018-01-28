@@ -98,8 +98,9 @@ login.login_view = 'login'
 
 
 
-__version__ = 1.69
+__version__ = 1.691
 # Changelog
+# 1.691 - Added a url logon method sstv/login?user=USERNAME&pass=PASSWORD
 # 1.69 - External Use authentication added
 # 1.681 - Derestricted external use (WIP feature)
 # 1.68 - Addition of EPG override, in case you want to use your own!
@@ -499,7 +500,7 @@ logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 # Console logging
 console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.DEBUG)
+console_handler.setLevel(logging.INFO)
 console_handler.setFormatter(log_formatter)
 logger.addHandler(console_handler)
 
@@ -2540,12 +2541,39 @@ def login():
 
 		if user:
 			outcome = True
+
 	# checks for form return data
-	if request.form:
+	elif request.form:
 		logger.debug("Request form received.")
 		inc_data = request.form
 		uname = inc_data['user']
 		pword = inc_data['pass']
+		user = User.query.get(uname)
+		if user:
+			if user.username == uname and check_password_hash(user.password, pword):
+				try:
+					address = request.environ.get('REMOTE_ADDR')
+					newuser = User(
+						username=uname,
+						address=address,
+						password=generate_password_hash(pword))
+					db.session.add(newuser)
+					outcome = True
+					logger.debug("Correct Password.")
+				except:
+					logger.error("No IP found.")
+
+
+			else:
+				logger.error("Wrong Password.")
+		else:
+			logger.error("User does not exist")
+			return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'close.html')
+
+	# Checks for url logon, ie kodi style
+	elif request.args.get('user') and request.args.get('pass'):
+		uname = request.args.get('user')
+		pword = request.args.get('pass')
 		user = User.query.get(uname)
 		if user:
 			if user.username == uname and check_password_hash(user.password, pword):
@@ -2581,6 +2609,8 @@ def login():
 	else:
 		login_form()
 		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'login.html')
+
+
 
 
 @app.route("/logout", methods=["GET"])
