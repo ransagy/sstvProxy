@@ -98,8 +98,9 @@ login.login_view = 'login'
 
 
 
-__version__ = 1.691
+__version__ = 1.692
 # Changelog
+# 1.692 - Change to SSL Auth
 # 1.691 - Added a url logon method sstv/login?user=USERNAME&pass=PASSWORD
 # 1.69 - External Use authentication added
 # 1.681 - Derestricted external use (WIP feature)
@@ -1472,7 +1473,7 @@ def get_auth_token(user, passwd, site):
 	if site == 'viewmmasr' or site == 'mmatv':
 		baseUrl = 'https://www.mma-tv.net/loginForm.php?'
 	else:
-		baseUrl = 'http://auth.smoothstreams.tv/hash_api.php?'
+		baseUrl = 'https://auth.smoothstreams.tv/hash_api.php?'
 
 	params = {
 		"username": user,
