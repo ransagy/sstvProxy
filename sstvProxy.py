@@ -1334,7 +1334,7 @@ def get_auth_token(user, passwd, site):
 	if site == 'viewmmasr' or site == 'mmatv':
 		baseUrl = 'https://www.mma-tv.net/loginForm.php?'
 	else:
-		baseUrl = 'http://auth.smoothstreams.tv/hash_api.php?'
+		baseUrl = 'https://auth.smoothstreams.tv/hash_api.php?'
 
 	params = {
 		"username": user,
