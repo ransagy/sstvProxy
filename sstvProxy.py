@@ -98,8 +98,9 @@ login.login_view = 'login'
 
 
 
-__version__ = 1.692
+__version__ = 1.693
 # Changelog
+# 1.693 - Change Auth to requests module.
 # 1.692 - Change to SSL Auth
 # 1.691 - Added a url logon method sstv/login?user=USERNAME&pass=PASSWORD
 # 1.69 - External Use authentication added
@@ -1479,8 +1480,12 @@ def get_auth_token(user, passwd, site):
 		"password": passwd,
 		"site": site
 	}
+	session = req.Session()
 	url = baseUrl + urllib.parse.urlencode(params)
-	data = json.loads(requests.urlopen(url).read().decode("utf--8"))
+	try:
+		data = session.post(url, params).json()
+	except:
+		data = json.loads(requests.urlopen(url).read().decode("utf--8"))
 	# old
 	# data = json.loads(requests.urlopen('http://auth.SmoothStreams.tv/hash_api.php?username=%s&password=%s&site=%s' % (user,passwd,site)).read().decode("utf-8"))
 	if 'hash' not in data or 'valid' not in data:
