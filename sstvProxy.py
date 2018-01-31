@@ -300,9 +300,8 @@ providerList = [
 	['Live247', 'view247'],
 	['Mystreams/Usport', 'viewms'],
 	['StarStreams', 'viewss'],
-	['MMA SR+', 'viewmmasr'],
 	['StreamTVnow', 'viewstvn'],
-	['MMA-TV/MyShout', 'mmatv']
+	['MMA-TV/MyShout', 'viewmmasr']
 ]
 
 streamtype = ['hls', 'rtmp', 'mpegts']
