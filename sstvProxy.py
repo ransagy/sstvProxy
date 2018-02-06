@@ -98,8 +98,9 @@ login.login_view = 'login'
 
 
 
-__version__ = 1.693
+__version__ = 1.694
 # Changelog
+# 1.694 - Fixed TVH output m3u8 structure
 # 1.693 - Change Auth to requests module.
 # 1.692 - Change to SSL Auth
 # 1.691 - Added a url logon method sstv/login?user=USERNAME&pass=PASSWORD
@@ -1771,9 +1772,8 @@ def build_tvh_playlist():
 		# build playlist entry
 		try:
 			new_playlist += '#EXTINF:-1 tvg-id="%s" tvh-chnum="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s",%s\n' % (
-				chan_map[pos].channum, chan_map[pos].channum, name, SERVER_HOST, SERVER_PATH, name,
-				chan_map[pos].channum,
-				chan_map[pos].channame)
+				chan_map[pos].channum, chan_map[pos].channum, name, SERVER_HOST, SERVER_PATH, chan_map[pos].channum,
+				chan_map[pos].channum, name)
 			new_playlist += '%s\n' % channel_url
 
 		except:
