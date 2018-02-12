@@ -100,6 +100,7 @@ login.login_view = 'login'
 
 __version__ = 1.694
 # Changelog
+# 1.7 - Updated for MyStreams changes
 # 1.694 - Fixed TVH output m3u8 structure
 # 1.693 - Change Auth to requests module.
 # 1.692 - Change to SSL Auth
@@ -298,9 +299,11 @@ serverList = [
 	['Asia-Old', 'dsg']
 ]
 
+vaders_channels = {"1":"2499","2":"2500","3":"2501","4":"2502","5":"2503","6":"2504","7":"2505","8":"2506","9":"2507","10":"2508","11":"2509","12":"2510","13":"2511","14":"2512","15":"2513","16":"2514","17":"2515","18":"2516","19":"2517","20":"2518","21":"2519","22":"2520","23":"2521","24":"2522","25":"2523","26":"2524","27":"2525","28":"2526","29":"2527","30":"2528","31":"2529","32":"2530","33":"2531","34":"2532","35":"2533","36":"2534","37":"2535","38":"2536","39":"2537","40":"2538","41":"2541","42":"2542","43":"2543","44":"2544","45":"2545","46":"2546","47":"2547","48":"2548","49":"2549","50":"2550","51":"2551","52":"2552","53":"2553","54":"2554","55":"2555","56":"2556","57":"2557","58":"2606","59":"2607","60":"2608","61":"2609","62":"2610","63":"2611","64":"2612","65":"2613","66":"2614","67":"2615","68":"2616","69":"2617","70":"2618","71":"2619","72":"2620","73":"2622","74":"2621","75":"2623","76":"2624","77":"2625","78":"2626","79":"2627","80":"2628","81":"2629","82":"2630","83":"2631","84":"2632","85":"2633","86":"2634","87":"2635","88":"2636","89":"2637","90":"2638","91":"2639","92":"2640","93":"2641","94":"2642","95":"2643","96":"2644","97":"2645","98":"2646","99":"2647","100":"2648","101":"2649","102":"2650","103":"2651","104":"2652","105":"2653","106":"2654","107":"2655","108":"2656","109":"2657","110":"2658","111":"2659","112":"2660","113":"2661","114":"2662","115":"2663","116":"2664","117":"2665","118":"2666","119":"2667","120":"2668","121":"47381","122":"2679","123":"2680","124":"2681","125":"2682","126":"47376","127":"47377","128":"47378","129":"47379","130":"47380","131":"47718","132":"47719","133":"49217","134":"50314","135":"50315","136":"50319","137":"50320","138":"50321","139":"50322","141":"49215","140":"50394","142":"49216","143":"50395","144":"50396","145":"50397","146":"50398","147":"50399","148":"47707","149":"47670","150":"47716"}
+
 providerList = [
 	['Live247', 'view247'],
-	['Mystreams/Usport', 'viewms'],
+	['Mystreams/Usport', 'vaders'],
 	['StarStreams', 'viewss'],
 	['StreamTVnow', 'viewstvn'],
 	['MMA-TV/MyShout', 'viewmmasr']
@@ -1471,7 +1474,9 @@ def json2xml(json_obj):
 
 
 def get_auth_token(user, passwd, site):
-	if site == 'viewmmasr' or site == 'mmatv':
+	if site == 'vaders':
+		return
+	elif site == 'viewmmasr' or site == 'mmatv':
 		baseUrl = 'https://www.mma-tv.net/loginForm.php?'
 	else:
 		baseUrl = 'https://auth.smoothstreams.tv/hash_api.php?'
@@ -1500,6 +1505,8 @@ def get_auth_token(user, passwd, site):
 
 
 def check_token():
+	if SITE == 'vaders':
+		return
 	# load and check/renew token
 	if not token['hash'] or not token['expires']:
 		# fetch fresh token
@@ -1571,9 +1578,14 @@ def build_playlist(host):
 	for pos in range(1, len(chan_map) + 1):
 		# build channel url
 		url = "{0}/playlist.m3u8?ch={1}&strm={2}&qual={3}"
-		rtmpTemplate = 'rtmp://{0}.smoothstreams.tv:3625/{1}/ch{2}q{3}.stream?wmsAuthSign={4}'
-		urlformatted = url.format(SERVER_PATH, chan_map[pos].channum, STRM, QUAL)
-		channel_url = urljoin(host, urlformatted)
+		vaders_url = "http://vaders.tv/live/{0}/{1}/{2}.{3}"
+
+		if SITE == 'vaders':
+			strm = 'ts' if STRM == 'mpegts' else 'm3u8'
+			channel_url = vaders_url.format('vsmystreams_' + USER,PASS, vaders_channels[str(pos)], strm)
+		else:
+			urlformatted = url.format(SERVER_PATH, chan_map[pos].channum, STRM, QUAL)
+			channel_url = urljoin(host, urlformatted)
 		# build playlist entry
 		try:
 			new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s",%s\n' % (
@@ -2418,7 +2430,7 @@ def create_menu():
 		html.write('<p>&nbsp;</p>')
 		html.write('<p>&nbsp;</p>')
 		html.write('<p>&nbsp;</p>')
-		html.write('<p>Donations: PayPal to vorghahn.sstv@gmail.com</p>')
+		html.write('<p>Donations: PayPal to vorghahn.sstv@gmail.com  or BTC - 19qvdk7JYgFruie73jE4VvW7ZJBv8uGtFb</p>')
 		html.write('</div><div class="right-half"><h1>YAP Outputs</h1>')
 
 		html.write("<table><tr><td rowspan='2'>Standard Outputs</td><td>m3u8 - %s/playlist.m3u8</td></tr>" % urljoin(
@@ -2869,9 +2881,17 @@ def bridge(request_file):
 				chan = request_file.lower().replace("ch", "").replace(".m3u8", "")
 				sanitized_channel = "{:02.0f}".format(int(chan))
 			else:
+				chan = request.args.get('ch')
 				sanitized_channel = ("0%d" % int(request.args.get('ch'))) if int(
 					request.args.get('ch')) < 10 else request.args.get('ch')
 			check_token()
+			if SITE == 'vaders':
+				logger.info("Channel %s playlist was requested by %s", sanitized_channel,
+				            request.environ.get('REMOTE_ADDR'))
+				vaders_url = "http://vaders.tv/live/{0}/{1}/{2}.{3}"
+				strm = 'ts' if STRM == 'mpegts' else 'm3u8'
+				channel_url = vaders_url.format('vsmystreams_' + USER, PASS, vaders_channels[chan], strm)
+				return redirect(channel_url, code=302)
 
 			qual = 1
 			if request.args.get('qual') and int(sanitized_channel) <= 60:
