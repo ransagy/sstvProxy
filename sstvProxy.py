@@ -98,7 +98,7 @@ login.login_view = 'login'
 
 
 
-__version__ = 1.694
+__version__ = 1.7
 # Changelog
 # 1.7 - Updated for MyStreams changes
 # 1.694 - Fixed TVH output m3u8 structure
