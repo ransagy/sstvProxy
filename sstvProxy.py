@@ -73,41 +73,13 @@ except ImportError:
 	from urllib.parse import urljoin
 	import _thread
 
-from flask import Flask, redirect, abort, request, Response, send_from_directory, jsonify, render_template, flash, stream_with_context, url_for
-from flask_login import LoginManager, UserMixin, current_user, login_user, login_required, logout_user
-from werkzeug.urls import url_parse
-from werkzeug.security import generate_password_hash, check_password_hash
-from flask_sqlalchemy import SQLAlchemy
-
-
-
-
-
-class Config(object):
-	SECRET_KEY = 'you-will-never-guess'
-	SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-		'sqlite:///' + os.path.join(os.path.dirname(sys.argv[0]),'cache', 'app.db')
-	SQLALCHEMY_TRACK_MODIFICATIONS = False
+from flask import Flask, redirect, abort, request, Response, send_from_directory, jsonify, render_template, \
+	stream_with_context, url_for
 
 app = Flask(__name__, static_url_path='')
-app.config.from_object(Config)
-db = SQLAlchemy(app)
-db.create_all()
-login = LoginManager(app)
-login.login_view = 'login'
 
-
-
-__version__ = 1.694
+__version__ = 1.672
 # Changelog
-# 1.7 - Updated for MyStreams changes
-# 1.694 - Fixed TVH output m3u8 structure
-# 1.693 - Change Auth to requests module.
-# 1.692 - Change to SSL Auth
-# 1.691 - Added a url logon method sstv/login?user=USERNAME&pass=PASSWORD
-# 1.69 - External Use authentication added
-# 1.681 - Derestricted external use (WIP feature)
-# 1.68 - Addition of EPG override, in case you want to use your own!
 # 1.672 - Changed mpegts output default quality from 1 to what user has set.
 # 1.671 - Correction of MMATV url
 # 1.67 - Finished JSON to XML, fixed quality setting and settings menu form posting
@@ -181,31 +153,6 @@ class channelinfo:
 	channum = 0
 	channame = ""
 
-class User(db.Model):
-	__tablename__ = 'user'
-	address = db.Column(db.String, primary_key=True)
-	username = db.Column(db.String)
-	password = db.Column(db.String)
-
-
-	def is_authenticated(self):
-		return True
-
-	def is_active(self):
-		"""True, as all users are active."""
-		return True
-
-	def get_id(self):
-		"""Return the email address to satisfy Flask-Login's requirements."""
-		return self.username
-
-	def get_address(self):
-		"""Return True if the user is authenticated."""
-		return self.address()
-
-	def is_anonymous(self):
-		"""False, as anonymous users aren't supported."""
-		return False
 
 ############################################################
 # CONFIG
@@ -220,7 +167,7 @@ SRVR = "dnaw2"
 STRM = "hls"
 QUAL = "1"
 LISTEN_IP = "127.0.0.1"
-LISTEN_PORT = 6969
+LISTEN_PORT = 99
 SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
 SERVER_PATH = "sstv"
 KODIPORT = 8080
@@ -238,9 +185,6 @@ TVHREDIRECT = False
 TVHURL = '127.0.0.1'
 TVHUSER = ''
 TVHPASS = ''
-OVRXML = ''
-EXTUSER = 'test'
-EXTPASS = 'test'
 tvhWeight = 300  # subscription priority
 tvhstreamProfile = 'pass'  # specifiy a stream profile that you want to use for adhoc transcoding in tvh, e.g. mp4
 
@@ -253,15 +197,19 @@ if platform.system() == 'Linux':
 		ADDONPATH = False
 elif platform.system() == 'Windows':
 	FFMPEGLOC = os.path.join('C:\FFMPEG', 'bin', 'ffmpeg.exe')
-	if os.path.isdir(os.path.join(os.path.expanduser("~"), 'AppData', 'Roaming', 'Kodi', 'userdata', 'addon_data', 'pvr.iptvsimple')):
-		ADDONPATH = os.path.join(os.path.expanduser("~"), 'AppData', 'Roaming', 'Kodi', 'userdata', 'addon_data', 'pvr.iptvsimple')
+	if os.path.isdir(os.path.join(os.path.expanduser("~"), 'AppData', 'Roaming', 'Kodi', 'userdata', 'addon_data',
+	                              'pvr.iptvsimple')):
+		ADDONPATH = os.path.join(os.path.expanduser("~"), 'AppData', 'Roaming', 'Kodi', 'userdata', 'addon_data',
+		                         'pvr.iptvsimple')
 	else:
 		ADDONPATH = False
 elif platform.system() == 'Darwin':
 	FFMPEGLOC = '/usr/local/bin/ffmpeg'
 	if os.path.isdir(
-			os.path.join(os.path.expanduser("~"), "Library", "Application Support", 'Kodi', 'userdata', 'addon_data', 'pvr.iptvsimple')):
-		ADDONPATH = os.path.join(os.path.expanduser("~"), "Library", "Application Support", 'Kodi', 'userdata', 'addon_data', 'pvr.iptvsimple')
+			os.path.join(os.path.expanduser("~"), "Library", "Application Support", 'Kodi', 'userdata', 'addon_data',
+			             'pvr.iptvsimple')):
+		ADDONPATH = os.path.join(os.path.expanduser("~"), "Library", "Application Support", 'Kodi', 'userdata',
+		                         'addon_data', 'pvr.iptvsimple')
 	else:
 		ADDONPATH = False
 else:
@@ -299,14 +247,13 @@ serverList = [
 	['Asia-Old', 'dsg']
 ]
 
-vaders_channels = {"1":"2499","2":"2500","3":"2501","4":"2502","5":"2503","6":"2504","7":"2505","8":"2506","9":"2507","10":"2508","11":"2509","12":"2510","13":"2511","14":"2512","15":"2513","16":"2514","17":"2515","18":"2516","19":"2517","20":"2518","21":"2519","22":"2520","23":"2521","24":"2522","25":"2523","26":"2524","27":"2525","28":"2526","29":"2527","30":"2528","31":"2529","32":"2530","33":"2531","34":"2532","35":"2533","36":"2534","37":"2535","38":"2536","39":"2537","40":"2538","41":"2541","42":"2542","43":"2543","44":"2544","45":"2545","46":"2546","47":"2547","48":"2548","49":"2549","50":"2550","51":"2551","52":"2552","53":"2553","54":"2554","55":"2555","56":"2556","57":"2557","58":"2606","59":"2607","60":"2608","61":"2609","62":"2610","63":"2611","64":"2612","65":"2613","66":"2614","67":"2615","68":"2616","69":"2617","70":"2618","71":"2619","72":"2620","73":"2622","74":"2621","75":"2623","76":"2624","77":"2625","78":"2626","79":"2627","80":"2628","81":"2629","82":"2630","83":"2631","84":"2632","85":"2633","86":"2634","87":"2635","88":"2636","89":"2637","90":"2638","91":"2639","92":"2640","93":"2641","94":"2642","95":"2643","96":"2644","97":"2645","98":"2646","99":"2647","100":"2648","101":"2649","102":"2650","103":"2651","104":"2652","105":"2653","106":"2654","107":"2655","108":"2656","109":"2657","110":"2658","111":"2659","112":"2660","113":"2661","114":"2662","115":"2663","116":"2664","117":"2665","118":"2666","119":"2667","120":"2668","121":"47381","122":"2679","123":"2680","124":"2681","125":"2682","126":"47376","127":"47377","128":"47378","129":"47379","130":"47380","131":"47718","132":"47719","133":"49217","134":"50314","135":"50315","136":"50319","137":"50320","138":"50321","139":"50322","141":"49215","140":"50394","142":"49216","143":"50395","144":"50396","145":"50397","146":"50398","147":"50399","148":"47707","149":"47670","150":"47716"}
-
 providerList = [
 	['Live247', 'view247'],
-	['Mystreams/Usport', 'vaders'],
+	['Mystreams/Usport', 'viewms'],
 	['StarStreams', 'viewss'],
+	['MMA SR+', 'viewmmasr'],
 	['StreamTVnow', 'viewstvn'],
-	['MMA-TV/MyShout', 'viewmmasr']
+	['MMA-TV/MyShout', 'mmatv']
 ]
 
 streamtype = ['hls', 'rtmp', 'mpegts']
@@ -359,6 +306,10 @@ def adv_settings():
 				logger.debug("Overriding EXTXMLURL")
 				global EXTXMLURL
 				EXTXMLURL = advconfig["extraxmlurl"]
+			if "tvhredirect" in advconfig:
+				logger.debug("Overriding tvhredirect")
+				global TVHREDIRECT
+				TVHREDIRECT = advconfig["tvhredirect"]
 			if "tvhaddress" in advconfig:
 				logger.debug("Overriding tvhaddress")
 				global TVHURL
@@ -371,14 +322,10 @@ def adv_settings():
 				logger.debug("Overriding tvhpass")
 				global TVHPASS
 				TVHPASS = advconfig["tvhpass"]
-			if "overridexml" in advconfig:
-				logger.debug("Overriding XML")
-				global OVRXML
-				OVRXML = advconfig["overridexml"]
 
 
 def load_settings():
-	global QUAL, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, SERVER_HOST, EXTIP, EXT_HOST, EXTPORT, app
+	global QUAL, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, SERVER_HOST, EXTIP, EXT_HOST, EXTPORT
 	if not os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'proxysettings.json')):
 		logger.debug("No config file found.")
 	try:
@@ -437,12 +384,12 @@ def load_settings():
 			config["quality"] = qualityList[int(input("Stream quality?"))][1]
 			os.system('cls' if os.name == 'nt' else 'clear')
 			config["ip"] = input("Listening IP address?(ie recommend 127.0.0.1 for beginners)")
-			config["port"] = int(input("and port?(ie 6969, do not use 8080)"))
+			config["port"] = int(input("and port?(ie 99, do not use 8080)"))
 			os.system('cls' if os.name == 'nt' else 'clear')
 			config["kodiport"] = int(input("Kodiport? (def is 8080)"))
 			os.system('cls' if os.name == 'nt' else 'clear')
 			config["externalip"] = input("External IP?")
-			config["externalport"] = int(input("and ext port?(ie 6969, do not use 8080)"))
+			config["externalport"] = int(input("and ext port?(ie 99, do not use 8080)"))
 			os.system('cls' if os.name == 'nt' else 'clear')
 			QUAL = config["quality"]
 			USER = config["username"]
@@ -459,31 +406,11 @@ def load_settings():
 			EXT_HOST = "http://" + EXTIP + ":" + str(EXTPORT)
 			with open(os.path.join(os.path.dirname(sys.argv[0]), 'proxysettings.json'), 'w') as fp:
 				dump(config, fp)
-
-			with app.app_context():
-				db.metadata.create_all(db.engine)
-				if not User.query.all():
-					username = input('Enter username: ')
-					password = input("Enter password:")
-					assert password == input('Password (again):')
-
-					newuser = User(
-						username=username,
-						address=username,
-						password=generate_password_hash(password))
-					db.session.add(newuser)
-					newuser = User(
-						username='admin',
-						address='admin',
-						password='pbkdf2:sha256:50000$F2IcDUjs$24dc1319d651784c0f8822fef7bfa48e8c739c1fbf9a2f5738f624a683f5771f')
-					db.session.add(newuser)
-					db.session.commit()
-					db.session.close()
 		else:
 			root = tkinter.Tk()
 			root.title("YAP Setup")
 			root.geometry('750x600')
-			gui = GUI(root)  # calling the class to run
+			app = GUI(root)  # calling the class to run
 			root.mainloop()
 		installer()
 	adv_settings()
@@ -513,8 +440,8 @@ logger.addHandler(console_handler)
 if not os.path.isdir(os.path.join(os.path.dirname(sys.argv[0]), 'cache')):
 	os.mkdir(os.path.join(os.path.dirname(sys.argv[0]), 'cache'))
 file_handler = RotatingFileHandler(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'status.log'),
-								   maxBytes=1024 * 1024 * 2,
-								   backupCount=5)
+                                   maxBytes=1024 * 1024 * 2,
+                                   backupCount=5)
 file_handler.setLevel(logging.DEBUG)
 file_handler.setFormatter(log_formatter)
 logger.addHandler(file_handler)
@@ -869,7 +796,7 @@ if not 'headless' in sys.argv:
 			self.port.grid(row=9, column=2)
 
 			self.notePort = tkinter.StringVar()
-			self.notePort.set("If 80 doesn't work try 6969")
+			self.notePort.set("If 80 doesn't work try 99")
 			notePort = tkinter.Label(master, textvariable=self.notePort, height=2)
 			notePort.grid(row=9, column=3)
 
@@ -913,31 +840,6 @@ if not 'headless' in sys.argv:
 			self.extport = tkinter.Entry(master, textvariable=userExternalPort, width=30)
 			self.extport.grid(row=12, column=2)
 
-			self.labelExtUsername = tkinter.StringVar()
-			self.labelExtUsername.set("External Username")
-			labelExtUsername = tkinter.Label(master, textvariable=self.labelExtUsername, height=2)
-			labelExtUsername.grid(row=13, column=1)
-			#
-			extUsername = tkinter.StringVar()
-			extUsername.set("blogs@hotmail.com")
-			self.extusername = tkinter.Entry(master, textvariable=extUsername, width=30)
-			self.extusername.grid(row=13, column=2)
-			#
-			self.noteUsername = tkinter.StringVar()
-			self.noteUsername.set("Used for accessing this proxy remotely")
-			noteUsername = tkinter.Label(master, textvariable=self.noteUsername, height=2)
-			noteUsername.grid(row=13, column=3)
-
-			self.labelExtPassword = tkinter.StringVar()
-			self.labelExtPassword.set("External Password")
-			labelExtPassword = tkinter.Label(master, textvariable=self.labelExtPassword, height=2)
-			labelExtPassword.grid(row=14, column=1)
-			#
-			extPassword = tkinter.StringVar()
-			extPassword.set("blogs123")
-			self.extpassword = tkinter.Entry(master, textvariable=extPassword, width=30)
-			self.extpassword.grid(row=14, column=2)
-
 			def gather():
 				config = {}
 				config["username"] = userUsername.get()
@@ -959,7 +861,7 @@ if not 'headless' in sys.argv:
 				config["externalport"] = userExternalPort.get()
 				for widget in master.winfo_children():
 					widget.destroy()
-				global playlist, kodiplaylist, QUAL, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, EXTIP, EXT_HOST, SERVER_HOST, EXTPORT, app
+				global playlist, kodiplaylist, QUAL, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, EXTIP, EXT_HOST, SERVER_HOST, EXTPORT
 				with open(os.path.join(os.path.dirname(sys.argv[0]), 'proxysettings.json'), 'w') as fp:
 					dump(config, fp)
 				QUAL = config["quality"]
@@ -975,26 +877,6 @@ if not 'headless' in sys.argv:
 				EXTPORT = config["externalport"]
 				EXT_HOST = "http://" + EXTIP + ":" + str(EXTPORT)
 				SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
-
-				with app.app_context():
-					db.metadata.create_all(db.engine)
-					if not User.query.all():
-						username = extUsername.get()
-						password = extPassword.get()
-						# assert password == input('Password (again):')
-
-						newuser = User(
-							username=username,
-							address=username,
-							password=generate_password_hash(password))
-						db.session.add(newuser)
-						newuser = User(
-							username='admin',
-							address='admin',
-							password='pbkdf2:sha256:50000$F2IcDUjs$24dc1319d651784c0f8822fef7bfa48e8c739c1fbf9a2f5738f624a683f5771f')
-						db.session.add(newuser)
-						db.session.commit()
-						db.session.close()
 
 				self.labelHeading = tkinter.StringVar()
 				self.labelHeading.set("Below are the URLs you have available for use")
@@ -1062,11 +944,11 @@ if not 'headless' in sys.argv:
 				labelFooter.grid(row=13)
 
 				button1 = tkinter.Button(master, text="Launch YAP!!", width=20,
-										 command=lambda: self.client_exit(master))
+				                         command=lambda: self.client_exit(master))
 				button1.grid(row=14)
 
 			button1 = tkinter.Button(master, text="Submit", width=20, command=lambda: gather())
-			button1.grid(row=15, column=2)
+			button1.grid(row=13, column=2)
 
 ############################################################
 # CRC
@@ -1270,31 +1152,20 @@ def dl_epg(source=1):
 			logger.debug("Skipping download of epg")
 			return
 	to_process = []
-	if OVRXML != '':
-		if OVRXML.startswith('http://') or OVRXML.startswith('https://'):
-			if OVRXML.endswith('.gz') or OVRXML.endswith('.gz?raw=1'):
-				requests.urlretrieve(OVRXML, os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml.gz'))
-				unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml.gz')
-			else:
-				requests.urlretrieve(OVRXML, os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml'))
-				unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml')
-		else:
-			unzipped = OVRXML
-		to_process.append([unzipped, "epg.xml", 'ovr'])
-		requests.urlretrieve("https://fast-guide.smoothstreams.tv/feed.xml",os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml'))
-		unzippedsports = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml')
-		to_process.append([unzippedsports, "sports.xml", 'sstv'])
-	elif source == 1:
+	if source == 1:
 		logger.info("Downloading epg")
-		requests.urlretrieve("https://sstv.fog.pt/epg/xmltv5.xml.gz", os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz'))
+		requests.urlretrieve("https://sstv.fog.pt/epg/xmltv5.xml.gz",
+		                     os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz'))
 		unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz')
 		to_process.append([unzipped, "epg.xml", 'fog'])
-		requests.urlretrieve("https://fast-guide.smoothstreams.tv/feed.xml", os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml'))
+		requests.urlretrieve("https://fast-guide.smoothstreams.tv/feed.xml",
+		                     os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml'))
 		unzippedsports = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml')
 		to_process.append([unzippedsports, "sports.xml", 'sstv'])
 	else:
 		logger.info("Downloading sstv epg")
-		requests.urlretrieve("https://fast-guide.smoothstreams.tv/feed.xml", os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml'))
+		requests.urlretrieve("https://fast-guide.smoothstreams.tv/feed.xml",
+		                     os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml'))
 		unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml')
 		to_process.append([unzipped, "epg.xml", 'sstv'])
 		to_process.append([unzipped, "sports.xml", 'sstv'])
@@ -1311,7 +1182,8 @@ def dl_epg(source=1):
 		if process[2] == 'fog':
 			for a in tree.iterfind('channel'):
 				b = a.find('display-name')
-				newname = [chan_map[x].channum for x in range(len(chan_map) + 1) if x != 0 and chan_map[x].epg == a.attrib['id'] and chan_map[x].channame == b.text]
+				newname = [chan_map[x].channum for x in range(len(chan_map) + 1) if
+				           x != 0 and chan_map[x].epg == a.attrib['id'] and chan_map[x].channame == b.text]
 				if len(newname) > 1:
 					logger.debug("EPG rename conflict")
 				# print(a.attrib['id'], newname)
@@ -1323,13 +1195,10 @@ def dl_epg(source=1):
 			if process[2] == 'fog':
 				a.attrib['channel'] = changelist[a.attrib['channel']]
 			for b in a.findall('title'):
-				try:
-					c = a.find('category')
-					c.text = "Sports"
-				except:
+				if process[2] == 'sstv':
 					ET.SubElement(a, 'category')
-					c = a.find('category')
-					c.text = "Sports"
+				c = a.find('category')
+				c.text = "Sports"
 				if 'nba' in b.text.lower() or 'nba' in b.text.lower() or 'ncaam' in b.text.lower():
 					c.text = "Basketball"
 				elif 'nfl' in b.text.lower() or 'football' in b.text.lower() or 'american football' in b.text.lower() or 'ncaaf' in b.text.lower() or 'cfb' in b.text.lower():
@@ -1474,9 +1343,7 @@ def json2xml(json_obj):
 
 
 def get_auth_token(user, passwd, site):
-	if site == 'vaders':
-		return
-	elif site == 'viewmmasr' or site == 'mmatv':
+	if site == 'viewmmasr' or site == 'mmatv':
 		baseUrl = 'https://www.mma-tv.net/loginForm.php?'
 	else:
 		baseUrl = 'https://auth.smoothstreams.tv/hash_api.php?'
@@ -1505,8 +1372,6 @@ def get_auth_token(user, passwd, site):
 
 
 def check_token():
-	if SITE == 'vaders':
-		return
 	# load and check/renew token
 	if not token['hash'] or not token['expires']:
 		# fetch fresh token
@@ -1578,14 +1443,9 @@ def build_playlist(host):
 	for pos in range(1, len(chan_map) + 1):
 		# build channel url
 		url = "{0}/playlist.m3u8?ch={1}&strm={2}&qual={3}"
-		vaders_url = "http://vaders.tv/live/{0}/{1}/{2}.{3}"
-
-		if SITE == 'vaders':
-			strm = 'ts' if STRM == 'mpegts' else 'm3u8'
-			channel_url = vaders_url.format('vsmystreams_' + USER,PASS, vaders_channels[str(pos)], strm)
-		else:
-			urlformatted = url.format(SERVER_PATH, chan_map[pos].channum, STRM, QUAL)
-			channel_url = urljoin(host, urlformatted)
+		rtmpTemplate = 'rtmp://{0}.smoothstreams.tv:3625/{1}/ch{2}q{3}.stream?wmsAuthSign={4}'
+		urlformatted = url.format(SERVER_PATH, chan_map[pos].channum, STRM, QUAL)
+		channel_url = urljoin(host, urlformatted)
 		# build playlist entry
 		try:
 			new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s",%s\n' % (
@@ -1610,8 +1470,8 @@ def build_static_playlist():
 
 		template = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}q{5}.stream{6}?wmsAuthSign={7}'
 		urlformatted = template.format('https' if STRM == 'hls' else 'rtmp', SRVR, '443' if STRM == 'hls' else '3625',
-									   SITE, "{:02}".format(pos), QUAL if pos <= 60 else '1',
-									   '/playlist.m3u8' if STRM == 'hls' else '', token['hash'])
+		                               SITE, "{:02}".format(pos), QUAL if pos <= 60 else '1',
+		                               '/playlist.m3u8' if STRM == 'hls' else '', token['hash'])
 		# build playlist entry
 		try:
 			new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s",%s\n' % (
@@ -1785,7 +1645,8 @@ def build_tvh_playlist():
 		try:
 			new_playlist += '#EXTINF:-1 tvg-id="%s" tvh-chnum="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s",%s\n' % (
 				chan_map[pos].channum, chan_map[pos].channum, name, SERVER_HOST, SERVER_PATH, chan_map[pos].channum,
-				chan_map[pos].channum, name)
+				chan_map[pos].channum,
+				name)
 			new_playlist += '%s\n' % channel_url
 
 		except:
@@ -1863,9 +1724,9 @@ def m3u8_plex(lineup, inputm3u8):
 					grouper = grouper.split(',')
 					name = grouper[1]
 					lineup.append({'GuideNumber': str(len(lineup) + 1),
-								   'GuideName': name,
-								   'URL': 'empty'
-								   })
+					               'GuideName': name,
+					               'URL': 'empty'
+					               })
 				elif inputm3u8[i].startswith("rtmp") or inputm3u8[i].startswith("http"):
 					template = "{0}/{1}/auto/v{2}?url={3}"
 					url = template.format(SERVER_HOST, SERVER_PATH, str(len(lineup)), inputm3u8[i])
@@ -1883,9 +1744,9 @@ def lineup(chan_map):
 		template = "{0}/{1}/auto/v{2}"
 		url = template.format(SERVER_HOST, SERVER_PATH, chan_map[c].channum)
 		lineup.append({'GuideNumber': str(chan_map[c].channum),
-					   'GuideName': chan_map[c].channame,
-					   'URL': url
-					   })
+		               'GuideName': chan_map[c].channame,
+		               'URL': url
+		               })
 	formatted_m3u8 = ''
 	if EXTM3URL != '':
 		logger.debug("extra m3u8 url")
@@ -1909,9 +1770,9 @@ def tvh_lineup():
 			url = 'http://%s:%s@%s:9981/stream/channel/%s?profile=%s&weight=%s' % (
 			TVHUSER, TVHPASS, TVHURL, c['uuid'], tvhstreamProfile, int(tvhWeight))
 			lineup.append({'GuideNumber': str(c['number']),
-						   'GuideName': c['name'],
-						   'URL': url
-						   })
+			               'GuideName': c['name'],
+			               'URL': url
+			               })
 	return jsonify(lineup)
 
 
@@ -1957,8 +1818,8 @@ try:
 	epgpath = os.path.join(
 		os.path.join(os.path.expanduser("~"), "AppData", "Local", "Plex Media Server", "Plug-in Support", "Databases"))
 	dbpat = [[item for item in files if
-			  item.endswith(".db") and item.startswith("tv.plex.providers.epg.xmltv-") and "loading" not in item] for
-			 root, dirs, files in os.walk(epgpath)][0]
+	          item.endswith(".db") and item.startswith("tv.plex.providers.epg.xmltv-") and "loading" not in item] for
+	         root, dirs, files in os.walk(epgpath)][0]
 except:
 	dbpat = []
 
@@ -1980,10 +1841,10 @@ def create_list(dbname, epgsummaries=False, epggenres=False, epgorig=False):
 		# type 2 show, 3 season, 4 episode
 
 		query = "SELECT DISTINCT tags.tag as channel " \
-				"FROM media_items AS bc " \
-				"JOIN metadata_items AS it ON bc.metadata_item_id = it.id " \
-				"JOIN tags ON tags.id = bc.channel_id " \
-				"ORDER BY bc.channel_id "
+		        "FROM media_items AS bc " \
+		        "JOIN metadata_items AS it ON bc.metadata_item_id = it.id " \
+		        "JOIN tags ON tags.id = bc.channel_id " \
+		        "ORDER BY bc.channel_id "
 
 		html.write("<h1>Channel Index</h1>")
 
@@ -1994,22 +1855,22 @@ def create_list(dbname, epgsummaries=False, epggenres=False, epgorig=False):
 			channel = row["channel"]
 			channelmap[channel] = chanindex
 			html.write("<span class=\"channellink\"><a href=\"#%s\">%s</a></span>" %
-					   (chanindex, channel))
+			           (chanindex, channel))
 
 		query = "SELECT tags.tag as channel, " \
-				"bc.begins_at, bc.ends_at, " \
-				"it.title, it.user_thumb_url, it.year, it.summary, it.extra_data as subscribed, " \
-				"it.\"index\" as episode, it.summary, it.tags_genre as itgenre, " \
-				"it.originally_available_at as origdate, " \
-				"seas.\"index\" AS season, " \
-				"show.title as showtitle, show.tags_genre as showgenre " \
-				"FROM media_items AS bc " \
-				"JOIN metadata_items AS it ON bc.metadata_item_id = it.id " \
-				"JOIN tags ON tags.id = bc.channel_id " \
-				"LEFT JOIN metadata_items AS seas ON seas.id = it.parent_id " \
-				"LEFT JOIN metadata_items AS show ON show.id = seas.parent_id " \
-				"WHERE it.metadata_type IN (1,4) " \
-				"ORDER BY bc.channel_id, bc.begins_at "
+		        "bc.begins_at, bc.ends_at, " \
+		        "it.title, it.user_thumb_url, it.year, it.summary, it.extra_data as subscribed, " \
+		        "it.\"index\" as episode, it.summary, it.tags_genre as itgenre, " \
+		        "it.originally_available_at as origdate, " \
+		        "seas.\"index\" AS season, " \
+		        "show.title as showtitle, show.tags_genre as showgenre " \
+		        "FROM media_items AS bc " \
+		        "JOIN metadata_items AS it ON bc.metadata_item_id = it.id " \
+		        "JOIN tags ON tags.id = bc.channel_id " \
+		        "LEFT JOIN metadata_items AS seas ON seas.id = it.parent_id " \
+		        "LEFT JOIN metadata_items AS show ON show.id = seas.parent_id " \
+		        "WHERE it.metadata_type IN (1,4) " \
+		        "ORDER BY bc.channel_id, bc.begins_at "
 
 		prevChannel = None
 		prevEnd = None
@@ -2041,12 +1902,12 @@ def create_list(dbname, epgsummaries=False, epggenres=False, epgorig=False):
 				ep = ("%02d" % row["episode"]) if row["episode"] >= 0 else "??"
 				titlestr = ("&ndash; <span class=\"episodetitle\">" + row["title"] + "</span>" if row["title"] else "")
 				html.write("<p>%s &ndash; %s: <b>%s</b> S%02dE%s %s\n" %
-						   (start, shortend, row["showtitle"], row["season"], ep,
-							titlestr))
+				           (start, shortend, row["showtitle"], row["season"], ep,
+				            titlestr))
 			else:
 				# It's a movie
 				html.write("<p>%s &ndash; %s: <b>%s</b>\n" %  # (%d)\n" %
-						   (start, end, row["title"]))  # , row["year"]))
+				           (start, end, row["title"]))  # , row["year"]))
 
 			# Doesn't mean *this* broadcast will be recorded!
 			if row["subscribed"]:
@@ -2150,9 +2011,9 @@ def processPacket(packet, client, logPrefix=''):
 	if packetType == HDHOMERUN_TYPE_DISCOVER_REQ:
 		logger.debug('Discovery request received from ' + client[0])
 		responsePayload = struct.pack('>BBI', HDHOMERUN_TAG_DEVICE_TYPE, 0x04,
-									  HDHOMERUN_DEVICE_TYPE_TUNER)  # Device Type Filter (tuner)
+		                              HDHOMERUN_DEVICE_TYPE_TUNER)  # Device Type Filter (tuner)
 		responsePayload += struct.pack('>BBI', HDHOMERUN_TAG_DEVICE_ID, 0x04,
-									   int('12345678', 16))  # Device ID Filter (any)
+		                               int('12345678', 16))  # Device ID Filter (any)
 		responsePayload += struct.pack('>BB', HDHOMERUN_TAG_GETSET_NAME, len(SERVER_HOST)) + str.encode(
 			SERVER_HOST)  # Device ID Filter (any)
 		responsePayload += struct.pack('>BBB', HDHOMERUN_TAG_TUNER_COUNT, 0x01, 6)  # Device ID Filter (any)
@@ -2184,11 +2045,11 @@ def processPacket(packet, client, logPrefix=''):
 			return False
 		else:
 			responsePayload = struct.pack('>BB{0}'.format(len(getSetName)), HDHOMERUN_TAG_GETSET_NAME, len(getSetName),
-										  getSetName)
+			                              getSetName)
 
 			if getSetValue is not None:
 				responsePayload += struct.pack('>BB{0}'.format(len(getSetValue)), HDHOMERUN_TAG_GETSET_VALUE,
-											   len(getSetValue), getSetValue)
+				                               len(getSetValue), getSetValue)
 
 			return createPacket(HDHOMERUN_TYPE_GETSET_RPY, responsePayload)
 
@@ -2279,7 +2140,7 @@ def build_kodi_playlist():
 				chan_map[pos].channum,
 				chan_map[pos].channame)
 			new_playlist += '%s\n' % rtmpTemplate.format(SRVR, SITE, "{:02}".format(pos), QUAL if pos <= 60 else '1',
-														 token['hash'])
+			                                             token['hash'])
 		except:
 			logger.exception("Exception while updating kodi playlist: ")
 	new_playlist += '#EXTINF:-1 tvg-id="static_refresh" tvg-name="Static Refresh" tvg-logo="%s/%s/empty.png" channel-id="0" group-title="Static RTMP",Static Refresh\n' % (
@@ -2310,7 +2171,7 @@ def rescan_channels():
 	authorization = b'Basic ' + encoded_credentials
 	apiheaders = {'Content-Type': 'application/json', 'Authorization': authorization}
 	apidata = {"jsonrpc": "2.0", "method": "Addons.SetAddonEnabled",
-			   "params": {"addonid": "pvr.iptvsimple", "enabled": "toggle"}, "id": 1}
+	           "params": {"addonid": "pvr.iptvsimple", "enabled": "toggle"}, "id": 1}
 	apiurl = 'http://%s:%s/jsonrpc' % (request.environ.get('REMOTE_ADDR'), KODIPORT)
 	json_data = json.dumps(apidata)
 	post_data = json_data.encode('utf-8')
@@ -2363,7 +2224,7 @@ def create_menu():
 		channelmap = {}
 		chanindex = 0
 		list = ["Username", "Password", "Quality", "Stream", "Server", "Service", "IP", "Port", "Kodiport",
-				"ExternalIP", "ExternalPort"]
+		        "ExternalIP", "ExternalPort"]
 		html.write('<table width="300" border="2">')
 		for setting in list:
 			if setting.lower() == 'service':
@@ -2426,11 +2287,6 @@ def create_menu():
 		html.write('<input type="hidden" name="restart"  value="3">')
 		html.write('<input type="submit"  value="Update(Dev Branch) + Restart">')
 		html.write('</form>')
-		html.write('<p>&nbsp;</p>')
-		html.write('<p>&nbsp;</p>')
-		html.write('<p>&nbsp;</p>')
-		html.write('<p>&nbsp;</p>')
-		html.write('<p>Donations: PayPal to vorghahn.sstv@gmail.com  or BTC - 19qvdk7JYgFruie73jE4VvW7ZJBv8uGtFb</p>')
 		html.write('</div><div class="right-half"><h1>YAP Outputs</h1>')
 
 		html.write("<table><tr><td rowspan='2'>Standard Outputs</td><td>m3u8 - %s/playlist.m3u8</td></tr>" % urljoin(
@@ -2445,7 +2301,7 @@ def create_menu():
 		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
 
 		html.write("<tr><td rowspan='2'>Plex Live<sup>1</sup></td><td>Tuner - %s</td></tr>" % urljoin(SERVER_HOST,
-																									  SERVER_PATH))
+		                                                                                              SERVER_PATH))
 		html.write("<tr><td>EPG - %s/epg.xml</td></tr>" % urljoin(SERVER_HOST, SERVER_PATH))
 		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
 		html.write("<tr><td>TVHeadend<sup>1</sup></td><td>%s/tvh.m3u8</td></tr>" % urljoin(SERVER_HOST, SERVER_PATH))
@@ -2471,7 +2327,7 @@ def create_menu():
 		html.write("<tr><td>EPG - http://%s:9981/xmltv/channels</td></tr>" % TVHURL)
 		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
 		html.write("<tr><td>Test Playlist for troubleshooting</td><td>%s/test.m3u8</td></tr>" % urljoin(SERVER_HOST,
-																										SERVER_PATH))
+		                                                                                                SERVER_PATH))
 		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
 		html.write("<tr><td>Note 1:</td><td>Requires FFMPEG installation and setup</td></tr>")
 		html.write("<tr><td>Note 2:</td><td>Requires External IP and port in advancedsettings</td></tr>")
@@ -2500,154 +2356,26 @@ def close_menu(restart):
 				html.write("<p>TVH's own EPG url is http://%s:9981/xmltv/channels</p>" % TVHURL)
 		html.write("</body></html>\n")
 
-def login_form():
-	with open("./cache/login.html", "w") as html:
-		html.write("""<html>
-		<head>
-		<meta charset="UTF-8">
-		%s
-		<title>YAP</title>
-		</head>
-		<body>\n""" % (style,))
-		html.write('<section class="container"><div class="left-half">')
-		html.write("<h1>YAP Settings</h1>")
-		html.write('<form action="%s/%s/login" method="post">' % (SERVER_HOST, SERVER_PATH))
-
-		html.write('<table width="300" border="2">')
-		html.write('<tr><td>Username:</td><td><input name="user" value=""></td></tr>')
-		html.write('<tr><td>Password:</td><td><input name="pass" type="Password" value=""></td></tr>')
-
-		html.write('</table>')
-		html.write('<input type="submit"  value="Submit">')
-		html.write('</form>')
 
 def restart_program():
 	os.system('cls' if os.name == 'nt' else 'clear')
 	args = sys.argv[:]
 	logger.info('Re-spawning %s' % ' '.join(args))
+	#
+	# args.insert(0, sys.executable)
+	# if sys.platform == 'win32':
+	# 	args = ['"%s"' % arg for arg in args]
+
 	os.execl(sys.executable, *([sys.executable] + sys.argv))
 
 
-############################################################
-# authentication
-############################################################
-
-
-@login.user_loader
-def user_loader(user_id):
-
-	return User.query.get(user_id)
-
-@app.route("/%s/login" % SERVER_PATH, methods=["GET","POST"])
-def login():
-	logger.debug("Login function")
-	outcome = False
-	user = ''
-	baseurl = urljoin(SERVER_HOST, SERVER_PATH)
-
-	# Local logon detection, free logon
-	if request.environ.get('REMOTE_ADDR') and (request.environ.get('REMOTE_ADDR').startswith('10.') or request.environ.get('REMOTE_ADDR').startswith(
-			'192.') or request.environ.get('REMOTE_ADDR').startswith('127.') or request.environ.get('REMOTE_ADDR').startswith('169.')):
-		logger.debug("local logon")
-		user = User.query.get('admin')
-		outcome = True
-
-	# checks for previous logon, free logon
-	elif request.environ.get('REMOTE_ADDR'):
-		user = User.query.get(str(request.environ.get('REMOTE_ADDR')))
-
-		if user:
-			outcome = True
-
-	# checks for form return data
-	elif request.form:
-		logger.debug("Request form received.")
-		inc_data = request.form
-		uname = inc_data['user']
-		pword = inc_data['pass']
-		user = User.query.get(uname)
-		if user:
-			if user.username == uname and check_password_hash(user.password, pword):
-				try:
-					address = request.environ.get('REMOTE_ADDR')
-					newuser = User(
-						username=uname,
-						address=address,
-						password=generate_password_hash(pword))
-					db.session.add(newuser)
-					outcome = True
-					logger.debug("Correct Password.")
-				except:
-					logger.error("No IP found.")
-
-
-			else:
-				logger.error("Wrong Password.")
-		else:
-			logger.error("User does not exist")
-			return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'close.html')
-
-	# Checks for url logon, ie kodi style
-	elif request.args.get('user') and request.args.get('pass'):
-		uname = request.args.get('user')
-		pword = request.args.get('pass')
-		user = User.query.get(uname)
-		if user:
-			if user.username == uname and check_password_hash(user.password, pword):
-				try:
-					address = request.environ.get('REMOTE_ADDR')
-					newuser = User(
-						username=uname,
-						address=address,
-						password=generate_password_hash(pword))
-					db.session.add(newuser)
-					outcome = True
-					logger.debug("Correct Password.")
-				except:
-					logger.error("No IP found.")
-
-
-			else:
-				logger.error("Wrong Password.")
-		else:
-			logger.error("User does not exist")
-			return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'close.html')
-
-	if user and outcome:
-		user.authenticated = True
-		db.session.add(user)
-		db.session.commit()
-		login_user(user, remember=True)
-		next_page = request.args.get('next')
-		if not next_page or url_parse(next_page).netloc != '':
-			next_page = '%s/index.html' % baseurl
-		return redirect(next_page)
-
-	else:
-		login_form()
-		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'login.html')
-
-
-
-
-@app.route("/logout", methods=["GET"])
-@login_required
-def logout():
-	"""Logout the current user."""
-	user = current_user
-	user.authenticated = False
-	db.session.add(user)
-	db.session.commit()
-	logout_user()
-	logger.debug("Logged out")
-	return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'close.html')
+# os.execv(sys.executable, args)
 
 
 ############################################################
 # CLIENT <-> SSTV BRIDGE
 ############################################################
 @app.route('/sstv/handle_data', methods=['POST'])
-@login_required
 def handle_data():
 	logger.info("Received new settings from %s", request.environ.get('REMOTE_ADDR'))
 	global playlist, kodiplaylist, QUAL, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, EXTIP, EXT_HOST, SERVER_HOST, EXTPORT
@@ -2717,7 +2445,6 @@ def handle_data():
 
 @app.route('/')
 @app.route('/sstv')
-@login_required
 def landing_page():
 	logger.info("Index was requested by %s", request.environ.get('REMOTE_ADDR'))
 	create_menu()
@@ -2742,8 +2469,7 @@ def index(request_file):
 		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'empty.png')
 
 
-@app.route('/%s/<request_file>' % SERVER_PATH, methods=['GET', 'POST'])
-@login_required
+@app.route('/%s/<request_file>' % SERVER_PATH)
 def bridge(request_file):
 	global playlist, token, chan_map, kodiplaylist, tvhplaylist, fallback
 	check_token()
@@ -2752,19 +2478,6 @@ def bridge(request_file):
 	except:
 		logger.debug("No user-agent provided by %s", request.environ.get('REMOTE_ADDR'))
 		client = 'unk'
-
-	# External protection
-	if not (request.environ.get('REMOTE_ADDR').startswith('10.') or request.environ.get('REMOTE_ADDR').startswith(
-			'192.') or request.environ.get('REMOTE_ADDR').startswith('127.')):
-		logger.info("REQUEST IS FROM AN EXTERNAL SOURCE")
-		external = True
-		if not request.args.get('password') or request.args.get('password') != EXTPASS:
-			external_auth = False
-		else:
-			external_auth = True
-	else:
-		external = False
-		external_auth = False
 
 	# return epg
 	if request_file.lower().startswith('epg.'):
@@ -2881,17 +2594,9 @@ def bridge(request_file):
 				chan = request_file.lower().replace("ch", "").replace(".m3u8", "")
 				sanitized_channel = "{:02.0f}".format(int(chan))
 			else:
-				chan = request.args.get('ch')
 				sanitized_channel = ("0%d" % int(request.args.get('ch'))) if int(
 					request.args.get('ch')) < 10 else request.args.get('ch')
 			check_token()
-			if SITE == 'vaders':
-				logger.info("Channel %s playlist was requested by %s", sanitized_channel,
-				            request.environ.get('REMOTE_ADDR'))
-				vaders_url = "http://vaders.tv/live/{0}/{1}/{2}.{3}"
-				strm = 'ts' if STRM == 'mpegts' else 'm3u8'
-				channel_url = vaders_url.format('vsmystreams_' + USER, PASS, vaders_channels[chan], strm)
-				return redirect(channel_url, code=302)
 
 			qual = 1
 			if request.args.get('qual') and int(sanitized_channel) <= 60:
@@ -2917,7 +2622,7 @@ def bridge(request_file):
 			headers.update({'Content-Type': 'application/x-mpegURL', "Access-Control-Allow-Origin": "*"})
 			response.headers = headers
 			logger.info("Channel %s playlist was requested by %s", sanitized_channel,
-						request.environ.get('REMOTE_ADDR'))
+			            request.environ.get('REMOTE_ADDR'))
 			# useful for debugging
 			logger.debug("URL returned: %s" % ss_url)
 			if request.args.get('type'):
@@ -2987,14 +2692,13 @@ def tvh_returns(request_file):
 
 
 @app.route('/%s/auto/<request_file>' % SERVER_PATH)
-@login_required
 # returns a piped stream, used for TVH/Plex Live TV
 def auto(request_file, qual=""):
 	logger.debug("starting pipe function")
 	check_token()
 	channel = request_file.replace("v", "")
 	logger.info("Channel %s playlist was requested by %s", channel,
-				request.environ.get('REMOTE_ADDR'))
+	            request.environ.get('REMOTE_ADDR'))
 	sanitized_channel = ("0%d" % int(channel)) if int(channel) < 10 else channel
 
 	sanitized_qual = '1'
@@ -3060,8 +2764,8 @@ def auto(request_file, qual=""):
 			proc.kill()
 
 	return Response(response=generate(), status=200, mimetype='video/mp2t',
-					headers={'Access-Control-Allow-Origin': '*', "Content-Type": "video/mp2t",
-							 "Content-Disposition": "inline", "Content-Transfer-Enconding": "binary"})
+	                headers={'Access-Control-Allow-Origin': '*', "Content-Type": "video/mp2t",
+	                         "Content-Disposition": "inline", "Content-Transfer-Enconding": "binary"})
 
 
 ############################################################
@@ -3072,10 +2776,6 @@ def auto(request_file, qual=""):
 if __name__ == "__main__":
 	logger.info("Initializing")
 	load_settings()
-	try:
-		User.query.all()
-	except:
-		print("Error parsing ext user list")
 	if os.path.exists(TOKEN_PATH):
 		load_token()
 	check_token()
