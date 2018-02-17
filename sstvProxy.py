@@ -2717,7 +2717,7 @@ def handle_data():
 
 @app.route('/')
 @app.route('/sstv')
-#@login_required
+@login_required
 def landing_page():
 	logger.info("Index was requested by %s", request.environ.get('REMOTE_ADDR'))
 	create_menu()
@@ -2743,7 +2743,7 @@ def index(request_file):
 
 
 @app.route('/%s/<request_file>' % SERVER_PATH, methods=['GET', 'POST'])
-#@login_required
+@login_required
 def bridge(request_file):
 	global playlist, token, chan_map, kodiplaylist, tvhplaylist, fallback
 	check_token()
