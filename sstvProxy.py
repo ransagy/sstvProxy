@@ -78,8 +78,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.672
+__version__ = 1.68
 # Changelog
+# 1.68 - Updated for MyStreams changes
 # 1.672 - Changed mpegts output default quality from 1 to what user has set.
 # 1.671 - Correction of MMATV url
 # 1.67 - Finished JSON to XML, fixed quality setting and settings menu form posting
