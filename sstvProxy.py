@@ -85,8 +85,7 @@ from flask_sqlalchemy import SQLAlchemy
 
 class Config(object):
 	SECRET_KEY = 'you-will-never-guess'
-	SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-		'sqlite:///' + os.path.join(os.path.dirname(sys.argv[0]),'cache', 'app.db')
+	SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(os.path.dirname(sys.argv[0]),'cache', 'app.db')
 	SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 app = Flask(__name__, static_url_path='')
@@ -98,7 +97,7 @@ login.login_view = 'login'
 
 
 
-__version__ = 1.694
+__version__ = 1.7
 # Changelog
 # 1.7 - Updated for MyStreams changes
 # 1.694 - Fixed TVH output m3u8 structure
@@ -2742,9 +2741,9 @@ def index(request_file):
 		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'empty.png')
 
 
-@app.route('/%s/<request_file>' % SERVER_PATH, methods=['GET', 'POST'])
-@login_required
+@app.route('/%s/<request_file>' % SERVER_PATH, methods=['GET','POST'])
 def bridge(request_file):
+	logger.info("%s requested by %s at root" % (request_file, request.environ.get('REMOTE_ADDR')))
 	global playlist, token, chan_map, kodiplaylist, tvhplaylist, fallback
 	check_token()
 	try:
