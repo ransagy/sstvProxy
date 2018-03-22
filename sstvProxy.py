@@ -78,8 +78,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.68
+__version__ = 1.69
 # Changelog
+# 1.69 - Added more info to website, removed network discovery(isn't useful).
 # 1.68 - Updated for MyStreams changes
 # 1.672 - Changed mpegts output default quality from 1 to what user has set.
 # 1.671 - Correction of MMATV url
@@ -254,9 +255,8 @@ providerList = [
 	['Live247', 'view247'],
 	['Mystreams/Usport', 'vaders'],
 	['StarStreams', 'viewss'],
-	['MMA SR+', 'viewmmasr'],
 	['StreamTVnow', 'viewstvn'],
-	['MMA-TV/MyShout', 'mmatv']
+	['MMA-TV/MyShout', 'viewmmasr']
 ]
 
 streamtype = ['hls', 'rtmp', 'mpegts']
@@ -273,10 +273,6 @@ def adv_settings():
 		logger.debug("Parsing advanced settings")
 		with open(os.path.join(os.path.dirname(sys.argv[0]), 'advancedsettings.json')) as advset:
 			advconfig = load(advset)
-			if "networkdiscovery" in advconfig:
-				logger.debug("Overriding network discovery")
-				global netdiscover
-				netdiscover = advconfig["networkdiscovery"]
 			if "kodiuser" in advconfig:
 				logger.debug("Overriding kodi username")
 				global KODIUSER
@@ -952,101 +948,6 @@ if not 'headless' in sys.argv:
 
 			button1 = tkinter.Button(master, text="Submit", width=20, command=lambda: gather())
 			button1.grid(row=13, column=2)
-
-############################################################
-# CRC
-############################################################
-
-
-crc32c_table = (
-	0x00000000, 0x77073096, 0xee0e612c, 0x990951ba,
-	0x076dc419, 0x706af48f, 0xe963a535, 0x9e6495a3,
-	0x0edb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988,
-	0x09b64c2b, 0x7eb17cbd, 0xe7b82d07, 0x90bf1d91,
-	0x1db71064, 0x6ab020f2, 0xf3b97148, 0x84be41de,
-	0x1adad47d, 0x6ddde4eb, 0xf4d4b551, 0x83d385c7,
-	0x136c9856, 0x646ba8c0, 0xfd62f97a, 0x8a65c9ec,
-	0x14015c4f, 0x63066cd9, 0xfa0f3d63, 0x8d080df5,
-	0x3b6e20c8, 0x4c69105e, 0xd56041e4, 0xa2677172,
-	0x3c03e4d1, 0x4b04d447, 0xd20d85fd, 0xa50ab56b,
-	0x35b5a8fa, 0x42b2986c, 0xdbbbc9d6, 0xacbcf940,
-	0x32d86ce3, 0x45df5c75, 0xdcd60dcf, 0xabd13d59,
-	0x26d930ac, 0x51de003a, 0xc8d75180, 0xbfd06116,
-	0x21b4f4b5, 0x56b3c423, 0xcfba9599, 0xb8bda50f,
-	0x2802b89e, 0x5f058808, 0xc60cd9b2, 0xb10be924,
-	0x2f6f7c87, 0x58684c11, 0xc1611dab, 0xb6662d3d,
-	0x76dc4190, 0x01db7106, 0x98d220bc, 0xefd5102a,
-	0x71b18589, 0x06b6b51f, 0x9fbfe4a5, 0xe8b8d433,
-	0x7807c9a2, 0x0f00f934, 0x9609a88e, 0xe10e9818,
-	0x7f6a0dbb, 0x086d3d2d, 0x91646c97, 0xe6635c01,
-	0x6b6b51f4, 0x1c6c6162, 0x856530d8, 0xf262004e,
-	0x6c0695ed, 0x1b01a57b, 0x8208f4c1, 0xf50fc457,
-	0x65b0d9c6, 0x12b7e950, 0x8bbeb8ea, 0xfcb9887c,
-	0x62dd1ddf, 0x15da2d49, 0x8cd37cf3, 0xfbd44c65,
-	0x4db26158, 0x3ab551ce, 0xa3bc0074, 0xd4bb30e2,
-	0x4adfa541, 0x3dd895d7, 0xa4d1c46d, 0xd3d6f4fb,
-	0x4369e96a, 0x346ed9fc, 0xad678846, 0xda60b8d0,
-	0x44042d73, 0x33031de5, 0xaa0a4c5f, 0xdd0d7cc9,
-	0x5005713c, 0x270241aa, 0xbe0b1010, 0xc90c2086,
-	0x5768b525, 0x206f85b3, 0xb966d409, 0xce61e49f,
-	0x5edef90e, 0x29d9c998, 0xb0d09822, 0xc7d7a8b4,
-	0x59b33d17, 0x2eb40d81, 0xb7bd5c3b, 0xc0ba6cad,
-	0xedb88320, 0x9abfb3b6, 0x03b6e20c, 0x74b1d29a,
-	0xead54739, 0x9dd277af, 0x04db2615, 0x73dc1683,
-	0xe3630b12, 0x94643b84, 0x0d6d6a3e, 0x7a6a5aa8,
-	0xe40ecf0b, 0x9309ff9d, 0x0a00ae27, 0x7d079eb1,
-	0xf00f9344, 0x8708a3d2, 0x1e01f268, 0x6906c2fe,
-	0xf762575d, 0x806567cb, 0x196c3671, 0x6e6b06e7,
-	0xfed41b76, 0x89d32be0, 0x10da7a5a, 0x67dd4acc,
-	0xf9b9df6f, 0x8ebeeff9, 0x17b7be43, 0x60b08ed5,
-	0xd6d6a3e8, 0xa1d1937e, 0x38d8c2c4, 0x4fdff252,
-	0xd1bb67f1, 0xa6bc5767, 0x3fb506dd, 0x48b2364b,
-	0xd80d2bda, 0xaf0a1b4c, 0x36034af6, 0x41047a60,
-	0xdf60efc3, 0xa867df55, 0x316e8eef, 0x4669be79,
-	0xcb61b38c, 0xbc66831a, 0x256fd2a0, 0x5268e236,
-	0xcc0c7795, 0xbb0b4703, 0x220216b9, 0x5505262f,
-	0xc5ba3bbe, 0xb2bd0b28, 0x2bb45a92, 0x5cb36a04,
-	0xc2d7ffa7, 0xb5d0cf31, 0x2cd99e8b, 0x5bdeae1d,
-	0x9b64c2b0, 0xec63f226, 0x756aa39c, 0x026d930a,
-	0x9c0906a9, 0xeb0e363f, 0x72076785, 0x05005713,
-	0x95bf4a82, 0xe2b87a14, 0x7bb12bae, 0x0cb61b38,
-	0x92d28e9b, 0xe5d5be0d, 0x7cdcefb7, 0x0bdbdf21,
-	0x86d3d2d4, 0xf1d4e242, 0x68ddb3f8, 0x1fda836e,
-	0x81be16cd, 0xf6b9265b, 0x6fb077e1, 0x18b74777,
-	0x88085ae6, 0xff0f6a70, 0x66063bca, 0x11010b5c,
-	0x8f659eff, 0xf862ae69, 0x616bffd3, 0x166ccf45,
-	0xa00ae278, 0xd70dd2ee, 0x4e048354, 0x3903b3c2,
-	0xa7672661, 0xd06016f7, 0x4969474d, 0x3e6e77db,
-	0xaed16a4a, 0xd9d65adc, 0x40df0b66, 0x37d83bf0,
-	0xa9bcae53, 0xdebb9ec5, 0x47b2cf7f, 0x30b5ffe9,
-	0xbdbdf21c, 0xcabac28a, 0x53b39330, 0x24b4a3a6,
-	0xbad03605, 0xcdd70693, 0x54de5729, 0x23d967bf,
-	0xb3667a2e, 0xc4614ab8, 0x5d681b02, 0x2a6f2b94,
-	0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d,
-)
-
-
-def add(crc, buf):
-	buf = array.array('B', buf)
-	for b in buf:
-		crc = (crc >> 8) ^ crc32c_table[(crc ^ b) & 0xff]
-	return crc
-
-
-def done(crc):
-	tmp = ~crc & 0xffffffff
-	b0 = tmp & 0xff
-	b1 = (tmp >> 8) & 0xff
-	b2 = (tmp >> 16) & 0xff
-	b3 = (tmp >> 24) & 0xff
-	crc = (b0 << 24) | (b1 << 16) | (b2 << 8) | b3
-	return crc
-
-
-def cksum(buf):
-	"""Return computed CRC-32c checksum."""
-	return done(add(0xffffffff, buf))
-
 
 ############################################################
 # MISC
@@ -1824,305 +1725,6 @@ def tvh_device():
 	return render_template('device.xml', data=tvhdiscoverData), {'Content-Type': 'application/xml'}
 
 
-# PLEX DVR EPG from here
-# Where the script looks for an EPG database
-try:
-	epgpath = os.path.join(
-		os.path.join(os.path.expanduser("~"), "AppData", "Local", "Plex Media Server", "Plug-in Support", "Databases"))
-	dbpat = [[item for item in files if
-	          item.endswith(".db") and item.startswith("tv.plex.providers.epg.xmltv-") and "loading" not in item] for
-	         root, dirs, files in os.walk(epgpath)][0]
-except:
-	dbpat = []
-
-
-def create_list(dbname, epgsummaries=False, epggenres=False, epgorig=False):
-	with sqlite3.connect(dbname) as epgconn, open("./cache/guide.html", "w") as html:
-
-		html.write("""<html>
-		<head>
-		<meta charset="UTF-8">
-		%s
-		</head>
-		<body>\n""" % (style,))
-
-		epgconn.row_factory = sqlite3.Row
-		c = epgconn.cursor()
-
-		# type 1 movie
-		# type 2 show, 3 season, 4 episode
-
-		query = "SELECT DISTINCT tags.tag as channel " \
-		        "FROM media_items AS bc " \
-		        "JOIN metadata_items AS it ON bc.metadata_item_id = it.id " \
-		        "JOIN tags ON tags.id = bc.channel_id " \
-		        "ORDER BY bc.channel_id "
-
-		html.write("<h1>Channel Index</h1>")
-
-		channelmap = {}
-		chanindex = 0
-		for row in c.execute(query):
-			chanindex += 1
-			channel = row["channel"]
-			channelmap[channel] = chanindex
-			html.write("<span class=\"channellink\"><a href=\"#%s\">%s</a></span>" %
-			           (chanindex, channel))
-
-		query = "SELECT tags.tag as channel, " \
-		        "bc.begins_at, bc.ends_at, " \
-		        "it.title, it.user_thumb_url, it.year, it.summary, it.extra_data as subscribed, " \
-		        "it.\"index\" as episode, it.summary, it.tags_genre as itgenre, " \
-		        "it.originally_available_at as origdate, " \
-		        "seas.\"index\" AS season, " \
-		        "show.title as showtitle, show.tags_genre as showgenre " \
-		        "FROM media_items AS bc " \
-		        "JOIN metadata_items AS it ON bc.metadata_item_id = it.id " \
-		        "JOIN tags ON tags.id = bc.channel_id " \
-		        "LEFT JOIN metadata_items AS seas ON seas.id = it.parent_id " \
-		        "LEFT JOIN metadata_items AS show ON show.id = seas.parent_id " \
-		        "WHERE it.metadata_type IN (1,4) " \
-		        "ORDER BY bc.channel_id, bc.begins_at "
-
-		prevChannel = None
-		prevEnd = None
-		prevDate = None
-
-		for row in c.execute(query):
-
-			channel = row["channel"]
-			if channel != prevChannel:
-				html.write("<h1><a name=\"%s\"></a>Channel: %s</h1>" % (channelmap[channel], channel))
-				prevChannel = channel
-				prevEnd = None
-				prevDate = None
-
-			date = row["begins_at"][:10]
-			if date != prevDate:
-				html.write("<h2>Date: %s</h2>" % date)
-				prevDate = date
-
-			start = row["begins_at"][:-3]
-			end = row["ends_at"][:-3]
-			shortend = end[11:] if start[:11] == end[:11] else end
-
-			if prevEnd is not None and start != prevEnd:
-				html.write("<p class=\"gap\">Gap between %s and %s\n" % (start, shortend))
-
-			if row["season"]:
-				# It's an episode
-				ep = ("%02d" % row["episode"]) if row["episode"] >= 0 else "??"
-				titlestr = ("&ndash; <span class=\"episodetitle\">" + row["title"] + "</span>" if row["title"] else "")
-				html.write("<p>%s &ndash; %s: <b>%s</b> S%02dE%s %s\n" %
-				           (start, shortend, row["showtitle"], row["season"], ep,
-				            titlestr))
-			else:
-				# It's a movie
-				html.write("<p>%s &ndash; %s: <b>%s</b>\n" %  # (%d)\n" %
-				           (start, end, row["title"]))  # , row["year"]))
-
-			# Doesn't mean *this* broadcast will be recorded!
-			if row["subscribed"]:
-				html.write(" <span class=\"recorded\">*** To be recorded some time ***</span>")
-
-			if epgorig:
-				html.write("<p class=\"origdate\">Original air date: %s</p>" % row["origdate"][:10])
-
-			if epggenres:
-				if row["itgenre"]:
-					html.write("<p class=\"genre\">Genre: %s</p>" % row["itgenre"])
-				if row["showgenre"]:
-					html.write("<p class=\"genre\">Genre: %s</p>" % row["showgenre"])
-
-			if epgsummaries:
-				html.write("<p class=\"summary\">%s</p>\n" % row["summary"])
-			prevEnd = end
-
-		html.write("</body></html>\n")
-
-
-def epgguide(epgsummaries=False, epggenres=False, epgorig=False):
-	dbs = glob.glob(dbpat)
-
-	if len(dbs) == 0:
-		logger.debug("Found no database matching %s" % dbpat)
-	elif len(dbs) > 1:
-		logger.debug("Found multiple databases matching %s" % dbpat)
-	else:
-		dbfile = dbs[0]
-		if not os.access(dbfile, os.W_OK):
-			logger.exception("Database file not writable (required for queries): %s" % dbfile)
-		else:
-			create_list(dbfile, epgsummaries, epggenres, epgorig)
-
-
-# PLEX DVR EPG Ends
-
-
-############################################################
-# PLEX Discovery
-############################################################
-
-HDHOMERUN_DISCOVER_UDP_PORT = 65001
-HDHOMERUN_CONTROL_TCP_PORT = 65001
-HDHOMERUN_MAX_PACKET_SIZE = 1460
-HDHOMERUN_MAX_PAYLOAD_SIZE = 1452
-
-HDHOMERUN_TYPE_DISCOVER_REQ = 0x0002
-HDHOMERUN_TYPE_DISCOVER_RPY = 0x0003
-HDHOMERUN_TYPE_GETSET_REQ = 0x0004
-HDHOMERUN_TYPE_GETSET_RPY = 0x0005
-HDHOMERUN_TAG_DEVICE_TYPE = 0x01
-HDHOMERUN_TAG_DEVICE_ID = 0x02
-HDHOMERUN_TAG_GETSET_NAME = 0x03
-HDHOMERUN_TAG_GETSET_VALUE = 0x04
-HDHOMERUN_TAG_GETSET_LOCKKEY = 0x15
-HDHOMERUN_TAG_ERROR_MESSAGE = 0x05
-HDHOMERUN_TAG_TUNER_COUNT = 0x10
-HDHOMERUN_TAG_DEVICE_AUTH_BIN = 0x29
-HDHOMERUN_TAG_BASE_URL = 0x2A
-HDHOMERUN_TAG_DEVICE_AUTH_STR = 0x2B
-
-HDHOMERUN_DEVICE_TYPE_WILDCARD = 0xFFFFFFFF
-HDHOMERUN_DEVICE_TYPE_TUNER = 0x00000001
-HDHOMERUN_DEVICE_ID_WILDCARD = 0xFFFFFFFF
-
-ignorelist = [
-	'127.0.0.1']  # the tvheadend ip address(es), tvheadend crashes when it discovers the tvhproxy (TODO: Fix this)
-
-
-def retrieveTypeAndPayload(packet):
-	header = packet[:4]
-	checksum = packet[-4:]
-	payload = packet[4:-4]
-
-	packetType, payloadLength = struct.unpack('>HH', header)
-	if payloadLength != len(payload):
-		logger.debug('Bad packet payload length')
-		return False
-
-	if checksum != struct.pack('>I', cksum(header + payload)):
-		logger.debug('Bad checksum')
-		return False
-
-	return (packetType, payload)
-
-
-def createPacket(packetType, payload):
-	header = struct.pack('>HH', packetType, len(payload))
-	data = header + payload
-	checksum = cksum(data)
-	packet = data + struct.pack('>I', checksum)
-
-	return packet
-
-
-def processPacket(packet, client, logPrefix=''):
-	packetType, requestPayload = retrieveTypeAndPayload(packet)
-
-	if packetType == HDHOMERUN_TYPE_DISCOVER_REQ:
-		logger.debug('Discovery request received from ' + client[0])
-		responsePayload = struct.pack('>BBI', HDHOMERUN_TAG_DEVICE_TYPE, 0x04,
-		                              HDHOMERUN_DEVICE_TYPE_TUNER)  # Device Type Filter (tuner)
-		responsePayload += struct.pack('>BBI', HDHOMERUN_TAG_DEVICE_ID, 0x04,
-		                               int('12345678', 16))  # Device ID Filter (any)
-		responsePayload += struct.pack('>BB', HDHOMERUN_TAG_GETSET_NAME, len(SERVER_HOST)) + str.encode(
-			SERVER_HOST)  # Device ID Filter (any)
-		responsePayload += struct.pack('>BBB', HDHOMERUN_TAG_TUNER_COUNT, 0x01, 6)  # Device ID Filter (any)
-
-		return createPacket(HDHOMERUN_TYPE_DISCOVER_RPY, responsePayload)
-
-	# TODO: Implement request types
-	if packetType == HDHOMERUN_TYPE_GETSET_REQ:
-		logger.debug('Get set request received from ' + client[0])
-		getSetName = None
-		getSetValue = None
-		payloadIO = StringIO(requestPayload)
-		while True:
-			header = payloadIO.read(2)
-			if not header: break
-			tag, length = struct.unpack('>BB', header)
-			# TODO: If the length is larger than 127 the following bit is also needed to determine length
-			if length > 127:
-				logger.debug(
-					'Unable to determine tag length, the correct way to determine a length larger than 127 must still be implemented.')
-				return False
-			# TODO: Implement other tags
-			if tag == HDHOMERUN_TAG_GETSET_NAME:
-				getSetName = struct.unpack('>{0}'.format(length), payloadIO.read(length))[0]
-			if tag == HDHOMERUN_TAG_GETSET_VALUE:
-				getSetValue = struct.unpack('>{0}'.format(length), payloadIO.read(length))[0]
-
-		if getSetName is None:
-			return False
-		else:
-			responsePayload = struct.pack('>BB{0}'.format(len(getSetName)), HDHOMERUN_TAG_GETSET_NAME, len(getSetName),
-			                              getSetName)
-
-			if getSetValue is not None:
-				responsePayload += struct.pack('>BB{0}'.format(len(getSetValue)), HDHOMERUN_TAG_GETSET_VALUE,
-				                               len(getSetValue), getSetValue)
-
-			return createPacket(HDHOMERUN_TYPE_GETSET_RPY, responsePayload)
-
-	return False
-
-
-def tcpServer():
-	logger.info('Starting tcp server')
-	controlSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	controlSocket.bind((LISTEN_IP, HDHOMERUN_CONTROL_TCP_PORT))
-	controlSocket.listen(1)
-
-	logger.info('Listening...')
-	try:
-		while True:
-			connection, client = controlSocket.accept()
-			try:
-				packet = connection.recv(HDHOMERUN_MAX_PACKET_SIZE)
-				if not packet:
-					logger.debug('No packet received')
-					break
-				if client[0] not in ignorelist:
-					responsePacket = processPacket(packet, client)
-					if responsePacket:
-						logger.debug('Sending control reply over tcp')
-						connection.send(responsePacket)
-					else:
-						logger.debug('No known control request received, nothing to send to client')
-				else:
-					logger.debug('Ignoring tcp client %s' % client[0])
-			finally:
-				connection.close()
-	except:
-		logger.debug('Exception occured')
-
-	logger.info('Stopping tcp server')
-	controlSocket.close()
-
-
-def udpServer():
-	logger.info('Starting udp server')
-	discoverySocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-	discoverySocket.bind(('0.0.0.0', HDHOMERUN_DISCOVER_UDP_PORT))
-	logger.info('Listening...')
-	while True:
-		packet, client = discoverySocket.recvfrom(HDHOMERUN_MAX_PACKET_SIZE)
-		if not packet:
-			logger.debug('No packet received')
-			break
-		if client[0] not in ignorelist:
-			responsePacket = processPacket(packet, client)
-			if responsePacket:
-				logger.debug('Sending discovery reply over udp')
-				discoverySocket.sendto(responsePacket, client)
-			else:
-				logger.debug('No discovery request received, nothing to send to client')
-		else:
-			logger.debug('Ignoring udp client %s' % client[0])
-	logger.info('Stopping udp server')
-	discoverySocket.close()
-
 
 ############################################################
 # Kodi
@@ -2202,9 +1804,9 @@ def rescan_channels():
 # Change this to change the style of the web page generated
 style = """
 <style type="text/css">
-	body { max-width: 30em; background: white url("https://guide.smoothstreams.tv/assets/images/channels/150.png") no-repeat fixed center center; background-size: 500px 500px; color: black; }
+	body { background: white url("https://guide.smoothstreams.tv/assets/images/channels/150.png") no-repeat fixed center center; background-size: 500px 500px; color: black; }
 	h1 { color: white; background-color: black; padding: 0.5ex }
-	h2 { color: white; background-color: #404040; padding: 0.3ex }
+	h2 { color: white; background-color: black; padding: 0.3ex }
 	.gap { color: darkred; }
 	.recorded { color: green; font-weight: bold; }
 	.summary { font-size: 85%%; color: #505050; margin-left: 4em; }
@@ -2231,6 +1833,9 @@ def create_menu():
 		<body>\n""" % (style,))
 		html.write('<section class="container"><div class="left-half">')
 		html.write("<h1>YAP Settings</h1>")
+		template = "<a href='{1}/{2}/{0}.html'>{3}</a>"
+		html.write("<p>" + template.format("settings",SERVER_HOST, SERVER_PATH,"Options") + " " + template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions") + " " + template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List") + "</p>")
+
 		html.write('<form action="%s/%s/handle_data" method="post">' % (SERVER_HOST, SERVER_PATH))
 
 		channelmap = {}
@@ -2352,9 +1957,148 @@ def create_menu():
 		html.write("</div></section></body></html>\n")
 
 
+	with open("./cache/channels.html", "w") as html:
+		global chan_map
+		html.write("""<html><head><title>YAP</title><meta charset="UTF-8">%s</head><body>\n""" % (style,))
+		html.write("<h1>Channel List</h1>")
+		template = "<a href='{1}/{2}/{0}.html'>{3}</a>"
+		html.write("<p>" + template.format("settings",SERVER_HOST, SERVER_PATH,"Options") + " " + template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions") + " " + template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List") + "</p>")
+		html.write('<table width="300" border="1">')
+		template = "<td>{0}</td><td><a href='{2}/{3}/playlist.m3u8?ch={0}'><img src='{2}/{3}/{0}.png'></a></td></td>"
+		for i in chan_map:
+			if i%5 == 1:
+				html.write("<tr>")
+			html.write(template.format(chan_map[i].channum, chan_map[i].channame, SERVER_HOST, SERVER_PATH))
+			if i%5 == 0:
+				html.write("</tr>")
+		html.write("</table>")
+
+		html.write("</body></html>\n")
+
+	with open("./cache/index.html", "w") as html:
+		html.write("""<html><head><title>YAP</title><meta charset="UTF-8">%s</head><body>\n""" % (style,))
+		template = "<h2><a href='{1}/{2}/{0}.html'>{3}</a></h2>"
+		html.write("<h1>Welcome to YAP!</h1>")
+		html.write(template.format("settings",SERVER_HOST, SERVER_PATH,"Options"))
+		html.write(template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions"))
+		html.write(template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List"))
+
+		html.write("</body></html>\n")
+
+	with open("./cache/howto.html", "w") as html:
+		html.write("""<html><head><title>YAP</title><meta charset="UTF-8">%s</head><body>\n""" % (style,))
+		template = "<a href='{1}/{2}/{0}.html'>{3}</a>"
+		html.write("<h1>Welcome to YAP!</h1>")
+		html.write("<p>" + template.format("settings",SERVER_HOST, SERVER_PATH,"Options") + " " + template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions") + " " + template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List") + "</p>")
+		html.write("<h2>Work in progress.</h2>")
+
+		html.write("""<h2>Commandline Arguments</h2></br><p>'install' - forces recreation of the install function which creates certain files, such as the tvh internal grabber</br></br>
+'headless' - uses command line for initial setup rather than gui</br></br>
+'tvh' - each call to a piped channel will return channel 01 which is a 24/7 channel so will always generate a positive result, this allows TVH to create all services</p></br>""")
+
+		html.write("<h2><a href='https://seo-michael.co.uk/how-to-setup-livetv-pvr-simple-xbmc-kodi/'>Kodi Setup</a></h2>")
+		html.write("<p>Use this information to populate the settings:</p>")
+		html.write("<p>m3u8 - %s/kodi.m3u8</p>" % urljoin(SERVER_HOST, SERVER_PATH))
+		html.write("<p>EPG - %s/epg.xml</p>" % urljoin(SERVER_HOST, SERVER_PATH))
+		html.write('''<p>RTMP is an issue so there's a special playlist for it (kodi.m3u8), it has two of every channel in both rtmp and hls, in kodi Tv use the Left hand menu  and select group or filter. Then select dynamic (forced hls) or static rtmp.For static_refresh channel (151) don't use it on the guide page, use it on the channel list page. Otherwise kodi will crash. This will lock kodi for about 20secs but refresh the playlist.</p>''')
+
+		html.write("<h2>Ensure you can get YAP working in Kodi or VLC first before attmepting Plex or TVHeadend!</h2>")
+		html.write("<h2><a href='https://imgur.com/a/OZkN0'>Plex Setup</a></h2>")
+		html.write("<p></p>")
+
+		html.write("<h2>TVHeadend Setup</h2>")
+		html.write("""<p>
+In a nutshell here is how to do it on Ubuntu.</br>Replace USERNAME with your linux user:</br>
+
+<b>1 Download the latest sstvProxy binary (exe) from:</b></br>
+http://smoothstreams.tv/board/index.php?topic=1832.0</br>
+Save it to:</br>
+<blockquote><i>/home/USERNAME/Desktop/sstv</i></blockquote></br>
+</br>
+<b>2 Delete proxysettings.json</b> (only if you're coming from an older version of sstvproxy)</br>
+<blockquote><i>sudo rm /home/USERNAME/Desktop/sstv/proxysettings.json</i></blockquote></br>
+</br>
+<b>3 Install ffmpeg:</b></br>
+<blockquote><i>sudo apt install ffmpeg jq</i></blockquote></br>
+</br>
+<b>4 Install tvheadend:</b></br>
+<blockquote><i>sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 379CE192D401AB61 </i></blockquote></br>
+<blockquote><i>echo "deb https://dl.bintray.com/tvheadend/deb xenial release-4.2" | sudo tee -a /etc/apt/sources.list</i></blockquote></br>
+<blockquote><i>sudo apt-get update</i></blockquote></br>
+<blockquote><i>sudo apt-get install tvheadend</i></blockquote></br>
+You will need to enter a username and password to manage tvheadend as part of this install process.</br>
+Check for the presence of /usr/bin/tv_find_grabbers If it doesnt exist then run:</br>
+<blockquote><i>"apt-get install xmltv-util" </i></blockquote></br>
+</br>
+<b>5 Run sstvProxy:</b></br>
+<blockquote><i>sudo chmod +x /home/USERNAME/Desktop/sstv/sstvProxy </i></blockquote></br>
+<blockquote><i>sudo /home/USERNAME/Desktop/sstv/sstvProxy tvh</i></blockquote> <i>note the 'tvh' switch will enable it to scan all 150 channels</i></br>
+Go through the setup steps, this will also setup the internal EPG grabber for TVHeadend</br>
+</br>
+<b>6 Restart TVHeadend:</b></br>
+<blockquote><i>systemctl stop tvheadend </i></blockquote></br>
+<blockquote><i>systemctl start tvheadend </i></blockquote></br>
+</br>
+<b>7 Configure TVHeadend:</b></br>
+On your Ubuntu server browse <blockquote><i>http://127.0.0.1:9981</i></blockquote></br>
+Use the username and password you set in Step 4</br>
+</br>
+Configuration -> Channel / EPG -> EPG Grabber Modules</br>
+On the left side, highlight  'Internal: XMLTV: SmoothstreamsTV'</br>
+On the right side, tick 'Enabled'</br>
+Click 'Save'</br>
+Configuration -> DVB Inputs -> Networks</br>
+Click 'Add'</br>
+Type = IPTV Automatic Network</br>
+Network Name = SmoothstreamsTV</br>
+URL = http://127.0.0.1:99/sstv/tvh.m3u8</br>
+Maximum # input streams = 3</br>
+Click Create</br>
+Click Force Scan if it doesn't start scanned for muxes - wait for all the muxes to be scanned - there are 150 channels</br>
+Go to the 'Services' tab</br>
+Map Services -> Map all services</br>
+</br>
+Configuration -> Channel / EPG -> EPG Grabber Modules</br>
+Click the button labeled 'Re-run Internal EPG Grabbers'</br>
+**This will take a while to process** View the log down the bottom of the page. After it has run you should now see the channels in the EPG.</br>
+
+<b>8 Restart sstvProxy:</b></br>
+<blockquote><i>sudo /home/USERNAME/Desktop/sstv/sstvProxy</i></blockquote> <i>note no 'tvh' switch this time</i></p>""")
+
+		html.write("<h2>Advanced Settings</h2>")
+		html.write("""<p>
+
+You can have as many or as few as you want and the file itself is optional. If you don't care for the option then don't even include it in the file, just delete it.</br></br>
+
+There now exists an advanced settings example file on git. If this is in the same folder as the proxy it will detect it on launch and parse any settings that are within. </br></br>
+
+Currently the accepted settings are:</br>
+Custom ffmpeg locations "ffmpegloc":"C:\\ffmpeg\\bin\\ffmpeg.exe" (note the double slashes)</br>
+Custom kodi control username "kodiuser":"string"</br>
+Custom kodi control password "kodipass":"string"</br>
+</br>
+If you want to output a playlist that combines the SSTV channels with another playlist you already have then these options are for you:</br>
+A url source for the above "extram3u8url":"url/string"</br>
+A group name for the above, in order to filter between them in client "extram3u8name":"string"</br>
+A file source for the above, url has priority though "extram3u8file":"path/string"</br>
+</br>
+If you want to output an EPG that combines the SSTV channels with another EPG you already have then:</br>
+A url source for the above "extraxmlurl":"url/string"</br>
+</br>
+If you wish to use feed YAP into TVH and then TVH into Plex use the below:</br>
+TVH url you use "tvhaddress": "127.0.0.1"</br>
+username "tvhuser": ""</br>
+password "tvhpass": ""</br>
+</br>
+If you want to override the EPG with your own one then:</br>
+A url source for the epg "overridexml":"url/string"</p>""")
+
+
+		html.write("</body></html>\n")
+
 def close_menu(restart):
 	with open("./cache/close.html", "w") as html:
-		html.write("""<html><head><meta charset="UTF-8">%s</head><body>\n""" % (style,))
+		html.write("""<html><head><title>YAP</title><meta charset="UTF-8">%s</head><body>\n""" % (style,))
 		html.write("<h1>Data Saved</h1>")
 		if restart:
 			html.write("<h1>You have change either the IP or Port, please restart this program.</h1>")
@@ -2372,6 +2116,8 @@ def close_menu(restart):
 			if TVHREDIRECT == True:
 				html.write("<p>TVH's own EPG url is http://%s:9981/xmltv/channels</p>" % TVHURL)
 		html.write("</body></html>\n")
+
+
 
 
 def restart_program():
@@ -2552,11 +2298,29 @@ def bridge(request_file):
 		epgguide()
 		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'guide.html')
 
-	# return settings menu
+	# return main menu
 	elif request_file.lower().startswith('index'):
 		logger.info("Index was requested by %s", request.environ.get('REMOTE_ADDR'))
 		create_menu()
+		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'index.html')
+
+	# return settings menu
+	elif request_file.lower().startswith('settings'):
+		logger.info("Settings was requested by %s", request.environ.get('REMOTE_ADDR'))
+		create_menu()
 		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'settings.html')
+
+	# return channels menu
+	elif request_file.lower().startswith('channels'):
+		logger.info("Channels was requested by %s", request.environ.get('REMOTE_ADDR'))
+		create_menu()
+		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'channels.html')
+
+	# return howto menu
+	elif request_file.lower().startswith('howto'):
+		logger.info("Howto was requested by %s", request.environ.get('REMOTE_ADDR'))
+		create_menu()
+		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'howto.html')
 
 	# kodi static refresh
 	elif request_file.lower().startswith('refresh'):
