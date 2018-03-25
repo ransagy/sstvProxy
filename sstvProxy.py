@@ -342,6 +342,8 @@ def load_settings():
 				SRVR = config["server"]
 			if "service" in config:
 				SITE = config["service"]
+				if SITE == "mmatv":
+					SITE = "viewmmasr"
 			if "stream" in config:
 				STRM = config["stream"]
 			if "kodiport" in config:
