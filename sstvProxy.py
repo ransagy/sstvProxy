@@ -2213,7 +2213,7 @@ def handle_data():
 def landing_page():
 	logger.info("Index was requested by %s", request.environ.get('REMOTE_ADDR'))
 	create_menu()
-	return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'settings.html')
+	return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'index.html')
 
 
 @app.route('/<request_file>')
