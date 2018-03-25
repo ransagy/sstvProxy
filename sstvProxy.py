@@ -1825,6 +1825,7 @@ style = """
 
 
 def create_menu():
+	footer = '<p>Donations: PayPal to vorghahn.sstv@gmail.com  or BTC - 19qvdk7JYgFruie73jE4VvW7ZJBv8uGtFb</p>'
 	with open("./cache/settings.html", "w") as html:
 		html.write("""<html>
 		<head>
@@ -1910,7 +1911,7 @@ def create_menu():
 		html.write('<p>&nbsp;</p>')
 		html.write('<p>&nbsp;</p>')
 		html.write('<p>&nbsp;</p>')
-		html.write('<p>Donations: PayPal to vorghahn.sstv@gmail.com  or BTC - 19qvdk7JYgFruie73jE4VvW7ZJBv8uGtFb</p>')
+		html.write(footer)
 		html.write('</div><div class="right-half"><h1>YAP Outputs</h1>')
 
 		html.write("<table><tr><td rowspan='2'>Standard Outputs</td><td>m3u8 - %s/playlist.m3u8</td></tr>" % urljoin(
@@ -1974,7 +1975,7 @@ def create_menu():
 			if i%5 == 0:
 				html.write("</tr>")
 		html.write("</table>")
-
+		html.write(footer)
 		html.write("</body></html>\n")
 
 	with open("./cache/index.html", "w") as html:
@@ -1984,7 +1985,7 @@ def create_menu():
 		html.write(template.format("settings",SERVER_HOST, SERVER_PATH,"Options"))
 		html.write(template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions"))
 		html.write(template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List"))
-
+		html.write(footer)
 		html.write("</body></html>\n")
 
 	with open("./cache/howto.html", "w") as html:
@@ -2094,7 +2095,7 @@ password "tvhpass": ""</br>
 </br>
 If you want to override the EPG with your own one then:</br>
 A url source for the epg "overridexml":"url/string"</p>""")
-
+		html.write(footer)
 
 		html.write("</body></html>\n")
 
