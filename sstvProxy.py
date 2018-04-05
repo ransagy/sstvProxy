@@ -78,8 +78,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.69
+__version__ = 1.691
 # Changelog
+# 1.691 - Updated FOG Urls
 # 1.69 - Added more info to website, removed network discovery(isn't useful).
 # 1.68 - Updated for MyStreams changes
 # 1.672 - Changed mpegts output default quality from 1 to what user has set.
@@ -1060,7 +1061,7 @@ def dl_epg(source=1):
 	to_process = []
 	if source == 1:
 		logger.info("Downloading epg")
-		requests.urlretrieve("https://sstv.fog.pt/epg/xmltv5.xml.gz",
+		requests.urlretrieve("https://fast-guide.smoothstreams.tv/altepg/xmltv5.xml.gz",
 		                     os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz'))
 		unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz')
 		to_process.append([unzipped, "epg.xml", 'fog'])
@@ -1300,7 +1301,7 @@ def check_token():
 def build_channel_map():
 	chan_map = {}
 	logger.debug("Loading channel list")
-	url = 'https://sstv.fog.pt/epg/channels.json'
+	url = 'https://fast-guide.smoothstreams.tv/altepg/channels.json'
 	jsonChanList = json.loads(requests.urlopen(url).read().decode("utf-8"))
 
 	for item in jsonChanList:
