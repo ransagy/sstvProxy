@@ -62,6 +62,7 @@ import socket
 import struct
 import ntpath
 import requests as req
+from xml.sax.saxutils import escape
 
 if not 'headless' in sys.argv:
 	import tkinter
@@ -155,6 +156,118 @@ class channelinfo:
 	description = ""
 	channum = 0
 	channame = ""
+
+class programinfo:
+	description = ""
+	channel = 0
+	channelname = ""
+	height = 0
+	startTime = 0
+	endTime = 0
+	timeRange = ""
+	_title = ""
+	_category = ""
+	_quality = ""
+	_language = ""
+
+
+	def get_title(self):
+		if len(self._title) == 0:
+			return ("none " + self.timeRange).strip()
+		else:
+			return (self._title + " " + self.quality + " " + self.timeRange).replace("  ", " ").strip()
+
+
+	def set_title(self, title):
+		self._title = title
+		if len(self._category) == 0 or self._category == "TVShows":
+			if title.startswith("NHL") or title.lower().find("hockey"):
+				self._category = "Ice Hockey"
+			elif title.startswith("UEFA") or title.startswith("EPL") or title.startswith(
+					"Premier League") or title.startswith("La Liga") or title.startswith("Bundesliga") or title.startswith(
+					"Serie A") or title.lower().find("soccer"):
+				self._category = "World Football"
+			elif title.startswith("MLB") or title.lower().find("baseball"):
+				self._category = "Baseball"
+			elif title.startswith("MMA") or title.startswith("UFC") or title.lower().find("boxing"):
+				self._category = "Boxing + MMA"
+			elif title.startswith("NCAAF") or title.startswith("CFB"):
+				self._category = "NCAAF"
+			elif title.startswith("ATP") or title.lower().find("tennis"):
+				self._category = "Tennis"
+			elif title.startswith("WWE"):
+				self._category = "Wrestling"
+			elif title.startswith("NFL") or title.startswith("NBA"):
+				self._category = title.split(" ")[0].replace(":", "").strip()
+
+
+	title = property(get_title, set_title)
+
+
+	def get_category(self):
+		if (len(self._category) == 0 or self._category == "none") and (
+			self.title.lower().find("news") or self.description.lower().find("news")) > -1:
+			return "News"
+		else:
+			return self._category
+
+
+	def set_category(self, category):
+		if category == "tv":
+			self._category = ""
+		else:
+			self._category = category
+
+
+	category = property(get_category, set_category)
+
+
+	def get_language(self):
+		return self._language
+
+
+	def set_language(self, language):
+		if language.upper() == "US" or language.upper() == "EN":
+			self._language = ""
+		else:
+			self._language = language.upper()
+
+
+	language = property(get_language, set_language)
+
+
+	def get_quality(self):
+		return self._quality
+
+
+	def set_quality(self, quality):
+		if quality.endswith("x1080"):
+			self._quality = "1080i"
+			self.height = 1080
+		elif quality.endswith("x720") or quality.lower() == "720p":
+			self._quality = "720p"
+			self.height = 720
+		elif quality.endswith("x540") or quality.lower() == "hqlq":
+			self._quality = "540p"
+			self.height = 540
+		elif quality.find("x") > 2:
+			self._quality = quality
+			self.height = int(quality.split("x")[1])
+		else:
+			self._quality = quality
+			self.height = 0
+
+
+	quality = property(get_quality, set_quality)
+
+
+	def get_album(self):
+		if self._quality.upper() == "HQLQ" and self.channelname.upper().find(" 720P") > -1:
+			self._quality = "720p"
+		return (self._category + " " + self.quality + " " + self._language).strip().replace("  ", " ")
+
+
+	album = property(get_album)
 
 
 ############################################################
@@ -1243,6 +1356,75 @@ def json2xml(json_obj):
 	mtree.write(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'sstv_full.xml'))
 	return
 
+def getProgram(jsonGuide1, jsonGuide2, channel, tmNow):
+
+	retVal = programinfo()
+	if str(int(channel)) in jsonGuide1:
+		oChannel = jsonGuide1[str(int(channel))]
+		retVal.channel = channel
+		retVal.channelname = oChannel["name"].replace(format(channel, "02") + " - ", "").strip()
+		for item in oChannel["items"]:
+			startTime = time.strptime(item["time"], '%Y-%m-%d %H:%M:%S')
+			endTime = time.strptime(item["end_time"], '%Y-%m-%d %H:%M:%S')
+			if startTime < tmNow and endTime > tmNow:
+				retVal.category = item["category"].strip()
+				retVal.quality = item["quality"].upper()
+				retVal.language = item["language"].upper()
+				retVal.title = item["name"].strip()
+				retVal.description = item["description"].strip()
+				retVal.channel = channel
+				retVal.startTime = startTime
+				retVal.endTime = endTime
+				retVal.timeRange = time.strftime("%H:%M", startTime) + "-" + time.strftime("%H:%M", endTime)
+				return retVal
+	if str(int(channel)) in jsonGuide2:
+		oChannel = jsonGuide2[str(int(channel))]
+		retVal.channel = channel
+		retVal.channelname = oChannel["name"].replace(format(channel, "02") + " - ", "").strip()
+		for item in oChannel["items"]:
+			startTime = time.strptime(item["time"], '%Y-%m-%d %H:%M:%S')
+			endTime = time.strptime(item["end_time"], '%Y-%m-%d %H:%M:%S')
+			if startTime < tmNow and endTime > tmNow:
+				retVal.category = item["category"].strip()
+				retVal.quality = item["quality"].upper()
+				retVal.language = item["language"].upper()
+				retVal.title = item["name"].strip()
+				retVal.description = item["description"].strip()
+				retVal.channel = channel
+				retVal.startTime = startTime
+				retVal.endTime = endTime
+				retVal.timeRange = time.strftime("%H:%M", startTime) + "-" + time.strftime("%H:%M", endTime)
+				return retVal
+
+	return retVal
+
+
+def getJSON(sFile, sURL, sURL2):
+	try:
+		if os.path.isfile(sFile) and time.time() - os.stat(sFile).st_mtime < 3600:
+			retVal = json.loads(open(sFile, 'r').read())
+			return retVal
+	except:
+		pass
+
+	try:
+		sJSON = urllib.request.urlopen(sURL).read().decode("utf-8")
+		retVal = json.loads(sJSON)
+	except:
+		try:
+			sJSON = urllib.request.urlopen(sURL2).read().decode("utf-8")
+			retVal = json.loads(sJSON)
+		except:
+			return json.loads("{}")
+
+	try:
+		file = open(sFile, "w+")
+		file.write(sJSON)
+		file.close()
+	except:
+		pass
+
+	return retVal
 
 ############################################################
 # SSTV
@@ -1352,6 +1534,7 @@ def build_playlist(host):
 	# build playlist using the data we have
 	new_playlist = "#EXTM3U x-tvg-url='%s/epg.xml'\n" % urljoin(host, SERVER_PATH)
 	for pos in range(1, len(chan_map) + 1):
+
 		# build channel url
 		url = "{0}/playlist.m3u8?ch={1}&strm={2}&qual={3}"
 		vaders_url = "http://vaders.tv/live/{0}/{1}/{2}.{3}"
@@ -1375,6 +1558,69 @@ def build_playlist(host):
 	logger.info("Built Dynamic playlist")
 
 	return new_playlist
+
+def build_xspf(host):
+	# standard dynamic playlist
+	global chan_map
+	jsonGuide1 = getJSON("iptv.json", "https://iptvguide.netlify.com/iptv.json",
+	                     "https://fast-guide.smoothstreams.tv/altepg/feed1.json")
+	jsonGuide2 = getJSON("tv.json", "https://iptvguide.netlify.com/tv.json",
+	                     "https://fast-guide.smoothstreams.tv/altepg/feedall1.json")
+	xspfBodyTemplate = ('<?xml version="1.0" encoding="UTF-8"?>\n' +
+		 '<playlist xmlns="http://xspf.org/ns/0/" xmlns:vlc="http://www.videolan.org/vlc/playlist/ns/0/" version="1">\n' +
+		'\t<title>Playlist</title>\n' +
+		'\t<trackList>\n' +
+		'{0}' +
+		'\t</trackList>\n' +
+		'\t<extension application="http://www.videolan.org/vlc/playlist/0">\n' +
+		'{1}' +
+		'\t</extension>\n' +
+		'</playlist>')
+	xspfTrackTemplate = ('\t\t<track>\n' +
+		'\t\t\t<location>{5}</location>\n' +
+		'\t\t\t<title>{3}</title>\n' +
+		'\t\t\t<creator>{8}</creator>\n' +
+		'\t\t\t<album>{0}</album>\n' +
+		'\t\t\t<trackNum>{6}</trackNum>\n' +
+		'\t\t\t<annotation>{9}</annotation>\n' +
+		'\t\t\t<extension application="http://www.videolan.org/vlc/playlist/0">\n' +
+		'\t\t\t\t<vlc:id>{7}</vlc:id>\n' +
+		'\t\t\t</extension>\n' +
+		'\t\t</track>\n')
+	xspfTrack2Template = '\t\t<vlc:item tid="{0}"/>\n'
+	xspfTracks = ""
+	xspfTracks2 = ""
+
+	# build playlist using the data we have
+	for pos in range(1, len(chan_map) + 1):
+		# build channel url
+		program = getProgram(jsonGuide1, jsonGuide2, pos, time.localtime(time.time() + 180 * 60))
+		url = "{0}/playlist.m3u8?ch={1}&strm={2}&qual={3}"
+		vaders_url = "http://vaders.tv/live/{0}/{1}/{2}.{3}"
+		quality = '720p' if QUAL == '1' or pos > 60 else '540p' if QUAL == '2' else '360p'
+		if SITE == 'vaders':
+			strm = 'ts' if STRM == 'mpegts' else 'm3u8'
+			channel_url = vaders_url.format('vsmystreams_' + USER,PASS, vaders_channels[str(pos)], strm)
+		else:
+			urlformatted = url.format(SERVER_PATH, chan_map[pos].channum, STRM, QUAL)
+			channel_url = urljoin(host, urlformatted)
+		# build playlist entry
+		try:
+			xspfTracks += xspfTrackTemplate.format(escape(program.album), escape(program.quality),
+			                                       escape(program.language), escape(program.title),
+			                                       str(program.channel), channel_url,
+			                                       str(int(chan_map[pos].channum)),
+			                                       str(int(chan_map[pos].channum) -1 ),
+			                                       escape(program.channelname), escape(program.description))
+			xspfTracks2 += xspfTrack2Template.format(str(int(chan_map[pos].channum) - 1))
+
+
+		except:
+			logger.exception("Exception while updating playlist: ")
+	xspf = xspfBodyTemplate.format(xspfTracks, xspfTracks2)
+	logger.info("Built xspf playlist")
+
+	return xspf
 
 
 def build_static_playlist():
@@ -1585,10 +1831,6 @@ def get_tvh_channels():
 ############################################################
 # PLEX Live
 ############################################################
-
-
-
-
 
 def discover():
 	discoverData = {
@@ -2245,6 +2487,11 @@ def bridge(request_file):
 	except:
 		logger.debug("No user-agent provided by %s", request.environ.get('REMOTE_ADDR'))
 		client = 'unk'
+
+	if request_file.lower().endswith('.xspf'):
+		playlist = build_xspf(SERVER_HOST)
+		logger.info("All channels playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
+		return Response(playlist, mimetype='application/x-mpegURL')
 
 	# return epg
 	if request_file.lower().startswith('epg.'):
