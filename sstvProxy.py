@@ -41,6 +41,7 @@ import os
 import sys
 import time
 from datetime import datetime, timedelta
+import datetime as dt
 import json
 from json import load, dump
 from logging.handlers import RotatingFileHandler
@@ -1356,16 +1357,16 @@ def json2xml(json_obj):
 	mtree.write(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'sstv_full.xml'))
 	return
 
-def getProgram(jsonGuide1, jsonGuide2, channel, tmNow):
-
+def getProgram(jsonGuide1, jsonGuide2, channel, tmNow, sched_offest):
 	retVal = programinfo()
+	local_off = datetime.utcoffset(datetime.utcnow().replace(tzinfo=dt.timezone.utc).astimezone(tz=None)).total_seconds()
 	if str(int(channel)) in jsonGuide1:
 		oChannel = jsonGuide1[str(int(channel))]
 		retVal.channel = channel
 		retVal.channelname = oChannel["name"].replace(format(channel, "02") + " - ", "").strip()
 		for item in oChannel["items"]:
-			startTime = time.strptime(item["time"], '%Y-%m-%d %H:%M:%S')
-			endTime = time.strptime(item["end_time"], '%Y-%m-%d %H:%M:%S')
+			startTime = time.localtime(time.mktime(datetime.strptime(item["time"], '%Y-%m-%d %H:%M:%S').timetuple()) - sched_offest + local_off)
+			endTime = time.localtime(time.mktime(datetime.strptime(item["end_time"], '%Y-%m-%d %H:%M:%S').timetuple()) - sched_offest + local_off)
 			if startTime < tmNow and endTime > tmNow:
 				retVal.category = item["category"].strip()
 				retVal.quality = item["quality"].upper()
@@ -1590,11 +1591,34 @@ def build_xspf(host):
 	xspfTrack2Template = '\t\t<vlc:item tid="{0}"/>\n'
 	xspfTracks = ""
 	xspfTracks2 = ""
+	import datetime as dt
+	class EST5EDT(dt.tzinfo):
 
+		def utcoffset(self, dt):
+			return timedelta(hours=-5) + self.dst(dt)
+
+		def utc_seconds(self):
+			return self.utcoffset(datetime.now()).total_seconds()
+
+		def dst(self, dt):
+			d = datetime(dt.year, 3, 8)  # 2nd Sunday in March
+			self.dston = d + timedelta(days=6 - d.weekday())
+			d = datetime(dt.year, 11, 1)  # 1st Sunday in Nov
+			self.dstoff = d + timedelta(days=6 - d.weekday())
+			if self.dston <= dt.replace(tzinfo=None) < self.dstoff:
+				return timedelta(hours=1)
+			else:
+				return timedelta(0)
+
+		def tzname(self, dt):
+			return 'EST5EDT'
+
+	print(time.time())
 	# build playlist using the data we have
 	for pos in range(1, len(chan_map) + 1):
 		# build channel url
-		program = getProgram(jsonGuide1, jsonGuide2, pos, time.localtime(time.time() + 180 * 60))
+
+		program = getProgram(jsonGuide1, jsonGuide2, pos, time.localtime(time.time() + 360 * 60), EST5EDT().utc_seconds())
 		url = "{0}/playlist.m3u8?ch={1}"
 		vaders_url = "http://vaders.tv/live/{0}/{1}/{2}.{3}"
 		quality = '720p' if QUAL == '1' or pos > 60 else '540p' if QUAL == '2' else '360p'
@@ -2846,7 +2870,6 @@ if __name__ == "__main__":
 	except:
 		logger.exception("Exception while building initial playlist: ")
 		exit(1)
-
 	try:
 		thread.start_new_thread(thread_playlist, ())
 	except:
