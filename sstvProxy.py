@@ -1595,14 +1595,14 @@ def build_xspf(host):
 	for pos in range(1, len(chan_map) + 1):
 		# build channel url
 		program = getProgram(jsonGuide1, jsonGuide2, pos, time.localtime(time.time() + 180 * 60))
-		url = "{0}/playlist.m3u8?ch={1}&strm={2}&qual={3}"
+		url = "{0}/playlist.m3u8?ch={1}"
 		vaders_url = "http://vaders.tv/live/{0}/{1}/{2}.{3}"
 		quality = '720p' if QUAL == '1' or pos > 60 else '540p' if QUAL == '2' else '360p'
 		if SITE == 'vaders':
 			strm = 'ts' if STRM == 'mpegts' else 'm3u8'
 			channel_url = vaders_url.format('vsmystreams_' + USER,PASS, vaders_channels[str(pos)], strm)
 		else:
-			urlformatted = url.format(SERVER_PATH, chan_map[pos].channum, STRM, QUAL)
+			urlformatted = url.format(SERVER_PATH, chan_map[pos].channum)
 			channel_url = urljoin(host, urlformatted)
 		# build playlist entry
 		try:
@@ -2491,7 +2491,7 @@ def bridge(request_file):
 	if request_file.lower().endswith('.xspf'):
 		playlist = build_xspf(SERVER_HOST)
 		logger.info("All channels playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
-		return Response(playlist, mimetype='application/x-mpegURL')
+		return Response(playlist, mimetype='application/xspf+xml')
 
 	# return epg
 	if request_file.lower().startswith('epg.'):
@@ -2654,8 +2654,11 @@ def bridge(request_file):
 				strm = 'hls'
 				hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}=='
 				hlsurl = hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
-				ss_url = create_channel_playlist(sanitized_channel, qual, strm, token[
+				try:
+					ss_url = create_channel_playlist(sanitized_channel, qual, strm, token[
 					'hash'])  # hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
+				except:
+					ss_url = hlsurl
 
 			response = redirect(ss_url, code=302)
 			headers = dict(response.headers)
