@@ -315,18 +315,18 @@ if platform.system() == 'Linux':
 elif platform.system() == 'Windows':
 	FFMPEGLOC = os.path.join('C:\FFMPEG', 'bin', 'ffmpeg.exe')
 	if os.path.isdir(os.path.join(os.path.expanduser("~"), 'AppData', 'Roaming', 'Kodi', 'userdata', 'addon_data',
-	                              'pvr.iptvsimple')):
+								  'pvr.iptvsimple')):
 		ADDONPATH = os.path.join(os.path.expanduser("~"), 'AppData', 'Roaming', 'Kodi', 'userdata', 'addon_data',
-		                         'pvr.iptvsimple')
+								 'pvr.iptvsimple')
 	else:
 		ADDONPATH = False
 elif platform.system() == 'Darwin':
 	FFMPEGLOC = '/usr/local/bin/ffmpeg'
 	if os.path.isdir(
 			os.path.join(os.path.expanduser("~"), "Library", "Application Support", 'Kodi', 'userdata', 'addon_data',
-			             'pvr.iptvsimple')):
+						 'pvr.iptvsimple')):
 		ADDONPATH = os.path.join(os.path.expanduser("~"), "Library", "Application Support", 'Kodi', 'userdata',
-		                         'addon_data', 'pvr.iptvsimple')
+								 'addon_data', 'pvr.iptvsimple')
 	else:
 		ADDONPATH = False
 else:
@@ -556,8 +556,8 @@ logger.addHandler(console_handler)
 if not os.path.isdir(os.path.join(os.path.dirname(sys.argv[0]), 'cache')):
 	os.mkdir(os.path.join(os.path.dirname(sys.argv[0]), 'cache'))
 file_handler = RotatingFileHandler(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'status.log'),
-                                   maxBytes=1024 * 1024 * 2,
-                                   backupCount=5)
+								   maxBytes=1024 * 1024 * 2,
+								   backupCount=5)
 file_handler.setLevel(logging.DEBUG)
 file_handler.setFormatter(log_formatter)
 logger.addHandler(file_handler)
@@ -1060,7 +1060,7 @@ if not 'headless' in sys.argv:
 				labelFooter.grid(row=13)
 
 				button1 = tkinter.Button(master, text="Launch YAP!!", width=20,
-				                         command=lambda: self.client_exit(master))
+										 command=lambda: self.client_exit(master))
 				button1.grid(row=14)
 
 			button1 = tkinter.Button(master, text="Submit", width=20, command=lambda: gather())
@@ -1176,17 +1176,17 @@ def dl_epg(source=1):
 	if source == 1:
 		logger.info("Downloading epg")
 		requests.urlretrieve("https://fast-guide.smoothstreams.tv/altepg/xmltv5.xml.gz",
-		                     os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz'))
+							 os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz'))
 		unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz')
 		to_process.append([unzipped, "epg.xml", 'fog'])
 		requests.urlretrieve("https://fast-guide.smoothstreams.tv/feed.xml",
-		                     os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml'))
+							 os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml'))
 		unzippedsports = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml')
 		to_process.append([unzippedsports, "sports.xml", 'sstv'])
 	else:
 		logger.info("Downloading sstv epg")
 		requests.urlretrieve("https://fast-guide.smoothstreams.tv/feed.xml",
-		                     os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml'))
+							 os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml'))
 		unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml')
 		to_process.append([unzipped, "epg.xml", 'sstv'])
 		to_process.append([unzipped, "sports.xml", 'sstv'])
@@ -1204,7 +1204,7 @@ def dl_epg(source=1):
 			for a in tree.iterfind('channel'):
 				b = a.find('display-name')
 				newname = [chan_map[x].channum for x in range(len(chan_map) + 1) if
-				           x != 0 and chan_map[x].epg == a.attrib['id'] and chan_map[x].channame == b.text]
+						   x != 0 and chan_map[x].epg == a.attrib['id'] and chan_map[x].channame == b.text]
 				if len(newname) > 1:
 					logger.debug("EPG rename conflict")
 				# print(a.attrib['id'], newname)
@@ -1560,13 +1560,13 @@ def build_playlist(host):
 
 	return new_playlist
 
-def build_xspf(host):
+def build_xspf(host, request_file):
 	# standard dynamic playlist
 	global chan_map
 	jsonGuide1 = getJSON("iptv.json", "https://iptvguide.netlify.com/iptv.json",
-	                     "https://fast-guide.smoothstreams.tv/altepg/feed1.json")
+						 "https://fast-guide.smoothstreams.tv/altepg/feed1.json")
 	jsonGuide2 = getJSON("tv.json", "https://iptvguide.netlify.com/tv.json",
-	                     "https://fast-guide.smoothstreams.tv/altepg/feedall1.json")
+						 "https://fast-guide.smoothstreams.tv/altepg/feedall1.json")
 	xspfBodyTemplate = ('<?xml version="1.0" encoding="UTF-8"?>\n' +
 		 '<playlist xmlns="http://xspf.org/ns/0/" xmlns:vlc="http://www.videolan.org/vlc/playlist/ns/0/" version="1">\n' +
 		'\t<title>Playlist</title>\n' +
@@ -1613,7 +1613,6 @@ def build_xspf(host):
 		def tzname(self, dt):
 			return 'EST5EDT'
 
-	print(time.time())
 	# build playlist using the data we have
 	for pos in range(1, len(chan_map) + 1):
 		# build channel url
@@ -1627,22 +1626,28 @@ def build_xspf(host):
 			channel_url = vaders_url.format('vsmystreams_' + USER,PASS, vaders_channels[str(pos)], strm)
 		else:
 			urlformatted = url.format(SERVER_PATH, chan_map[pos].channum)
-			channel_url = urljoin(host, urlformatted)
+			template = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}q{5}.stream{6}?wmsAuthSign={7}'
+			if not 'static' in request_file:
+				channel_url = urljoin(host, urlformatted)
+			else:
+				channel_url = template.format('https' if STRM == 'hls' else 'rtmp', SRVR, '443' if STRM == 'hls' else '3625',
+										   SITE, "{:02}".format(pos), QUAL if pos <= 60 else '1',
+										   '/playlist.m3u8' if STRM == 'hls' else '', token['hash'])
 		# build playlist entry
 		try:
 			xspfTracks += xspfTrackTemplate.format(escape(program.album), escape(program.quality),
-			                                       escape(program.language), escape(program.title),
-			                                       str(program.channel), channel_url,
-			                                       str(int(chan_map[pos].channum)),
-			                                       str(int(chan_map[pos].channum) -1 ),
-			                                       escape(program.channelname), escape(program.description))
+												   escape(program.language), escape(program.title),
+												   str(program.channel), channel_url,
+												   str(int(chan_map[pos].channum)),
+												   str(int(chan_map[pos].channum) -1 ),
+												   escape(program.channelname), escape(program.description))
 			xspfTracks2 += xspfTrack2Template.format(str(int(chan_map[pos].channum) - 1))
 
 
 		except:
 			logger.exception("Exception while updating playlist: ")
 	xspf = xspfBodyTemplate.format(xspfTracks, xspfTracks2)
-	logger.info("Built xspf playlist")
+	logger.debug("Built xspf playlist")
 
 	return xspf
 
@@ -1656,8 +1661,8 @@ def build_static_playlist():
 
 		template = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}q{5}.stream{6}?wmsAuthSign={7}'
 		urlformatted = template.format('https' if STRM == 'hls' else 'rtmp', SRVR, '443' if STRM == 'hls' else '3625',
-		                               SITE, "{:02}".format(pos), QUAL if pos <= 60 else '1',
-		                               '/playlist.m3u8' if STRM == 'hls' else '', token['hash'])
+									   SITE, "{:02}".format(pos), QUAL if pos <= 60 else '1',
+									   '/playlist.m3u8' if STRM == 'hls' else '', token['hash'])
 		# build playlist entry
 		try:
 			new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s",%s\n' % (
@@ -1906,9 +1911,9 @@ def m3u8_plex(lineup, inputm3u8):
 					grouper = grouper.split(',')
 					name = grouper[1]
 					lineup.append({'GuideNumber': str(len(lineup) + 1),
-					               'GuideName': name,
-					               'URL': 'empty'
-					               })
+								   'GuideName': name,
+								   'URL': 'empty'
+								   })
 				elif inputm3u8[i].startswith("rtmp") or inputm3u8[i].startswith("http"):
 					template = "{0}/{1}/auto/v{2}?url={3}"
 					url = template.format(SERVER_HOST, SERVER_PATH, str(len(lineup)), inputm3u8[i])
@@ -1926,9 +1931,9 @@ def lineup(chan_map):
 		template = "{0}/{1}/auto/v{2}"
 		url = template.format(SERVER_HOST, SERVER_PATH, chan_map[c].channum)
 		lineup.append({'GuideNumber': str(chan_map[c].channum),
-		               'GuideName': chan_map[c].channame,
-		               'URL': url
-		               })
+					   'GuideName': chan_map[c].channame,
+					   'URL': url
+					   })
 	formatted_m3u8 = ''
 	if EXTM3URL != '':
 		logger.debug("extra m3u8 url")
@@ -1952,9 +1957,9 @@ def tvh_lineup():
 			url = 'http://%s:%s@%s:9981/stream/channel/%s?profile=%s&weight=%s' % (
 			TVHUSER, TVHPASS, TVHURL, c['uuid'], tvhstreamProfile, int(tvhWeight))
 			lineup.append({'GuideNumber': str(c['number']),
-			               'GuideName': c['name'],
-			               'URL': url
-			               })
+						   'GuideName': c['name'],
+						   'URL': url
+						   })
 	return jsonify(lineup)
 
 
@@ -2023,7 +2028,7 @@ def build_kodi_playlist():
 				chan_map[pos].channum,
 				chan_map[pos].channame)
 			new_playlist += '%s\n' % rtmpTemplate.format(SRVR, SITE, "{:02}".format(pos), QUAL if pos <= 60 else '1',
-			                                             token['hash'])
+														 token['hash'])
 		except:
 			logger.exception("Exception while updating kodi playlist: ")
 	new_playlist += '#EXTINF:-1 tvg-id="static_refresh" tvg-name="Static Refresh" tvg-logo="%s/%s/empty.png" channel-id="0" group-title="Static RTMP",Static Refresh\n' % (
@@ -2054,7 +2059,7 @@ def rescan_channels():
 	authorization = b'Basic ' + encoded_credentials
 	apiheaders = {'Content-Type': 'application/json', 'Authorization': authorization}
 	apidata = {"jsonrpc": "2.0", "method": "Addons.SetAddonEnabled",
-	           "params": {"addonid": "pvr.iptvsimple", "enabled": "toggle"}, "id": 1}
+			   "params": {"addonid": "pvr.iptvsimple", "enabled": "toggle"}, "id": 1}
 	apiurl = 'http://%s:%s/jsonrpc' % (request.environ.get('REMOTE_ADDR'), KODIPORT)
 	json_data = json.dumps(apidata)
 	post_data = json_data.encode('utf-8')
@@ -2111,7 +2116,7 @@ def create_menu():
 		channelmap = {}
 		chanindex = 0
 		list = ["Username", "Password", "Quality", "Stream", "Server", "Service", "IP", "Port", "Kodiport",
-		        "ExternalIP", "ExternalPort"]
+				"ExternalIP", "ExternalPort"]
 		html.write('<table width="300" border="2">')
 		for setting in list:
 			if setting.lower() == 'service':
@@ -2193,7 +2198,7 @@ def create_menu():
 		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
 
 		html.write("<tr><td rowspan='2'>Plex Live<sup>1</sup></td><td>Tuner - %s</td></tr>" % urljoin(SERVER_HOST,
-		                                                                                              SERVER_PATH))
+																									  SERVER_PATH))
 		html.write("<tr><td>EPG - %s/epg.xml</td></tr>" % urljoin(SERVER_HOST, SERVER_PATH))
 		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
 		html.write("<tr><td>TVHeadend<sup>1</sup></td><td>%s/tvh.m3u8</td></tr>" % urljoin(SERVER_HOST, SERVER_PATH))
@@ -2219,7 +2224,7 @@ def create_menu():
 		html.write("<tr><td>EPG - http://%s:9981/xmltv/channels</td></tr>" % TVHURL)
 		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
 		html.write("<tr><td>Test Playlist for troubleshooting</td><td>%s/test.m3u8</td></tr>" % urljoin(SERVER_HOST,
-		                                                                                                SERVER_PATH))
+																										SERVER_PATH))
 		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
 		html.write("<tr><td>Note 1:</td><td>Requires FFMPEG installation and setup</td></tr>")
 		html.write("<tr><td>Note 2:</td><td>Requires External IP and port in advancedsettings</td></tr>")
@@ -2513,8 +2518,8 @@ def bridge(request_file):
 		client = 'unk'
 
 	if request_file.lower().endswith('.xspf'):
-		playlist = build_xspf(SERVER_HOST)
-		logger.info("All channels playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
+		playlist = build_xspf(SERVER_HOST, request_file)
+		logger.info("XSPF playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
 		return Response(playlist, mimetype='application/xspf+xml')
 
 	# return epg
@@ -2656,7 +2661,7 @@ def bridge(request_file):
 			check_token()
 			if SITE == 'vaders':
 				logger.info("Channel %s playlist was requested by %s", sanitized_channel,
-				            request.environ.get('REMOTE_ADDR'))
+							request.environ.get('REMOTE_ADDR'))
 				vaders_url = "http://vaders.tv/live/{0}/{1}/{2}.{3}"
 				strm = 'ts' if STRM == 'mpegts' else 'm3u8'
 				channel_url = vaders_url.format('vsmystreams_' + USER, PASS, vaders_channels[chan], strm)
@@ -2689,7 +2694,7 @@ def bridge(request_file):
 			headers.update({'Content-Type': 'application/x-mpegURL', "Access-Control-Allow-Origin": "*"})
 			response.headers = headers
 			logger.info("Channel %s playlist was requested by %s", sanitized_channel,
-			            request.environ.get('REMOTE_ADDR'))
+						request.environ.get('REMOTE_ADDR'))
 			# useful for debugging
 			logger.debug("URL returned: %s" % ss_url)
 			if request.args.get('type'):
@@ -2765,7 +2770,7 @@ def auto(request_file, qual=""):
 	check_token()
 	channel = request_file.replace("v", "")
 	logger.info("Channel %s playlist was requested by %s", channel,
-	            request.environ.get('REMOTE_ADDR'))
+				request.environ.get('REMOTE_ADDR'))
 	sanitized_channel = ("0%d" % int(channel)) if int(channel) < 10 else channel
 
 	sanitized_qual = '1'
@@ -2831,8 +2836,8 @@ def auto(request_file, qual=""):
 			proc.kill()
 
 	return Response(response=generate(), status=200, mimetype='video/mp2t',
-	                headers={'Access-Control-Allow-Origin': '*', "Content-Type": "video/mp2t",
-	                         "Content-Disposition": "inline", "Content-Transfer-Enconding": "binary"})
+					headers={'Access-Control-Allow-Origin': '*', "Content-Type": "video/mp2t",
+							 "Content-Disposition": "inline", "Content-Transfer-Enconding": "binary"})
 
 
 ############################################################
