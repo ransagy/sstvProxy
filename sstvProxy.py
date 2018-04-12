@@ -80,8 +80,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.691
+__version__ = 1.7
 # Changelog
+# 1.7 - Static and dynamic xspf options added  ip:port/sstv/static.xspf or ip:port/sstv/playlist.xspf
 # 1.691 - Updated FOG Urls
 # 1.69 - Added more info to website, removed network discovery(isn't useful).
 # 1.68 - Updated for MyStreams changes
@@ -271,6 +272,26 @@ class programinfo:
 	album = property(get_album)
 
 
+class EST5EDT(dt.tzinfo):
+
+	def utcoffset(self, dt):
+		return timedelta(hours=-5) + self.dst(dt)
+
+	def utc_seconds(self):
+		return self.utcoffset(datetime.now()).total_seconds()
+
+	def dst(self, dt):
+		d = datetime(dt.year, 3, 8)  # 2nd Sunday in March
+		self.dston = d + timedelta(days=6 - d.weekday())
+		d = datetime(dt.year, 11, 1)  # 1st Sunday in Nov
+		self.dstoff = d + timedelta(days=6 - d.weekday())
+		if self.dston <= dt.replace(tzinfo=None) < self.dstoff:
+			return timedelta(hours=1)
+		else:
+			return timedelta(0)
+
+	def tzname(self, dt):
+		return 'EST5EDT'
 ############################################################
 # CONFIG
 ############################################################
@@ -293,7 +314,6 @@ EXTPORT = 80
 EXT_HOST = "http://" + EXTIP + ":" + str(EXTPORT)
 KODIUSER = "kodi"
 KODIPASS = ""
-netdiscover = False
 EXTM3URL = ''
 EXTM3UNAME = ''
 EXTM3UFILE = ''
@@ -304,6 +324,7 @@ TVHUSER = ''
 TVHPASS = ''
 tvhWeight = 300  # subscription priority
 tvhstreamProfile = 'pass'  # specifiy a stream profile that you want to use for adhoc transcoding in tvh, e.g. mp4
+GUIDELOOKAHEAD = 5 #minutes
 
 # LINUX/WINDOWS
 if platform.system() == 'Linux':
@@ -1357,7 +1378,10 @@ def json2xml(json_obj):
 	mtree.write(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'sstv_full.xml'))
 	return
 
-def getProgram(jsonGuide1, jsonGuide2, channel, tmNow, sched_offest):
+def getProgram(channel):
+	global jsonGuide1, jsonGuide2
+	tmNow = time.localtime(time.time() + GUIDELOOKAHEAD * 60)
+	sched_offest = EST5EDT().utc_seconds()
 	retVal = programinfo()
 	local_off = datetime.utcoffset(datetime.utcnow().replace(tzinfo=dt.timezone.utc).astimezone(tz=None)).total_seconds()
 	if str(int(channel)) in jsonGuide1:
@@ -1563,10 +1587,7 @@ def build_playlist(host):
 def build_xspf(host, request_file):
 	# standard dynamic playlist
 	global chan_map
-	jsonGuide1 = getJSON("iptv.json", "https://iptvguide.netlify.com/iptv.json",
-						 "https://fast-guide.smoothstreams.tv/altepg/feed1.json")
-	jsonGuide2 = getJSON("tv.json", "https://iptvguide.netlify.com/tv.json",
-						 "https://fast-guide.smoothstreams.tv/altepg/feedall1.json")
+
 	xspfBodyTemplate = ('<?xml version="1.0" encoding="UTF-8"?>\n' +
 		 '<playlist xmlns="http://xspf.org/ns/0/" xmlns:vlc="http://www.videolan.org/vlc/playlist/ns/0/" version="1">\n' +
 		'\t<title>Playlist</title>\n' +
@@ -1591,33 +1612,13 @@ def build_xspf(host, request_file):
 	xspfTrack2Template = '\t\t<vlc:item tid="{0}"/>\n'
 	xspfTracks = ""
 	xspfTracks2 = ""
-	import datetime as dt
-	class EST5EDT(dt.tzinfo):
 
-		def utcoffset(self, dt):
-			return timedelta(hours=-5) + self.dst(dt)
-
-		def utc_seconds(self):
-			return self.utcoffset(datetime.now()).total_seconds()
-
-		def dst(self, dt):
-			d = datetime(dt.year, 3, 8)  # 2nd Sunday in March
-			self.dston = d + timedelta(days=6 - d.weekday())
-			d = datetime(dt.year, 11, 1)  # 1st Sunday in Nov
-			self.dstoff = d + timedelta(days=6 - d.weekday())
-			if self.dston <= dt.replace(tzinfo=None) < self.dstoff:
-				return timedelta(hours=1)
-			else:
-				return timedelta(0)
-
-		def tzname(self, dt):
-			return 'EST5EDT'
 
 	# build playlist using the data we have
 	for pos in range(1, len(chan_map) + 1):
 		# build channel url
 
-		program = getProgram(jsonGuide1, jsonGuide2, pos, time.localtime(time.time() + 360 * 60), EST5EDT().utc_seconds())
+		program = getProgram(pos)
 		url = "{0}/playlist.m3u8?ch={1}"
 		vaders_url = "http://vaders.tv/live/{0}/{1}/{2}.{3}"
 		quality = '720p' if QUAL == '1' or pos > 60 else '540p' if QUAL == '2' else '360p'
@@ -2081,14 +2082,6 @@ style = """
 	body { background: white url("https://guide.smoothstreams.tv/assets/images/channels/150.png") no-repeat fixed center center; background-size: 500px 500px; color: black; }
 	h1 { color: white; background-color: black; padding: 0.5ex }
 	h2 { color: white; background-color: black; padding: 0.3ex }
-	.gap { color: darkred; }
-	.recorded { color: green; font-weight: bold; }
-	.summary { font-size: 85%%; color: #505050; margin-left: 4em; }
-	.genre { margin-left: 4em; }
-	.origdate { margin-left: 4em; }
-	.episodetitle { font-style: italic; font-weight: bold }
-	.channellink { display: inline-block; width: 10em; }
-	.channellink A { color: black; text-decoration: none; }
 	.container {display: table; width: 100%;}
 	.left-half {position: absolute;  left: 0px;  width: 50%;}
 	.right-half {position: absolute;  right: 0px;  width: 50%;}
@@ -2226,6 +2219,11 @@ def create_menu():
 		html.write("<tr><td>Test Playlist for troubleshooting</td><td>%s/test.m3u8</td></tr>" % urljoin(SERVER_HOST,
 																										SERVER_PATH))
 		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
+		html.write("<tr><td>Dynamic xspf, includes currently showing programs</td><td>%s/playlist.xspf</td></tr>" % urljoin(SERVER_HOST,
+																										SERVER_PATH))
+		html.write("<tr><td>Static xspf</td><td>%s/static.xspf</td></tr>" % urljoin(SERVER_HOST,
+																										SERVER_PATH))
+		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
 		html.write("<tr><td>Note 1:</td><td>Requires FFMPEG installation and setup</td></tr>")
 		html.write("<tr><td>Note 2:</td><td>Requires External IP and port in advancedsettings</td></tr>")
 		html.write("<tr><td>Note 3:</td><td>Requires TVH proxy setup in advancedsettings</td></tr></table>")
@@ -2235,10 +2233,10 @@ def create_menu():
 	with open("./cache/channels.html", "w") as html:
 		global chan_map
 		html.write("""<html><head><title>YAP</title><meta charset="UTF-8">%s</head><body>\n""" % (style,))
-		html.write("<h1>Channel List</h1>")
+		html.write("<h1>Channel List and Upcoming Shows</h1>")
 		template = "<a href='{1}/{2}/{0}.html'>{3}</a>"
 		html.write("<p>" + template.format("settings",SERVER_HOST, SERVER_PATH,"Options") + " " + template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions") + " " + template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List") + "</p>")
-		html.write('<table width="300" border="1">')
+		html.write('<section class="container"><div class="left-half"><table width="300" border="1">')
 		template = "<td>{0}</td><td><a href='{2}/{3}/playlist.m3u8?ch={0}'><img src='{2}/{3}/{0}.png'></a></td></td>"
 		for i in chan_map:
 			if i%5 == 1:
@@ -2247,7 +2245,14 @@ def create_menu():
 			if i%5 == 0:
 				html.write("</tr>")
 		html.write("</table>")
-		html.write(footer)
+		html.write("</br>%s</div>" % footer)
+		html.write('<div class="right-half"><h3>Coming up</h3>')
+		template = "{0} - <a href='{2}/{3}/playlist.m3u8?ch={0}'>{1}</a></br>"
+		for i in chan_map:
+			prog = getProgram(i)
+			if prog.title != 'none':
+				html.write(template.format(chan_map[i].channum, prog.title, SERVER_HOST, SERVER_PATH))
+		html.write("</div></section>")
 		html.write("</body></html>\n")
 
 	with open("./cache/index.html", "w") as html:
@@ -2865,6 +2870,10 @@ if __name__ == "__main__":
 		playlist = build_playlist(SERVER_HOST)
 		kodiplaylist = build_kodi_playlist()
 		tvhplaylist = build_tvh_playlist()
+		jsonGuide1 = getJSON("iptv.json", "https://iptvguide.netlify.com/iptv.json",
+		                     "https://fast-guide.smoothstreams.tv/altepg/feed1.json")
+		jsonGuide2 = getJSON("tv.json", "https://iptvguide.netlify.com/tv.json",
+		                     "https://fast-guide.smoothstreams.tv/altepg/feedall1.json")
 		# Download icons, runs in sep thread, takes ~1min
 		try:
 			di = threading.Thread(target=dl_icons, args=(len(chan_map),))
@@ -2896,6 +2905,8 @@ if __name__ == "__main__":
 	print("Combined EPG url is %s/combined.xml" % urljoin(SERVER_HOST, SERVER_PATH))
 	print("Static m3u8 url is %s/static.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
 	print("TVH's own EPG url is http://%s:9981/xmltv/channels" % TVHURL)
+	print("Static XSPF url is %s/static.xspf" % urljoin(SERVER_HOST, SERVER_PATH))
+	print("Dynamic XSPF url is %s/playlist.xspf" % urljoin(SERVER_HOST, SERVER_PATH))
 	print("##############################################################\n")
 
 	if __version__ < latest_ver:
@@ -2915,13 +2926,7 @@ if __name__ == "__main__":
 		a.start()
 	except (KeyboardInterrupt, SystemExit):
 		sys.exit()
-	if netdiscover:
-		try:
-			a = threading.Thread(target=udpServer)
-			a.setDaemon(True)
-			a.start()
-		except (KeyboardInterrupt, SystemExit):
-			sys.exit()
+
 	# debug causes it to load twice on initial startup and every time the script is saved, TODO disbale later
 	try:
 		app.run(host=LISTEN_IP, port=LISTEN_PORT, threaded=True, debug=False)
