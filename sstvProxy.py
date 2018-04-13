@@ -64,9 +64,14 @@ import struct
 import ntpath
 import requests as req
 from xml.sax.saxutils import escape
-
-if not 'headless' in sys.argv:
+HEADLESS = False
+try:
 	import tkinter
+except:
+	HEADLESS = True
+	
+if 'headless' in sys.argv:
+	HEADLESS = True
 
 try:
 	from urlparse import urljoin
@@ -496,7 +501,7 @@ def load_settings():
 			logger.debug("Using config file.")
 
 	except:
-		if 'headless' in sys.argv:
+		if HEADLESS:
 			config = {}
 			config["username"] = input("Username?")
 			config["password"] = input("Password?")
@@ -825,7 +830,7 @@ def writetemplate():
 # INSTALL GUI
 ############################################################
 
-if not 'headless' in sys.argv:
+if not HEADLESS:
 	class GUI(tkinter.Frame):
 		def client_exit(self, root):
 			root.destroy()
