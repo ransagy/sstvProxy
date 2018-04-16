@@ -310,7 +310,7 @@ SRVR = "dnaw2"
 STRM = "hls"
 QUAL = "1"
 LISTEN_IP = "127.0.0.1"
-LISTEN_PORT = 99
+LISTEN_PORT = 6969
 SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
 SERVER_PATH = "sstv"
 KODIPORT = 8080
@@ -831,156 +831,181 @@ def writetemplate():
 ############################################################
 
 if not HEADLESS:
+	class ToggledFrame(tkinter.Frame):
+		def __init__(self, parent, text="", *args, **options):
+			tkinter.Frame.__init__(self, parent, *args, **options)
+
+			self.show = tkinter.IntVar()
+			self.show.set(0)
+			self.title_frame = tkinter.Frame(self)
+			self.title_frame.pack(fill="x", expand=1)
+
+			tkinter.Label(self.title_frame, text=text).pack(side="left", fill="x", expand=1)
+
+			self.toggle_button = tkinter.Checkbutton(self.title_frame, width=2, text='+', command=self.toggle,
+			                                         variable=self.show)
+			self.toggle_button.pack(side="left")
+
+			self.sub_frame = tkinter.Frame(self, relief="sunken", borderwidth=1)
+
+		def toggle(self):
+			if bool(self.show.get()):
+				self.sub_frame.pack(fill="x", expand=1)
+				self.toggle_button.configure(text='-')
+			else:
+				self.sub_frame.forget()
+				self.toggle_button.configure(text='+')
+
 	class GUI(tkinter.Frame):
 		def client_exit(self, root):
 			root.destroy()
 
+
 		def __init__(self, master):
 			tkinter.Frame.__init__(self, master)
-			self.labelText = tkinter.StringVar()
-			self.labelText.set("Initial Setup")
-			label1 = tkinter.Label(master, textvariable=self.labelText, height=2)
-			label1.grid(row=1, column=2)
-
-			self.noteText = tkinter.StringVar()
-			self.noteText.set("Notes")
-			noteText = tkinter.Label(master, textvariable=self.noteText, height=2)
-			noteText.grid(row=1, column=3)
+			t1 = ToggledFrame(master, text='Minimum', relief="raised", borderwidth=1)
+			t1.grid(row=1)
 
 			self.labelUsername = tkinter.StringVar()
 			self.labelUsername.set("Username")
-			labelUsername = tkinter.Label(master, textvariable=self.labelUsername, height=2)
+			labelUsername = tkinter.Label(t1.sub_frame, textvariable=self.labelUsername, height=2)
 			labelUsername.grid(row=2, column=1)
 			#
 			userUsername = tkinter.StringVar()
 			userUsername.set("blogs@hotmail.com")
-			self.username = tkinter.Entry(master, textvariable=userUsername, width=30)
+			self.username = tkinter.Entry(t1.sub_frame, textvariable=userUsername, width=30)
 			self.username.grid(row=2, column=2)
 			#
 			self.noteUsername = tkinter.StringVar()
 			self.noteUsername.set("mystreams will not be an email address")
-			noteUsername = tkinter.Label(master, textvariable=self.noteUsername, height=2)
+			noteUsername = tkinter.Label(t1.sub_frame, textvariable=self.noteUsername, height=2)
 			noteUsername.grid(row=2, column=3)
 
 			self.labelPassword = tkinter.StringVar()
 			self.labelPassword.set("Password")
-			labelPassword = tkinter.Label(master, textvariable=self.labelPassword, height=2)
+			labelPassword = tkinter.Label(t1.sub_frame, textvariable=self.labelPassword, height=2)
 			labelPassword.grid(row=3, column=1)
 			#
 			userPassword = tkinter.StringVar()
 			userPassword.set("blogs123")
-			self.password = tkinter.Entry(master, textvariable=userPassword, width=30)
+			self.password = tkinter.Entry(t1.sub_frame, textvariable=userPassword, width=30)
 			self.password.grid(row=3, column=2)
-
-			self.labelServer = tkinter.StringVar()
-			self.labelServer.set("Server")
-			labelServer = tkinter.Label(master, textvariable=self.labelServer, height=2)
-			labelServer.grid(row=4, column=1)
-
-			userServer = tkinter.StringVar()
-			userServer.set('East-NY')
-			self.server = tkinter.OptionMenu(master, userServer, *[x[0] for x in serverList])
-			self.server.grid(row=4, column=2)
 
 			self.labelSite = tkinter.StringVar()
 			self.labelSite.set("Site")
-			labelSite = tkinter.Label(master, textvariable=self.labelSite, height=2)
-			labelSite.grid(row=5, column=1)
+			labelSite = tkinter.Label(t1.sub_frame, textvariable=self.labelSite, height=2)
+			labelSite.grid(row=4, column=1)
 
 			userSite = tkinter.StringVar()
 			userSite.set('StreamTVnow')
-			self.site = tkinter.OptionMenu(master, userSite, *[x[0] for x in providerList])
-			self.site.grid(row=5, column=2)
+			self.site = tkinter.OptionMenu(t1.sub_frame, userSite, *[x[0] for x in providerList])
+			self.site.grid(row=4, column=2)
+
+			t2 = ToggledFrame(master, text='Optional', relief="raised", borderwidth=1)
+			t2.grid(row=5)
+
+			self.labelServer = tkinter.StringVar()
+			self.labelServer.set("Server")
+			labelServer = tkinter.Label(t2.sub_frame, textvariable=self.labelServer, height=2)
+			labelServer.grid(row=6, column=1)
+
+			userServer = tkinter.StringVar()
+			userServer.set('East-NY')
+			self.server = tkinter.OptionMenu(t2.sub_frame, userServer, *[x[0] for x in serverList])
+			self.server.grid(row=6, column=2)
 
 			self.labelStream = tkinter.StringVar()
 			self.labelStream.set("Stream Type")
-			labelStream = tkinter.Label(master, textvariable=self.labelStream, height=2)
-			labelStream.grid(row=6, column=1)
+			labelStream = tkinter.Label(t2.sub_frame, textvariable=self.labelStream, height=2)
+			labelStream.grid(row=7, column=1)
 
 			userStream = tkinter.StringVar()
 			userStream.set('HLS')
-			self.stream = tkinter.OptionMenu(master, userStream, *[x.upper() for x in streamtype])
-			self.stream.grid(row=6, column=2)
+			self.stream = tkinter.OptionMenu(t2.sub_frame, userStream, *[x.upper() for x in streamtype])
+			self.stream.grid(row=7, column=2)
 
 			self.labelQuality = tkinter.StringVar()
 			self.labelQuality.set("Quality")
-			labelQuality = tkinter.Label(master, textvariable=self.labelQuality, height=2)
-			labelQuality.grid(row=7, column=1)
+			labelQuality = tkinter.Label(t2.sub_frame, textvariable=self.labelQuality, height=2)
+			labelQuality.grid(row=8, column=1)
 
 			userQuality = tkinter.StringVar()
 			userQuality.set('HD')
-			self.quality = tkinter.OptionMenu(master, userQuality, *[x[0] for x in qualityList])
-			self.quality.grid(row=7, column=2)
+			self.quality = tkinter.OptionMenu(t2.sub_frame, userQuality, *[x[0] for x in qualityList])
+			self.quality.grid(row=8, column=2)
 
 			self.labelIP = tkinter.StringVar()
 			self.labelIP.set("Listen IP")
-			labelIP = tkinter.Label(master, textvariable=self.labelIP, height=2)
-			labelIP.grid(row=8, column=1)
+			labelIP = tkinter.Label(t2.sub_frame, textvariable=self.labelIP, height=2)
+			labelIP.grid(row=9, column=1)
 
 			userIP = tkinter.StringVar()
 			userIP.set(LISTEN_IP)
-			self.ip = tkinter.Entry(master, textvariable=userIP, width=30)
-			self.ip.grid(row=8, column=2)
+			self.ip = tkinter.Entry(t2.sub_frame, textvariable=userIP, width=30)
+			self.ip.grid(row=9, column=2)
 
 			self.noteIP = tkinter.StringVar()
 			self.noteIP.set("If using on other machines then set a static IP and use that.")
-			noteIP = tkinter.Label(master, textvariable=self.noteIP, height=2)
-			noteIP.grid(row=8, column=3)
+			noteIP = tkinter.Label(t2.sub_frame, textvariable=self.noteIP, height=2)
+			noteIP.grid(row=9, column=3)
 
 			self.labelPort = tkinter.StringVar()
 			self.labelPort.set("Listen Port")
-			labelPort = tkinter.Label(master, textvariable=self.labelPort, height=2)
-			labelPort.grid(row=9, column=1)
+			labelPort = tkinter.Label(t2.sub_frame, textvariable=self.labelPort, height=2)
+			labelPort.grid(row=10, column=1)
 
 			userPort = tkinter.IntVar()
 			userPort.set(LISTEN_PORT)
-			self.port = tkinter.Entry(master, textvariable=userPort, width=30)
-			self.port.grid(row=9, column=2)
+			self.port = tkinter.Entry(t2.sub_frame, textvariable=userPort, width=30)
+			self.port.grid(row=10, column=2)
 
 			self.notePort = tkinter.StringVar()
 			self.notePort.set("If 80 doesn't work try 99")
-			notePort = tkinter.Label(master, textvariable=self.notePort, height=2)
-			notePort.grid(row=9, column=3)
+			notePort = tkinter.Label(t2.sub_frame, textvariable=self.notePort, height=2)
+			notePort.grid(row=10, column=3)
+
+			t3 = ToggledFrame(master, text='Advanced', relief="raised", borderwidth=1)
+			t3.grid(row=11)
 
 			self.labelKodiPort = tkinter.StringVar()
 			self.labelKodiPort.set("KodiPort")
-			labelKodiPort = tkinter.Label(master, textvariable=self.labelKodiPort, height=2)
-			labelKodiPort.grid(row=10, column=1)
+			labelKodiPort = tkinter.Label(t3.sub_frame, textvariable=self.labelKodiPort, height=2)
+			labelKodiPort.grid(row=12)
 
 			userKodiPort = tkinter.IntVar(None)
 			userKodiPort.set(KODIPORT)
-			self.kodiport = tkinter.Entry(master, textvariable=userKodiPort, width=30)
-			self.kodiport.grid(row=10, column=2)
+			self.kodiport = tkinter.Entry(t3.sub_frame, textvariable=userKodiPort, width=30)
+			self.kodiport.grid(row=12, column=2)
 
 			self.noteKodiPort = tkinter.StringVar()
 			self.noteKodiPort.set("Only change if you've had to change the Kodi port")
-			noteKodiPort = tkinter.Label(master, textvariable=self.noteKodiPort, height=2)
-			noteKodiPort.grid(row=10, column=3)
+			noteKodiPort = tkinter.Label(t3.sub_frame, textvariable=self.noteKodiPort, height=2)
+			noteKodiPort.grid(row=12, column=3)
 
 			self.labelExternalIP = tkinter.StringVar()
 			self.labelExternalIP.set("External IP")
-			labelExternalIP = tkinter.Label(master, textvariable=self.labelExternalIP, height=2)
-			labelExternalIP.grid(row=11, column=1)
+			labelExternalIP = tkinter.Label(t3.sub_frame, textvariable=self.labelExternalIP, height=2)
+			labelExternalIP.grid(row=13, column=1)
 
 			userExternalIP = tkinter.StringVar()
 			userExternalIP.set(EXTIP)
-			self.externalip = tkinter.Entry(master, textvariable=userExternalIP, width=30)
-			self.externalip.grid(row=11, column=2)
+			self.externalip = tkinter.Entry(t3.sub_frame, textvariable=userExternalIP, width=30)
+			self.externalip.grid(row=13, column=2)
 
 			self.noteExternalIP = tkinter.StringVar()
 			self.noteExternalIP.set("Enter your public IP or Dynamic DNS,\nfor use when you wish to use this remotely.")
-			noteExternalIP = tkinter.Label(master, textvariable=self.noteExternalIP, height=2)
-			noteExternalIP.grid(row=11, column=3)
+			noteExternalIP = tkinter.Label(t3.sub_frame, textvariable=self.noteExternalIP, height=2)
+			noteExternalIP.grid(row=13, column=3)
 
 			self.labelExternalPort = tkinter.StringVar()
 			self.labelExternalPort.set("External Port")
-			labelExternalPort = tkinter.Label(master, textvariable=self.labelExternalPort, height=2)
-			labelExternalPort.grid(row=12, column=1)
+			labelExternalPort = tkinter.Label(t3.sub_frame, textvariable=self.labelExternalPort, height=2)
+			labelExternalPort.grid(row=14, column=1)
 
 			userExternalPort = tkinter.IntVar(None)
 			userExternalPort.set(EXTPORT)
-			self.extport = tkinter.Entry(master, textvariable=userExternalPort, width=30)
-			self.extport.grid(row=12, column=2)
+			self.extport = tkinter.Entry(t3.sub_frame, textvariable=userExternalPort, width=30)
+			self.extport.grid(row=14, column=2)
 
 			def gather():
 				config = {}
@@ -1090,7 +1115,9 @@ if not HEADLESS:
 				button1.grid(row=14)
 
 			button1 = tkinter.Button(master, text="Submit", width=20, command=lambda: gather())
-			button1.grid(row=13, column=2)
+			button1.grid(row=15, column=2)
+
+
 
 ############################################################
 # MISC
