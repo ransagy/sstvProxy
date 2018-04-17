@@ -551,7 +551,7 @@ def load_settings():
 		else:
 			root = tkinter.Tk()
 			root.title("YAP Setup")
-			root.geometry('750x600')
+			# root.geometry('750x600')
 			app = GUI(root)  # calling the class to run
 			root.mainloop()
 		installer()
@@ -863,149 +863,151 @@ if not HEADLESS:
 
 		def __init__(self, master):
 			tkinter.Frame.__init__(self, master)
-			t1 = ToggledFrame(master, text='Minimum', relief="raised", borderwidth=1)
-			t1.grid(row=1)
+			self.t1 = tkinter.StringVar()
+			self.t1.set("Minimum Settings")
+			t1 = tkinter.Label(master, textvariable=self.t1, height=2)
+			t1.grid(row=1, column=2)
 
 			self.labelUsername = tkinter.StringVar()
 			self.labelUsername.set("Username")
-			labelUsername = tkinter.Label(t1.sub_frame, textvariable=self.labelUsername, height=2)
+			labelUsername = tkinter.Label(master, textvariable=self.labelUsername, height=2)
 			labelUsername.grid(row=2, column=1)
 			#
 			userUsername = tkinter.StringVar()
 			userUsername.set("blogs@hotmail.com")
-			self.username = tkinter.Entry(t1.sub_frame, textvariable=userUsername, width=30)
+			self.username = tkinter.Entry(master, textvariable=userUsername, width=30)
 			self.username.grid(row=2, column=2)
 			#
 			self.noteUsername = tkinter.StringVar()
 			self.noteUsername.set("mystreams will not be an email address")
-			noteUsername = tkinter.Label(t1.sub_frame, textvariable=self.noteUsername, height=2)
+			noteUsername = tkinter.Label(master, textvariable=self.noteUsername, height=2)
 			noteUsername.grid(row=2, column=3)
 
 			self.labelPassword = tkinter.StringVar()
 			self.labelPassword.set("Password")
-			labelPassword = tkinter.Label(t1.sub_frame, textvariable=self.labelPassword, height=2)
+			labelPassword = tkinter.Label(master, textvariable=self.labelPassword, height=2)
 			labelPassword.grid(row=3, column=1)
 			#
 			userPassword = tkinter.StringVar()
 			userPassword.set("blogs123")
-			self.password = tkinter.Entry(t1.sub_frame, textvariable=userPassword, width=30)
+			self.password = tkinter.Entry(master, textvariable=userPassword, width=30)
 			self.password.grid(row=3, column=2)
 
 			self.labelSite = tkinter.StringVar()
 			self.labelSite.set("Site")
-			labelSite = tkinter.Label(t1.sub_frame, textvariable=self.labelSite, height=2)
+			labelSite = tkinter.Label(master, textvariable=self.labelSite, height=2)
 			labelSite.grid(row=4, column=1)
 
 			userSite = tkinter.StringVar()
 			userSite.set('StreamTVnow')
-			self.site = tkinter.OptionMenu(t1.sub_frame, userSite, *[x[0] for x in providerList])
+			self.site = tkinter.OptionMenu(master, userSite, *[x[0] for x in providerList])
 			self.site.grid(row=4, column=2)
 
 			t2 = ToggledFrame(master, text='Optional', relief="raised", borderwidth=1)
-			t2.grid(row=5)
+			t2.grid(row=5, column=1, columnspan=3)
 
 			self.labelServer = tkinter.StringVar()
 			self.labelServer.set("Server")
 			labelServer = tkinter.Label(t2.sub_frame, textvariable=self.labelServer, height=2)
-			labelServer.grid(row=6, column=1)
+			labelServer.grid(row=1, column=1)
 
 			userServer = tkinter.StringVar()
 			userServer.set('East-NY')
 			self.server = tkinter.OptionMenu(t2.sub_frame, userServer, *[x[0] for x in serverList])
-			self.server.grid(row=6, column=2)
+			self.server.grid(row=1, column=2)
 
 			self.labelStream = tkinter.StringVar()
 			self.labelStream.set("Stream Type")
 			labelStream = tkinter.Label(t2.sub_frame, textvariable=self.labelStream, height=2)
-			labelStream.grid(row=7, column=1)
+			labelStream.grid(row=2, column=1)
 
 			userStream = tkinter.StringVar()
 			userStream.set('HLS')
 			self.stream = tkinter.OptionMenu(t2.sub_frame, userStream, *[x.upper() for x in streamtype])
-			self.stream.grid(row=7, column=2)
+			self.stream.grid(row=2, column=2)
 
 			self.labelQuality = tkinter.StringVar()
 			self.labelQuality.set("Quality")
 			labelQuality = tkinter.Label(t2.sub_frame, textvariable=self.labelQuality, height=2)
-			labelQuality.grid(row=8, column=1)
+			labelQuality.grid(row=3, column=1)
 
 			userQuality = tkinter.StringVar()
 			userQuality.set('HD')
 			self.quality = tkinter.OptionMenu(t2.sub_frame, userQuality, *[x[0] for x in qualityList])
-			self.quality.grid(row=8, column=2)
+			self.quality.grid(row=3, column=2)
 
 			self.labelIP = tkinter.StringVar()
 			self.labelIP.set("Listen IP")
 			labelIP = tkinter.Label(t2.sub_frame, textvariable=self.labelIP, height=2)
-			labelIP.grid(row=9, column=1)
+			labelIP.grid(row=4, column=1)
 
 			userIP = tkinter.StringVar()
 			userIP.set(LISTEN_IP)
 			self.ip = tkinter.Entry(t2.sub_frame, textvariable=userIP, width=30)
-			self.ip.grid(row=9, column=2)
+			self.ip.grid(row=4, column=2)
 
 			self.noteIP = tkinter.StringVar()
 			self.noteIP.set("If using on other machines then set a static IP and use that.")
 			noteIP = tkinter.Label(t2.sub_frame, textvariable=self.noteIP, height=2)
-			noteIP.grid(row=9, column=3)
+			noteIP.grid(row=4, column=3)
 
 			self.labelPort = tkinter.StringVar()
 			self.labelPort.set("Listen Port")
 			labelPort = tkinter.Label(t2.sub_frame, textvariable=self.labelPort, height=2)
-			labelPort.grid(row=10, column=1)
+			labelPort.grid(row=5, column=1)
 
 			userPort = tkinter.IntVar()
 			userPort.set(LISTEN_PORT)
 			self.port = tkinter.Entry(t2.sub_frame, textvariable=userPort, width=30)
-			self.port.grid(row=10, column=2)
+			self.port.grid(row=5, column=2)
 
 			self.notePort = tkinter.StringVar()
 			self.notePort.set("If 80 doesn't work try 99")
 			notePort = tkinter.Label(t2.sub_frame, textvariable=self.notePort, height=2)
-			notePort.grid(row=10, column=3)
+			notePort.grid(row=5, column=3)
 
 			t3 = ToggledFrame(master, text='Advanced', relief="raised", borderwidth=1)
-			t3.grid(row=11)
+			t3.grid(row=6, column=1, columnspan=3)
 
 			self.labelKodiPort = tkinter.StringVar()
 			self.labelKodiPort.set("KodiPort")
 			labelKodiPort = tkinter.Label(t3.sub_frame, textvariable=self.labelKodiPort, height=2)
-			labelKodiPort.grid(row=12)
+			labelKodiPort.grid(row=1, column=1)
 
 			userKodiPort = tkinter.IntVar(None)
 			userKodiPort.set(KODIPORT)
 			self.kodiport = tkinter.Entry(t3.sub_frame, textvariable=userKodiPort, width=30)
-			self.kodiport.grid(row=12, column=2)
+			self.kodiport.grid(row=1, column=2)
 
 			self.noteKodiPort = tkinter.StringVar()
 			self.noteKodiPort.set("Only change if you've had to change the Kodi port")
 			noteKodiPort = tkinter.Label(t3.sub_frame, textvariable=self.noteKodiPort, height=2)
-			noteKodiPort.grid(row=12, column=3)
+			noteKodiPort.grid(row=1, column=3)
 
 			self.labelExternalIP = tkinter.StringVar()
 			self.labelExternalIP.set("External IP")
 			labelExternalIP = tkinter.Label(t3.sub_frame, textvariable=self.labelExternalIP, height=2)
-			labelExternalIP.grid(row=13, column=1)
+			labelExternalIP.grid(row=2, column=1)
 
 			userExternalIP = tkinter.StringVar()
 			userExternalIP.set(EXTIP)
 			self.externalip = tkinter.Entry(t3.sub_frame, textvariable=userExternalIP, width=30)
-			self.externalip.grid(row=13, column=2)
+			self.externalip.grid(row=2, column=2)
 
 			self.noteExternalIP = tkinter.StringVar()
 			self.noteExternalIP.set("Enter your public IP or Dynamic DNS,\nfor use when you wish to use this remotely.")
 			noteExternalIP = tkinter.Label(t3.sub_frame, textvariable=self.noteExternalIP, height=2)
-			noteExternalIP.grid(row=13, column=3)
+			noteExternalIP.grid(row=2, column=3)
 
 			self.labelExternalPort = tkinter.StringVar()
 			self.labelExternalPort.set("External Port")
 			labelExternalPort = tkinter.Label(t3.sub_frame, textvariable=self.labelExternalPort, height=2)
-			labelExternalPort.grid(row=14, column=1)
+			labelExternalPort.grid(row=3, column=1)
 
 			userExternalPort = tkinter.IntVar(None)
 			userExternalPort.set(EXTPORT)
 			self.extport = tkinter.Entry(t3.sub_frame, textvariable=userExternalPort, width=30)
-			self.extport.grid(row=14, column=2)
+			self.extport.grid(row=3, column=2)
 
 			def gather():
 				config = {}
@@ -1045,77 +1047,23 @@ if not HEADLESS:
 				EXT_HOST = "http://" + EXTIP + ":" + str(EXTPORT)
 				SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
 
-				self.labelHeading = tkinter.StringVar()
-				self.labelHeading.set("Below are the URLs you have available for use")
-				labelHeading = tkinter.Label(master, textvariable=self.labelHeading, height=4)
-				labelHeading.grid(row=1)
 
 				self.labelSetting1 = tkinter.StringVar()
-				self.labelSetting1.set("Change your settings at %s/index.html" % urljoin(SERVER_HOST, SERVER_PATH))
+				self.labelSetting1.set("Open a web browser and go to %s for instructions and output URLs." % urljoin(SERVER_HOST, SERVER_PATH))
 				labelSetting1 = tkinter.Label(master, textvariable=self.labelSetting1, height=2)
-				labelSetting1.grid(row=2)
-
-				self.labelSetting2 = tkinter.StringVar()
-				self.labelSetting2.set("m3u8 url is %s/playlist.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
-				labelSetting2 = tkinter.Label(master, textvariable=self.labelSetting2, height=2)
-				labelSetting2.grid(row=3)
-
-				self.labelSetting3 = tkinter.StringVar()
-				self.labelSetting3.set("kodi m3u8 url is %s/kodi.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
-				labelSetting3 = tkinter.Label(master, textvariable=self.labelSetting3, height=2)
-				labelSetting3.grid(row=4)
-
-				self.labelSetting4 = tkinter.StringVar()
-				self.labelSetting4.set("EPG url is %s/epg.xml" % urljoin(SERVER_HOST, SERVER_PATH))
-				labelSetting4 = tkinter.Label(master, textvariable=self.labelSetting4, height=2)
-				labelSetting4.grid(row=5)
-
-				self.labelSetting5 = tkinter.StringVar()
-				self.labelSetting5.set("Plex Live TV url is %s" % urljoin(SERVER_HOST, SERVER_PATH))
-				labelSetting5 = tkinter.Label(master, textvariable=self.labelSetting5, height=2)
-				labelSetting5.grid(row=7)
-
-				self.labelSetting6 = tkinter.StringVar()
-				self.labelSetting6.set("TVHeadend network url is %s/tvh.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
-				labelSetting6 = tkinter.Label(master, textvariable=self.labelSetting6, height=2)
-				labelSetting6.grid(row=8)
-
-				self.labelSetting7 = tkinter.StringVar()
-				self.labelSetting7.set("External m3u8 url is %s/external.m3u8" % urljoin(EXT_HOST, SERVER_PATH))
-				labelSetting7 = tkinter.Label(master, textvariable=self.labelSetting7, height=2)
-				labelSetting7.grid(row=9)
-
-				self.labelSetting8 = tkinter.StringVar()
-				self.labelSetting8.set("Combined m3u8 url is %s/combined.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
-				labelSetting8 = tkinter.Label(master, textvariable=self.labelSetting8, height=2)
-				labelSetting8.grid(row=10)
-
-				self.labelSetting9 = tkinter.StringVar()
-				self.labelSetting9.set("Combined m3u8 url is %s/combined.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
-				labelSetting9 = tkinter.Label(master, textvariable=self.labelSetting9, height=2)
-				labelSetting9.grid(row=11)
-
-				self.labelSetting10 = tkinter.StringVar()
-				self.labelSetting10.set("Static m3u8 url is %s/combined.m3u8" % urljoin(SERVER_HOST, SERVER_PATH))
-				labelSetting10 = tkinter.Label(master, textvariable=self.labelSetting10, height=2)
-				labelSetting10.grid(row=12)
-
-				self.labelSetting11 = tkinter.StringVar()
-				self.labelSetting11.set("Sports EPG url is %s/sports.xml" % urljoin(SERVER_HOST, SERVER_PATH))
-				labelSetting11 = tkinter.Label(master, textvariable=self.labelSetting11, height=2)
-				labelSetting11.grid(row=6)
+				labelSetting1.grid(row=1)
 
 				self.labelFooter = tkinter.StringVar()
-				self.labelFooter.set("These can also be found later on the YAP main screen after each launch")
+				self.labelFooter.set("URLs can also be found later on the YAP main screen after each launch")
 				labelFooter = tkinter.Label(master, textvariable=self.labelFooter, height=4)
-				labelFooter.grid(row=13)
+				labelFooter.grid(row=2)
 
 				button1 = tkinter.Button(master, text="Launch YAP!!", width=20,
 										 command=lambda: self.client_exit(master))
-				button1.grid(row=14)
+				button1.grid(row=3)
 
 			button1 = tkinter.Button(master, text="Submit", width=20, command=lambda: gather())
-			button1.grid(row=15, column=2)
+			button1.grid(row=7, column=1, columnspan=3)
 
 
 
