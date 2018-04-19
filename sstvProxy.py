@@ -87,7 +87,7 @@ app = Flask(__name__, static_url_path='')
 
 __version__ = 1.7
 # Changelog
-# 1.7 - Static and dynamic xspf options added  ip:port/sstv/static.xspf or ip:port/sstv/playlist.xspf
+# 1.7 - Static and dynamic xspf options added  ip:port/sstv/static.xspf or ip:port/sstv/playlist.xspf, changed tkinter menu
 # 1.691 - Updated FOG Urls
 # 1.69 - Added more info to website, removed network discovery(isn't useful).
 # 1.68 - Updated for MyStreams changes
@@ -1993,7 +1993,7 @@ def build_kodi_playlist():
 	new_playlist = "#EXTM3U x-tvg-url='%s/epg.xml'\n" % urljoin(SERVER_HOST, SERVER_PATH)
 	for pos in range(1, len(chan_map) + 1):
 		# build channel url
-		url = "{0}/playlist.m3u8?ch={1}&strm={2}&qual={3}&client=kodi"
+		url = "{0}/playlist.m3u8?ch={1}&strm={2}&qual={3}"
 		rtmpTemplate = 'rtmp://{0}.smoothstreams.tv:3625/{1}/ch{2}q{3}.stream?wmsAuthSign={4}'
 		urlformatted = url.format(SERVER_PATH, chan_map[pos].channum, 'hls', QUAL)
 		channel_url = urljoin(SERVER_HOST, urlformatted)
@@ -2010,6 +2010,14 @@ def build_kodi_playlist():
 				chan_map[pos].channame)
 			new_playlist += '%s\n' % rtmpTemplate.format(SRVR, SITE, "{:02}".format(pos), QUAL if pos <= 60 else '1',
 														 token['hash'])
+			prog = getProgram(pos)
+			if prog.title != 'none':
+				new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s" group-title="LIVE",%s\n' % (
+					chan_map[pos].channum, chan_map[pos].channame, SERVER_HOST, SERVER_PATH, chan_map[pos].channum,
+					chan_map[pos].channum,
+					prog.title)
+				new_playlist += '%s\n' % channel_url
+
 		except:
 			logger.exception("Exception while updating kodi playlist: ")
 	new_playlist += '#EXTINF:-1 tvg-id="static_refresh" tvg-name="Static Refresh" tvg-logo="%s/%s/empty.png" channel-id="0" group-title="Static RTMP",Static Refresh\n' % (
@@ -2847,13 +2855,14 @@ if __name__ == "__main__":
 			# cannot get response from fog, resorting to fallback
 			fallback = True
 			chan_map = build_channel_map_sstv()
-		playlist = build_playlist(SERVER_HOST)
-		kodiplaylist = build_kodi_playlist()
-		tvhplaylist = build_tvh_playlist()
 		jsonGuide1 = getJSON("iptv.json", "https://iptvguide.netlify.com/iptv.json",
 		                     "https://fast-guide.smoothstreams.tv/altepg/feed1.json")
 		jsonGuide2 = getJSON("tv.json", "https://iptvguide.netlify.com/tv.json",
 		                     "https://fast-guide.smoothstreams.tv/altepg/feedall1.json")
+		playlist = build_playlist(SERVER_HOST)
+		kodiplaylist = build_kodi_playlist()
+		tvhplaylist = build_tvh_playlist()
+
 		# Download icons, runs in sep thread, takes ~1min
 		try:
 			di = threading.Thread(target=dl_icons, args=(len(chan_map),))
