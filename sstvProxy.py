@@ -2566,11 +2566,6 @@ def bridge(request_file):
 	elif request_file.lower() == 'favicon.ico':
 		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'empty.png')
 
-	# return html epg guide based off of plex live
-	elif request_file.lower().startswith('guide'):
-		epgguide()
-		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'guide.html')
-
 	# return main menu
 	elif request_file.lower().startswith('index'):
 		logger.info("Index was requested by %s", request.environ.get('REMOTE_ADDR'))
@@ -2703,10 +2698,10 @@ def bridge(request_file):
 				# some players are having issues with http/https redirects
 				logger.debug("returning hls url redirect")
 				return redirect(ss_url, code=302)
-			elif returntype == 2:
+			elif returntype == 2 or client == 'vlc':
 				logger.debug("returning m3u8 as file")
 				return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'playlist.m3u8')
-			elif returntype == 4 or client == 'vlc':
+			elif returntype == 4:
 				logger.debug("returning hls url")
 				return hlsurl
 			else:
