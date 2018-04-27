@@ -188,24 +188,50 @@ class programinfo:
 	def set_title(self, title):
 		self._title = title
 		if len(self._category) == 0 or self._category == "TVShows":
-			if title.startswith("NHL") or title.lower().find("hockey"):
+			if title.startswith("NHL") or "hockey" in title.lower():
 				self._category = "Ice Hockey"
 			elif title.startswith("UEFA") or title.startswith("EPL") or title.startswith(
 					"Premier League") or title.startswith("La Liga") or title.startswith("Bundesliga") or title.startswith(
-					"Serie A") or title.lower().find("soccer"):
+					"Serie A") or "soccer" in title.lower():
 				self._category = "World Football"
-			elif title.startswith("MLB") or title.lower().find("baseball"):
+			elif title.startswith("MLB") or "baseball" in title.lower():
 				self._category = "Baseball"
-			elif title.startswith("MMA") or title.startswith("UFC") or title.lower().find("boxing"):
+			elif title.startswith("MMA") or title.startswith("UFC") or "boxing" in title.lower():
 				self._category = "Boxing + MMA"
 			elif title.startswith("NCAAF") or title.startswith("CFB"):
 				self._category = "NCAAF"
-			elif title.startswith("ATP") or title.lower().find("tennis"):
+			elif title.startswith("ATP") or "tennis" in title.lower():
 				self._category = "Tennis"
 			elif title.startswith("WWE"):
 				self._category = "Wrestling"
 			elif title.startswith("NFL") or title.startswith("NBA"):
 				self._category = title.split(" ")[0].replace(":", "").strip()
+			elif 'nba' in title.lower() or 'nbl' in title.lower() or 'ncaam' in title.lower()or 'basketball' in title.lower():
+				self._category = "Basketball"
+			elif 'nfl' in title.lower() or 'football' in title.lower() or 'american football' in title.lower() or 'ncaaf' in title.lower() or 'cfb' in title.lower():
+				self._category = "Football"
+			elif 'EPL' in title or 'efl' in title.lower() or 'soccer' in title.lower() or 'ucl' in title.lower() or 'mls' in title.lower() or 'uefa' in title.lower() or 'fifa' in title.lower() or 'fc' in title.lower() or 'la liga' in title.lower() or 'serie a' in title.lower() or 'wcq' in title.lower():
+				self._category = "Soccer"
+			elif 'rugby' in title.lower() or 'nrl' in title.lower() or 'afl' in title.lower():
+				self._category = "Rugby"
+			elif 'cricket' in title.lower() or 't20' in title.lower():
+				self._category = "Cricket"
+			elif 'tennis' in title.lower() or 'squash' in title.lower() or 'atp' in title.lower():
+				self._category = "Tennis/Squash"
+			elif 'f1' in title.lower() or 'nascar' in title.lower() or 'motogp' in title.lower() or 'racing' in title.lower():
+				self._category = "Motor Sport"
+			elif 'golf' in title.lower() or 'pga' in title.lower():
+				self._category = "Golf"
+			elif 'boxing' in title.lower() or 'mma' in title.lower() or 'ufc' in title.lower() or 'wrestling' in title.lower() or 'wwe' in title.lower():
+				self._category = "Martial Sports"
+			elif 'hockey' in title.lower() or 'nhl' in title.lower() or 'ice hockey' in title.lower():
+				self._category = "Ice Hockey"
+			elif 'baseball' in title.lower() or 'mlb' in title.lower() or 'beisbol' in title.lower() or 'minor league' in title.lower():
+				self._category = "Baseball"
+			elif 'news' in title.lower():
+				self._category = "News"
+
+			print(title,",", self._category)
 
 
 	title = property(get_title, set_title)
