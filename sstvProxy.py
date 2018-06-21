@@ -85,8 +85,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.7
+__version__ = 1.71
 # Changelog
+# 1.71 - Channel parsing catch added for missing channels
 # 1.7 - Static and dynamic xspf options added  ip:port/sstv/static.xspf or ip:port/sstv/playlist.xspf, changed tkinter menu
 # 1.691 - Updated FOG Urls
 # 1.69 - Added more info to website, removed network discovery(isn't useful).
@@ -231,7 +232,7 @@ class programinfo:
 			elif 'news' in title.lower():
 				self._category = "News"
 
-			print(title,",", self._category)
+			# print(title,",", self._category)
 
 
 	title = property(get_title, set_title)
@@ -1292,7 +1293,7 @@ def dl_sstv_epg():
 		cur_utc_hr = datetime.utcnow().replace(microsecond=0, second=0, minute=0).hour
 		target_utc_hr = (cur_utc_hr // 3) * 3
 		target_utc_datetime = datetime.utcnow().replace(microsecond=0, second=0, minute=0, hour=target_utc_hr)
-		print("utc time is: %s,    utc target time is: %s,    file time is: %s" % (
+		logger.debug("utc time is: %s,    utc target time is: %s,    file time is: %s" % (
 		datetime.utcnow(), target_utc_datetime, datetime.utcfromtimestamp(os.stat(existing).st_mtime)))
 		if os.path.isfile(existing) and os.stat(existing).st_mtime > target_utc_datetime.timestamp():
 			logger.debug("Skipping download of epg")
@@ -1565,19 +1566,19 @@ def build_playlist(host):
 	# build playlist using the data we have
 	new_playlist = "#EXTM3U x-tvg-url='%s/epg.xml'\n" % urljoin(host, SERVER_PATH)
 	for pos in range(1, len(chan_map) + 1):
-
-		# build channel url
-		url = "{0}/playlist.m3u8?ch={1}&strm={2}&qual={3}"
-		vaders_url = "http://vaders.tv/live/{0}/{1}/{2}.{3}"
-
-		if SITE == 'vaders':
-			strm = 'ts' if STRM == 'mpegts' else 'm3u8'
-			channel_url = vaders_url.format('vsmystreams_' + USER,PASS, vaders_channels[str(pos)], strm)
-		else:
-			urlformatted = url.format(SERVER_PATH, chan_map[pos].channum, STRM, QUAL)
-			channel_url = urljoin(host, urlformatted)
-		# build playlist entry
 		try:
+			# build channel url
+			url = "{0}/playlist.m3u8?ch={1}&strm={2}&qual={3}"
+			vaders_url = "http://vaders.tv/live/{0}/{1}/{2}.{3}"
+
+			if SITE == 'vaders':
+				strm = 'ts' if STRM == 'mpegts' else 'm3u8'
+				channel_url = vaders_url.format('vsmystreams_' + USER,PASS, vaders_channels[str(pos)], strm)
+			else:
+				urlformatted = url.format(SERVER_PATH, chan_map[pos].channum, STRM, QUAL)
+				channel_url = urljoin(host, urlformatted)
+			# build playlist entry
+
 			new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s",%s\n' % (
 				chan_map[pos].channum, chan_map[pos].channame, host, SERVER_PATH, chan_map[pos].channum,
 				chan_map[pos].channum,
@@ -1585,7 +1586,7 @@ def build_playlist(host):
 			new_playlist += '%s\n' % channel_url
 
 		except:
-			logger.exception("Exception while updating playlist: ")
+			logger.exception("Channel #%s failed. Channel missing from Fog's channels.json" % pos)
 	logger.info("Built Dynamic playlist")
 
 	return new_playlist
@@ -1835,12 +1836,12 @@ def build_tvh_playlist():
 	# build playlist using the data we have
 	new_playlist = "#EXTM3U\n"
 	for pos in range(1, len(chan_map) + 1):
-		# build channel url
-		template = "{0}/{1}/auto/v{2}"
-		channel_url = template.format(SERVER_HOST, SERVER_PATH, chan_map[pos].channum)
-		name = str(pos) + " " + chan_map[pos].channame
-		# build playlist entry
 		try:
+			# build channel url
+			template = "{0}/{1}/auto/v{2}"
+			channel_url = template.format(SERVER_HOST, SERVER_PATH, chan_map[pos].channum)
+			name = str(pos) + " " + chan_map[pos].channame
+			# build playlist entry
 			new_playlist += '#EXTINF:-1 tvg-id="%s" tvh-chnum="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s",%s\n' % (
 				chan_map[pos].channum, chan_map[pos].channum, name, SERVER_HOST, SERVER_PATH, chan_map[pos].channum,
 				chan_map[pos].channum,
@@ -2018,13 +2019,16 @@ def build_kodi_playlist():
 	# build playlist using the data we have
 	new_playlist = "#EXTM3U x-tvg-url='%s/epg.xml'\n" % urljoin(SERVER_HOST, SERVER_PATH)
 	for pos in range(1, len(chan_map) + 1):
-		# build channel url
-		url = "{0}/playlist.m3u8?ch={1}&strm={2}&qual={3}"
-		rtmpTemplate = 'rtmp://{0}.smoothstreams.tv:3625/{1}/ch{2}q{3}.stream?wmsAuthSign={4}'
-		urlformatted = url.format(SERVER_PATH, chan_map[pos].channum, 'hls', QUAL)
-		channel_url = urljoin(SERVER_HOST, urlformatted)
-		# build playlist entry
+
 		try:
+			# build channel url
+			url = "{0}/playlist.m3u8?ch={1}&strm={2}&qual={3}"
+			rtmpTemplate = 'rtmp://{0}.smoothstreams.tv:3625/{1}/ch{2}q{3}.stream?wmsAuthSign={4}'
+
+			urlformatted = url.format(SERVER_PATH, chan_map[pos].channum, 'hls', QUAL)
+
+			channel_url = urljoin(SERVER_HOST, urlformatted)
+			# build playlist entry
 			new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s" group-title="Dynamic",%s\n' % (
 				chan_map[pos].channum, chan_map[pos].channame, SERVER_HOST, SERVER_PATH, chan_map[pos].channum,
 				chan_map[pos].channum,
@@ -2045,7 +2049,7 @@ def build_kodi_playlist():
 				new_playlist += '%s\n' % channel_url
 
 		except:
-			logger.exception("Exception while updating kodi playlist: ")
+			logger.exception("Exception while updating kodi playlist on channel #%s." % pos)
 	new_playlist += '#EXTINF:-1 tvg-id="static_refresh" tvg-name="Static Refresh" tvg-logo="%s/%s/empty.png" channel-id="0" group-title="Static RTMP",Static Refresh\n' % (
 		SERVER_HOST, SERVER_PATH)
 	new_playlist += '%s/%s/refresh.m3u8\n' % (SERVER_HOST, SERVER_PATH)
