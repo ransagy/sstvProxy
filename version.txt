@@ -1,1 +1,1 @@
-{"Version": "1.71", "Date": "22 JUN 2018"}
+{"Version": "1.72", "Date": "10 JUL 2018"}

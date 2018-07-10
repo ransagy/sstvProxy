@@ -63,6 +63,7 @@ import socket
 import struct
 import ntpath
 import requests as req
+import re
 from xml.sax.saxutils import escape
 HEADLESS = False
 try:
@@ -85,8 +86,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.71
+__version__ = 1.72
 # Changelog
+# 1.72 - Auto server selection based off of ping
 # 1.71 - Channel parsing catch added for missing channels
 # 1.7 - Static and dynamic xspf options added  ip:port/sstv/static.xspf or ip:port/sstv/playlist.xspf, changed tkinter menu
 # 1.691 - Updated FOG Urls
@@ -334,6 +336,8 @@ USER = ""
 PASS = ""
 SITE = "viewstvn"
 SRVR = "dnaw2"
+SRVR_SPARE = "dnaw2"
+AUTO_SERVER = False
 STRM = "hls"
 QUAL = "1"
 LISTEN_IP = "127.0.0.1"
@@ -508,6 +512,8 @@ def load_settings():
 				PASS = config["password"]
 			if "server" in config:
 				SRVR = config["server"]
+			if "server_spare" in config:
+				SRVR_SPARE = config["server_spare"]
 			if "service" in config:
 				SITE = config["service"]
 				if SITE == "mmatv":
@@ -536,7 +542,13 @@ def load_settings():
 			print("Type the number of the item you wish to select:")
 			for i in serverList:
 				print(serverList.index(i), serverList[serverList.index(i)][0])
-			config["server"] = serverList[int(input("Regional Server name?"))][1]
+			result = input("Regional Server name? (oy type 'auto')")
+			if result.lower() == 'auto':
+				testServers()
+				config["server"] = SRVR
+				config["server_spare"] = SRVR_SPARE
+			else:
+				config["server"] = serverList[int(result)][1]
 			os.system('cls' if os.name == 'nt' else 'clear')
 			print("Type the number of the item you wish to select:")
 			for i in providerList:
@@ -870,7 +882,7 @@ if not HEADLESS:
 			tkinter.Label(self.title_frame, text=text).pack(side="left", fill="x", expand=1)
 
 			self.toggle_button = tkinter.Checkbutton(self.title_frame, width=2, text='+', command=self.toggle,
-			                                         variable=self.show)
+													 variable=self.show)
 			self.toggle_button.pack(side="left")
 
 			self.sub_frame = tkinter.Frame(self, relief="sunken", borderwidth=1)
@@ -1181,6 +1193,74 @@ def find_client(useragent):
 		return 'unk'
 
 
+def averageList(lst):
+	logger.debug(repr(lst))
+	avg_ping = 0
+	avg_ping_cnt = 0
+	for p in lst:
+		try:
+			avg_ping += float(p)
+			avg_ping_cnt += 1
+		except:
+			logger.debug("Couldn't convert %s to float" % repr(p))
+	return avg_ping / avg_ping_cnt
+
+def testServers(update_settings=True):
+	# todo
+	global SRVR, SRVR_SPARE, AUTO_SERVER
+	service = SRVR
+
+	res = None
+	res_host = None
+	res_spare = None
+	res_spare_host = None
+	ping = False
+
+	# with util.xbmcDialogProgress('Testing servers...') as prog:
+	for name, host in serverList:
+		if 'mix' in name.lower():
+			continue
+		logger.info('Testing servers... %s' % name)
+		ping_results = False
+		try:
+			host = host + ".SmoothStreams.tv"
+			if platform.system() == 'Windows':
+				p = subprocess.Popen(["ping", "-n", "4", host], stdout=subprocess.PIPE,
+									 stderr=subprocess.PIPE, shell=True)
+			else:
+				p = subprocess.Popen(["ping", "-c", "4", host], stdout=subprocess.PIPE,
+									 stderr=subprocess.PIPE)
+
+			ping_results = re.compile("time=(.*?)ms").findall(str(p.communicate()[0]))
+		except:
+			logger.info("Platform doesn't support ping. Disable auto server selection")
+			AUTO_SERVER = False
+			return None
+
+		if ping_results:
+			logger.debug("Server %s - %s: n%s" % (name, host, repr(ping_results)))
+			avg_ping = averageList(ping_results)
+			if avg_ping != 0:
+				if avg_ping < ping or not ping:
+					res_spare = res
+					res_spare_host = res_host
+					res = name
+					res_host = host
+					ping = avg_ping
+					if update_settings:
+						logger.info("Updating settings")
+						SRVR = str(host)
+						SRVR_SPARE = str(res_spare_host)
+			else:
+				logger.info("Couldn't get ping")
+
+	if res != None:
+		logger.info('Done Server with lowest ping ({0}) set to:%s'.format(ping) % res)
+		AUTO_SERVER = False
+	if res_spare != None:
+		logger.info('Backup Server with second lowest ping set to:%s' % res_spare)
+	logger.info("Done %s: %s" % (res, ping))
+	return res
 ############################################################
 # EPG
 ############################################################
@@ -2881,9 +2961,9 @@ if __name__ == "__main__":
 			fallback = True
 			chan_map = build_channel_map_sstv()
 		jsonGuide1 = getJSON("iptv.json", "https://iptvguide.netlify.com/iptv.json",
-		                     "https://fast-guide.smoothstreams.tv/altepg/feed1.json")
+							 "https://fast-guide.smoothstreams.tv/altepg/feed1.json")
 		jsonGuide2 = getJSON("tv.json", "https://iptvguide.netlify.com/tv.json",
-		                     "https://fast-guide.smoothstreams.tv/altepg/feedall1.json")
+							 "https://fast-guide.smoothstreams.tv/altepg/feedall1.json")
 		playlist = build_playlist(SERVER_HOST)
 		kodiplaylist = build_kodi_playlist()
 		tvhplaylist = build_tvh_playlist()
@@ -2902,7 +2982,7 @@ if __name__ == "__main__":
 		thread.start_new_thread(thread_playlist, ())
 	except:
 		_thread.start_new_thread(thread_playlist, ())
-
+	if AUTO_SERVER: testServers()
 	print("\n\n##############################################################")
 	print("Main Menu - %s/index.html" % urljoin(SERVER_HOST, SERVER_PATH))
 	print("Contains all the information located here and more!")
