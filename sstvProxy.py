@@ -338,6 +338,7 @@ SITE = "viewstvn"
 SRVR = "dnaw2"
 SRVR_SPARE = "dnaw2"
 AUTO_SERVER = False
+CHECK_CHANNEL = True
 STRM = "hls"
 QUAL = "1"
 LISTEN_IP = "127.0.0.1"
@@ -1223,12 +1224,13 @@ def testServers(update_settings=True):
 		logger.info('Testing servers... %s' % name)
 		ping_results = False
 		try:
-			host = host + ".SmoothStreams.tv"
+			url = host + ".SmoothStreams.tv"
+			logger.info('Testing url %s' % url)
 			if platform.system() == 'Windows':
-				p = subprocess.Popen(["ping", "-n", "4", host], stdout=subprocess.PIPE,
+				p = subprocess.Popen(["ping", "-n", "4", url], stdout=subprocess.PIPE,
 									 stderr=subprocess.PIPE, shell=True)
 			else:
-				p = subprocess.Popen(["ping", "-c", "4", host], stdout=subprocess.PIPE,
+				p = subprocess.Popen(["ping", "-c", "4", url], stdout=subprocess.PIPE,
 									 stderr=subprocess.PIPE)
 
 			ping_results = re.compile("time=(.*?)ms").findall(str(p.communicate()[0]))
@@ -1261,6 +1263,51 @@ def testServers(update_settings=True):
 		logger.info('Backup Server with second lowest ping set to:%s' % res_spare)
 	logger.info("Done %s: %s" % (res, ping))
 	return res
+
+def findChannelURL(input_url=None, qual='1'):
+	global SRVR
+	service = SRVR
+	qlist = [qual, '1', '2', '3']
+	res = None
+	ping = False
+	for q in range(len(qlist)):
+		if q != 0 and qlist[q] == qual:
+			continue
+		for name, host in serverList:
+			if 'mix' in name.lower():
+				continue
+			ping_results = False
+			try:
+				url = input_url.replace('SRVR', host).replace('QUAL', qlist[q])
+
+				logger.debug('Testing url %s' % url)
+				if platform.system() == 'Windows':
+					p = subprocess.Popen(["ping", "-n", "4", url], stdout=subprocess.PIPE,
+										 stderr=subprocess.PIPE, shell=True)
+				else:
+					p = subprocess.Popen(["ping", "-c", "4", url], stdout=subprocess.PIPE,
+										 stderr=subprocess.PIPE)
+
+				ping_results = re.compile("time=(.*?)ms").findall(str(p.communicate()[0]))
+			except:
+				logger.info("Platform doesn't support ping. Disable auto server selection")
+				return None
+
+			if ping_results:
+				logger.debug("Server %s - %s: n%s" % (name, host, repr(ping_results)))
+				avg_ping = averageList(ping_results)
+				if avg_ping != 0:
+					if avg_ping < ping or not ping:
+						res = url
+						ping = avg_ping
+				else:
+					logger.info("Couldn't get ping")
+
+	if res != None:
+		logger.info('Done Server with lowest ping ({0}) set to:%s'.format(ping) % res)
+		return res
+	logger.info("Failed to find that channel on any quality or server")
+	return input_url
 ############################################################
 # EPG
 ############################################################
@@ -1812,7 +1859,7 @@ def create_channel_playlist(sanitized_channel, qual, strm, hash):
 	hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}=='
 	hls_url = hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, hash)
 	rtmp_url = rtmpTemplate.format(SRVR, SITE, sanitized_channel, qual, hash)
-	file = requests.urlopen(hls_url).read().decode("utf-8")
+	file = requests.urlopen(hls_url, timeout=2).read().decode("utf-8")
 	if not os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'playlist.m3u8')):
 		f = open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'playlist.m3u8'), 'w')
 		f.close()
@@ -1830,6 +1877,33 @@ def create_channel_playlist(sanitized_channel, qual, strm, hash):
 		# with open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'playlist.m3u8'), 'r+') as f:
 		#    f.write(file)
 		return rtmp_url
+
+def checkChannelURL(url):
+	try:
+		code = requests.urlopen(url, timeout=2).getcode()
+		return True
+	except timeout:
+		logger.debug("Timeout on url %s" % url)
+		return False
+	except:
+		logger.debug("Exception on url %s" % url)
+		return False
+
+def fixURL(strm, ch, qual, hash):
+	template = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}q{5}.stream{6}?wmsAuthSign{7}'
+	urlformatted = template.format('https' if strm == 'hls' else 'rtmp', 'SRVR', '443' if strm == 'hls' else '3625', SITE, "{:02}".format(int(ch)), 'QUAL', '/playlist.m3u8' if strm == 'hls' else '', hash)
+	# Check spare
+	if checkChannelURL(urlformatted.replace('SRVR',SRVR_SPARE).replace('QUAL',qual)):
+		return urlformatted.replace('SRVR',SRVR_SPARE).replace('QUAL',qual)
+	else:
+		# Check other qualities
+		for q in range(1,4):
+			if checkChannelURL(urlformatted.replace('SRVR', SRVR).replace('QUAL', str(q))):
+				return urlformatted.replace('SRVR', SRVR).replace('QUAL', str(q))
+			elif checkChannelURL(urlformatted.replace('SRVR', SRVR_SPARE).replace('QUAL', str(q))):
+				return urlformatted.replace('SRVR', SRVR_SPARE).replace('QUAL', str(q))
+		# oh boy we're in trouble now
+		return findChannelURL(input_url=urlformatted, qual=qual)
 
 
 ############################################################
@@ -2773,28 +2847,31 @@ def bridge(request_file):
 			if request.args.get('strm') and request.args.get('strm') == 'rtmp':
 				strm = 'rtmp'
 				rtmpTemplate = 'rtmp://{0}.smoothstreams.tv:3625/{1}/ch{2}q{3}.stream?wmsAuthSign={4}'
-				ss_url = rtmpTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
+				pure_url = rtmpTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
+				output_url = rtmpTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
 			elif request.args.get('strm') and request.args.get('strm') == 'mpegts':
 				strm = 'mpegts'
 				return auto(sanitized_channel, qual)
 			else:
 				strm = 'hls'
 				hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}=='
-				hlsurl = hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
+				pure_url = hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
+
 				try:
-					ss_url = create_channel_playlist(sanitized_channel, qual, strm, token[
+					output_url = create_channel_playlist(sanitized_channel, qual, strm, token[
 					'hash'])  # hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
 				except:
-					ss_url = hlsurl
-
-			response = redirect(ss_url, code=302)
+					output_url = pure_url
+			if CHECK_CHANNEL and not checkChannelURL(pure_url):
+				output_url = fixURL(strm, sanitized_channel, qual, token['hash'])
+			response = redirect(output_url, code=302)
 			headers = dict(response.headers)
 			headers.update({'Content-Type': 'application/x-mpegURL', "Access-Control-Allow-Origin": "*"})
 			response.headers = headers
 			logger.info("Channel %s playlist was requested by %s", sanitized_channel,
 						request.environ.get('REMOTE_ADDR'))
 			# useful for debugging
-			logger.debug("URL returned: %s" % ss_url)
+			logger.debug("URL returned: %s" % output_url)
 			if request.args.get('type'):
 				returntype = request.args.get('type')
 			else:
@@ -2813,7 +2890,7 @@ def bridge(request_file):
 				return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'playlist.m3u8')
 			elif returntype == 4:
 				logger.debug("returning hls url")
-				return hlsurl
+				return pure_url
 			else:
 				# some players are having issues with http/https redirects
 				logger.debug("returning m3u8 as variable")
