@@ -543,13 +543,16 @@ def load_settings():
 			print("Type the number of the item you wish to select:")
 			for i in serverList:
 				print(serverList.index(i), serverList[serverList.index(i)][0])
-			result = input("Regional Server name? (oy type 'auto')")
+			result = input("Regional Server name? (or type 'auto')")
 			if result.lower() == 'auto':
 				testServers()
 				config["server"] = SRVR
 				config["server_spare"] = SRVR_SPARE
 			else:
 				config["server"] = serverList[int(result)][1]
+				os.system('cls' if os.name == 'nt' else 'clear')
+				result = input("Backup Regional Server name?")
+				config["server_spare"] = serverList[int(result)][1]
 			os.system('cls' if os.name == 'nt' else 'clear')
 			print("Type the number of the item you wish to select:")
 			for i in providerList:
