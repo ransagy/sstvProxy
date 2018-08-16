@@ -61,7 +61,7 @@ import array
 from io import StringIO
 import socket
 import struct
-import ntpath
+import ntpath, timeit
 import requests as req
 import re
 from xml.sax.saxutils import escape
@@ -86,8 +86,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.72
+__version__ = 1.73
 # Changelog
+# 1.73 - HTML write exception fixed for settigns page, Vaders update
 # 1.72 - Auto server selection based off of ping
 # 1.71 - Channel parsing catch added for missing channels
 # 1.7 - Static and dynamic xspf options added  ip:port/sstv/static.xspf or ip:port/sstv/playlist.xspf, changed tkinter menu
@@ -1595,6 +1596,8 @@ def getJSON(sFile, sURL, sURL2):
 
 def get_auth_token(user, passwd, site):
 	if site == 'vaders':
+		baseUrl = "http://vapi.vaders.tv/vod/user?"
+		# will return userinfo but not hash, hash is just user+pass hashed together, refer playlist generation
 		return
 	elif site == 'viewmmasr' or site == 'mmatv':
 		baseUrl = 'https://www.mma-tv.net/loginForm.php?'
@@ -1606,6 +1609,7 @@ def get_auth_token(user, passwd, site):
 		"password": passwd,
 		"site": site
 	}
+
 	session = req.Session()
 	url = baseUrl + urllib.parse.urlencode(params)
 	try:
@@ -1699,11 +1703,15 @@ def build_playlist(host):
 		try:
 			# build channel url
 			url = "{0}/playlist.m3u8?ch={1}&strm={2}&qual={3}"
-			vaders_url = "http://vaders.tv/live/{0}/{1}/{2}.{3}"
+			vaders_url = "http://vapi.vaders.tv/play/{0}.{1}?"
 
 			if SITE == 'vaders':
-				strm = 'ts' if STRM == 'mpegts' else 'm3u8'
-				channel_url = vaders_url.format('vsmystreams_' + USER,PASS, vaders_channels[str(pos)], strm)
+				tokenDict = {"username": "vsmystreams_" + USER, "password": PASS}
+				jsonToken = json.dumps(tokenDict)
+				tokens = base64.b64encode(jsonToken.encode('utf-8'))
+				strm = 'ts'  if STRM == 'mpegts' else 'm3u8'
+				tokens = urllib.parse.urlencode({"token": str(tokens)[1:]})
+				channel_url = vaders_url.format(vaders_channels[str(pos)], strm) + tokens
 			else:
 				urlformatted = url.format(SERVER_PATH, chan_map[pos].channum, STRM, QUAL)
 				channel_url = urljoin(host, urlformatted)
@@ -1757,11 +1765,15 @@ def build_xspf(host, request_file):
 
 		program = getProgram(pos)
 		url = "{0}/playlist.m3u8?ch={1}"
-		vaders_url = "http://vaders.tv/live/{0}/{1}/{2}.{3}"
+		vaders_url = "http://vapi.vaders.tv/play/{0}.{1}?"
 		quality = '720p' if QUAL == '1' or pos > 60 else '540p' if QUAL == '2' else '360p'
 		if SITE == 'vaders':
-			strm = 'ts' if STRM == 'mpegts' else 'm3u8'
-			channel_url = vaders_url.format('vsmystreams_' + USER,PASS, vaders_channels[str(pos)], strm)
+			tokenDict = {"username": "vsmystreams_" + USER, "password": PASS}
+			jsonToken = json.dumps(tokenDict)
+			tokens = base64.b64encode(jsonToken.encode('utf-8'))
+			strm = 'ts'  if STRM == 'mpegts' else 'm3u8'
+			tokens = urllib.parse.urlencode({"token": str(tokens)[1:]})
+			channel_url = vaders_url.format(vaders_channels[str(pos)], strm) + tokens
 		else:
 			urlformatted = url.format(SERVER_PATH, chan_map[pos].channum)
 			template = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}q{5}.stream{6}?wmsAuthSign={7}'
@@ -2426,7 +2438,10 @@ def create_menu():
 		for i in chan_map:
 			prog = getProgram(i)
 			if prog.title != 'none':
-				html.write(template.format(chan_map[i].channum, prog.title, SERVER_HOST, SERVER_PATH))
+				try:
+					html.write(template.format(chan_map[i].channum, prog.title.encode('utf-8'), SERVER_HOST, SERVER_PATH))
+				except:
+					logger.exception(prog.title)
 		html.write("</div></section>")
 		html.write("</body></html>\n")
 
@@ -2837,9 +2852,22 @@ def bridge(request_file):
 			if SITE == 'vaders':
 				logger.info("Channel %s playlist was requested by %s", sanitized_channel,
 							request.environ.get('REMOTE_ADDR'))
-				vaders_url = "http://vaders.tv/live/{0}/{1}/{2}.{3}"
+				vaders_url = "http://vapi.vaders.tv/play/{0}.{1}?"
+				tokenDict = {"username": "vsmystreams_" + USER, "password": PASS}
+
+				jsonToken = json.dumps(tokenDict)
+				tokens = base64.b64encode(jsonToken.encode('utf-8'))
 				strm = 'ts' if STRM == 'mpegts' else 'm3u8'
-				channel_url = vaders_url.format('vsmystreams_' + USER, PASS, vaders_channels[chan], strm)
+				if request.args.get('strm'):
+					strm = request.args.get('strm')
+				tokens = urllib.parse.urlencode({"token":str(tokens)[1:]})
+
+				if int(chan) > 150:
+					channel = chan
+				else:
+					channel = vaders_channels[chan]
+				channel_url = vaders_url.format(channel, strm) + tokens
+				print(channel_url)
 				return redirect(channel_url, code=302)
 
 			qual = 1
