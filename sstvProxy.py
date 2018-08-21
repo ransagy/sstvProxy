@@ -86,8 +86,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.73
+__version__ = 1.731
 # Changelog
+# 1.731 - Correction of channel return type that had been removed
 # 1.73 - HTML write exception fixed for settigns page, Vaders update
 # 1.72 - Auto server selection based off of ping
 # 1.71 - Channel parsing catch added for missing channels
@@ -2925,7 +2926,7 @@ def bridge(request_file):
 			else:
 				# some players are having issues with http/https redirects
 				logger.debug("returning m3u8 as variable")
-				return ss_url
+				return output_url
 
 		# returning dynamic playlist
 		else:
