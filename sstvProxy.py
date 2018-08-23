@@ -86,8 +86,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.731
+__version__ = 1.8
 # Changelog
+# 1.8 - Added .gz support for EXTRA XML file/url.
 # 1.731 - Correction of channel return type that had been removed
 # 1.73 - HTML write exception fixed for settigns page, Vaders update
 # 1.72 - Auto server selection based off of ping
@@ -1960,9 +1961,8 @@ def obtain_m3u8():
 			except:
 				logger.debug("skipped:", inputm3u8[i])
 	return formatted_m3u8
+def obtain_epg():
 
-
-def xmltv_merger():
 	if os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'combined.xml')):
 		existing = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'combined.xml')
 		cur_utc_hr = datetime.utcnow().replace(microsecond=0, second=0, minute=0).hour
@@ -1973,28 +1973,58 @@ def xmltv_merger():
 		if os.path.isfile(existing) and os.stat(existing).st_mtime > target_utc_datetime.timestamp():
 			logger.debug("Skipping download of epg")
 			return
-	requests.urlretrieve(EXTXMLURL, os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'extra.xml'))
-	xml_files = ['./cache/epg.xml', './cache/extra.xml']
-	master = ET.Element('tv')
-	mtree = ET.ElementTree(master)
-	mroot = mtree.getroot()
-	for file in xml_files:
-		tree = ET.parse(file)
-		for channel in tree.iter('channel'):
-			mroot.append(channel)
-	for file in xml_files:
-		tree = ET.parse(file)
-		for programme in tree.iter('programme'):
-			mroot.append(programme)
-		# if xml_element_tree is not None:
-		# 	print(ET.tostring(xml_element_tree))
-	mtree.write(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'combined.xml'))
-	with open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'combined.xml'), 'r+') as f:
+	#clear epg file
+	f = open('./cache/combined.xml','w')
+	f.write('<?xml version="1.0" encoding="UTF-8"?>'.rstrip('\r\n'))
+	f.write('''<tv></tv>''')
+	f.close()
+	list_of_xmltv = [EXTXMLURL]
+	for i in list_of_xmltv:
+		if i != '' and i != 'www.testurl.com/epg.xml':
+			xmltv_merger(i)
+
+
+def xmltv_merger(xml_url):
+	# todo download each xmltv
+	response = req.get(xml_url)
+	if response.history:
+		logger.debug("Request was redirected")
+		for resp in response.history:
+			logger.debug("%s %s" % (resp.status_code, resp.url))
+		logger.debug("Final destination: %s %s" % (response.status_code, response.url))
+		xml_url = response.url
+	else:
+		logger.debug("Request was not redirected")
+	if xml_url.endswith('.gz'):
+		requests.urlretrieve(xml_url, './cache/raw.xml.gz')
+		opened = gzip.open('./cache/raw.xml.gz')
+	else:
+		requests.urlretrieve(xml_url, './cache/raw.xml')
+		opened = open('./cache/raw.xml', encoding="UTF-8")
+
+	tree = ET.parse('./cache/epg.xml')
+	treeroot = tree.getroot()
+
+	try:
+		source = ET.parse(opened)
+	except:
+		# Try file as gzip instead
+		requests.urlretrieve(xml_url, './cache/raw.xml.gz')
+		opened = gzip.open('./cache/raw.xml.gz')
+		source = ET.parse(opened)
+
+	for channel in source.iter('channel'):
+		treeroot.append(channel)
+
+	for programme in source.iter('programme'):
+		treeroot.append(programme)
+
+	tree.write('./cache/combined.xml')
+	with open('./cache/combined.xml', 'r+') as f:
 		content = f.read()
 		f.seek(0, 0)
 		f.write('<?xml version="1.0" encoding="UTF-8"?>'.rstrip('\r\n') + content)
 	return
-
 
 ############################################################
 # TVHeadend
@@ -2755,7 +2785,7 @@ def bridge(request_file):
 		else:
 			logger.exception("Combined EPG build, EPG download failed. Trying SSTV.")
 			dl_epg(2)
-		xmltv_merger()
+		obtain_epg()
 		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'combined.xml')
 
 	# return icons
