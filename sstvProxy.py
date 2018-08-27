@@ -86,8 +86,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.8
+__version__ = 1.81
 # Changelog
+# 1.81 - Improvement to Series Category detection.
 # 1.8 - Added .gz support for EXTRA XML file/url.
 # 1.731 - Correction of channel return type that had been removed
 # 1.73 - HTML write exception fixed for settigns page, Vaders update
@@ -1332,7 +1333,7 @@ def dl_epg(source=1):
 		datetime.utcnow(), target_utc_datetime, datetime.utcfromtimestamp(os.stat(existing).st_mtime)))
 		if os.path.isfile(existing) and os.stat(existing).st_mtime > target_utc_datetime.timestamp():
 			logger.debug("Skipping download of epg")
-			return
+			# return
 	to_process = []
 	if source == 1:
 		logger.info("Downloading epg")
@@ -1380,29 +1381,35 @@ def dl_epg(source=1):
 				if process[2] == 'sstv':
 					ET.SubElement(a, 'category')
 				c = a.find('category')
-				c.text = "Sports"
-				if 'nba' in b.text.lower() or 'nba' in b.text.lower() or 'ncaam' in b.text.lower():
-					c.text = "Basketball"
-				elif 'nfl' in b.text.lower() or 'football' in b.text.lower() or 'american football' in b.text.lower() or 'ncaaf' in b.text.lower() or 'cfb' in b.text.lower():
-					c.text = "Football"
-				elif 'epl' in b.text.lower() or 'efl' in b.text.lower() or 'soccer' in b.text.lower() or 'ucl' in b.text.lower() or 'mls' in b.text.lower() or 'uefa' in b.text.lower() or 'fifa' in b.text.lower() or 'fc' in b.text.lower() or 'la liga' in b.text.lower() or 'serie a' in b.text.lower() or 'wcq' in b.text.lower():
-					c.text = "Soccer"
-				elif 'rugby' in b.text.lower() or 'nrl' in b.text.lower() or 'afl' in b.text.lower():
-					c.text = "Rugby"
-				elif 'cricket' in b.text.lower() or 't20' in b.text.lower():
-					c.text = "Cricket"
-				elif 'tennis' in b.text.lower() or 'squash' in b.text.lower() or 'atp' in b.text.lower():
-					c.text = "Tennis/Squash"
-				elif 'f1' in b.text.lower() or 'nascar' in b.text.lower() or 'motogp' in b.text.lower() or 'racing' in b.text.lower():
-					c.text = "Motor Sport"
-				elif 'golf' in b.text.lower() or 'pga' in b.text.lower():
-					c.text = "Golf"
-				elif 'boxing' in b.text.lower() or 'mma' in b.text.lower() or 'ufc' in b.text.lower() or 'wrestling' in b.text.lower() or 'wwe' in b.text.lower():
-					c.text = "Martial Sports"
-				elif 'hockey' in b.text.lower() or 'nhl' in b.text.lower() or 'ice hockey' in b.text.lower():
-					c.text = "Ice Hockey"
-				elif 'baseball' in b.text.lower() or 'mlb' in b.text.lower() or 'beisbol' in b.text.lower() or 'minor league' in b.text.lower():
-					c.text = "Baseball"
+				ep_num = a.find('episode-num')
+				if ep_num is not None:
+					c.text = "Series"
+				else:
+					c.text = "Sports"
+					if 'nba' in b.text.lower() or 'nba' in b.text.lower() or 'ncaam' in b.text.lower():
+						c.text = "Basketball"
+					elif 'nfl' in b.text.lower() or 'football' in b.text.lower() or 'american football' in b.text.lower() or 'ncaaf' in b.text.lower() or 'cfb' in b.text.lower():
+						c.text = "Football"
+					elif 'epl' in b.text.lower() or 'efl' in b.text.lower() or 'soccer' in b.text.lower() or 'ucl' in b.text.lower() or 'mls' in b.text.lower() or 'uefa' in b.text.lower() or 'fifa' in b.text.lower() or 'fc' in b.text.lower() or 'la liga' in b.text.lower() or 'serie a' in b.text.lower() or 'wcq' in b.text.lower():
+						c.text = "Soccer"
+					elif 'rugby' in b.text.lower() or 'nrl' in b.text.lower() or 'afl' in b.text.lower():
+						c.text = "Rugby"
+					elif 'cricket' in b.text.lower() or 't20' in b.text.lower():
+						c.text = "Cricket"
+					elif 'tennis' in b.text.lower() or 'squash' in b.text.lower() or 'atp' in b.text.lower():
+						c.text = "Tennis/Squash"
+					elif 'f1' in b.text.lower() or 'nascar' in b.text.lower() or 'motogp' in b.text.lower() or 'racing' in b.text.lower():
+						c.text = "Motor Sport"
+					elif 'golf' in b.text.lower() or 'pga' in b.text.lower():
+						c.text = "Golf"
+					elif 'boxing' in b.text.lower() or 'mma' in b.text.lower() or 'ufc' in b.text.lower() or 'wrestling' in b.text.lower() or 'wwe' in b.text.lower():
+						c.text = "Martial Sports"
+					elif 'hockey' in b.text.lower() or 'nhl' in b.text.lower() or 'ice hockey' in b.text.lower():
+						c.text = "Ice Hockey"
+					elif 'baseball' in b.text.lower() or 'mlb' in b.text.lower() or 'beisbol' in b.text.lower() or 'minor league' in b.text.lower():
+						c.text = "Baseball"
+					elif 'news' in b.text.lower():
+						c.text = "News"
 				# c = a.find('category')
 				# if c.text == 'Sports':
 				#    print(b.text)
@@ -3114,6 +3121,7 @@ if __name__ == "__main__":
 			di.start()
 		except (KeyboardInterrupt, SystemExit):
 			sys.exit()
+		dl_epg()
 	except:
 		logger.exception("Exception while building initial playlist: ")
 		exit(1)
