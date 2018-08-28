@@ -86,8 +86,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.81
+__version__ = 1.811
 # Changelog
+# 1.811 - Dev disable
 # 1.81 - Improvement to Series Category detection.
 # 1.8 - Added .gz support for EXTRA XML file/url.
 # 1.731 - Correction of channel return type that had been removed
@@ -1333,7 +1334,7 @@ def dl_epg(source=1):
 		datetime.utcnow(), target_utc_datetime, datetime.utcfromtimestamp(os.stat(existing).st_mtime)))
 		if os.path.isfile(existing) and os.stat(existing).st_mtime > target_utc_datetime.timestamp():
 			logger.debug("Skipping download of epg")
-			# return
+			return
 	to_process = []
 	if source == 1:
 		logger.info("Downloading epg")
