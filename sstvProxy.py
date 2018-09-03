@@ -86,8 +86,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.811
+__version__ = 1.812
 # Changelog
+# 1.812 - FixUrl Fix, readded EPG override (was inadvertantly removed in a commit revert), change of epg refresh to 4hrs
 # 1.811 - Dev disable
 # 1.81 - Improvement to Series Category detection.
 # 1.8 - Added .gz support for EXTRA XML file/url.
@@ -364,6 +365,7 @@ TVHREDIRECT = False
 TVHURL = '127.0.0.1'
 TVHUSER = ''
 TVHPASS = ''
+OVRXML = ''
 tvhWeight = 300  # subscription priority
 tvhstreamProfile = 'pass'  # specifiy a stream profile that you want to use for adhoc transcoding in tvh, e.g. mp4
 GUIDELOOKAHEAD = 5 #minutes
@@ -499,6 +501,11 @@ def adv_settings():
 				logger.debug("Overriding tvhpass")
 				global TVHPASS
 				TVHPASS = advconfig["tvhpass"]
+			if "overridexml" in advconfig:
+				logger.debug("Overriding XML")
+				global OVRXML
+				OVRXML = advconfig["overridexml"]
+
 
 
 def load_settings():
@@ -1328,7 +1335,7 @@ def dl_epg(source=1):
 	if os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'epg.xml')):
 		existing = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'epg.xml')
 		cur_utc_hr = datetime.utcnow().replace(microsecond=0, second=0, minute=0).hour
-		target_utc_hr = (cur_utc_hr // 3) * 3
+		target_utc_hr = (cur_utc_hr // 4) * 4
 		target_utc_datetime = datetime.utcnow().replace(microsecond=0, second=0, minute=0, hour=target_utc_hr)
 		logger.debug("utc time is: %s,    utc target time is: %s,    file time is: %s" % (
 		datetime.utcnow(), target_utc_datetime, datetime.utcfromtimestamp(os.stat(existing).st_mtime)))
@@ -1336,12 +1343,26 @@ def dl_epg(source=1):
 			logger.debug("Skipping download of epg")
 			return
 	to_process = []
+	# override the xml with one of your own
+
+
 	if source == 1:
-		logger.info("Downloading epg")
-		requests.urlretrieve("https://fast-guide.smoothstreams.tv/altepg/xmltv5.xml.gz",
-							 os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz'))
-		unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz')
-		to_process.append([unzipped, "epg.xml", 'fog'])
+		if OVRXML != '':
+			if OVRXML.startswith('http://') or OVRXML.startswith('https://'):
+				if OVRXML.endswith('.gz') or OVRXML.endswith('.gz?raw=1'):
+					requests.urlretrieve(OVRXML, os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml.gz'))
+					unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml.gz')
+				else:
+					requests.urlretrieve(OVRXML, os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml'))
+					unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml')
+			else:
+				unzipped = OVRXML
+		else:
+			logger.info("Downloading epg")
+			requests.urlretrieve("https://fast-guide.smoothstreams.tv/altepg/xmltv1.xml.gz",
+								 os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz'))
+			unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz')
+		to_process.append([unzipped, "epg.xml", 'fog' if OVRXML == '' else 'ovr'])
 		requests.urlretrieve("https://fast-guide.smoothstreams.tv/feed.xml",
 							 os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml'))
 		unzippedsports = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml')
@@ -1918,8 +1939,8 @@ def fixURL(strm, ch, qual, hash):
 	template = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}q{5}.stream{6}?wmsAuthSign{7}'
 	urlformatted = template.format('https' if strm == 'hls' else 'rtmp', 'SRVR', '443' if strm == 'hls' else '3625', SITE, "{:02}".format(int(ch)), 'QUAL', '/playlist.m3u8' if strm == 'hls' else '', hash)
 	# Check spare
-	if checkChannelURL(urlformatted.replace('SRVR',SRVR_SPARE).replace('QUAL',qual)):
-		return urlformatted.replace('SRVR',SRVR_SPARE).replace('QUAL',qual)
+	if checkChannelURL(urlformatted.replace('SRVR',SRVR_SPARE).replace('QUAL',str(qual))):
+		return urlformatted.replace('SRVR',SRVR_SPARE).replace('QUAL',str(qual))
 	else:
 		# Check other qualities
 		for q in range(1,4):
