@@ -1400,8 +1400,7 @@ def dl_epg(source=1):
 			if process[2] == 'fog':
 				a.attrib['channel'] = changelist[a.attrib['channel']]
 			for b in a.findall('title'):
-				if process[2] == 'sstv':
-					ET.SubElement(a, 'category')
+				ET.SubElement(a, 'category')
 				c = a.find('category')
 				ep_num = a.find('episode-num')
 				if ep_num is not None:
