@@ -2664,15 +2664,32 @@ def close_menu(restart):
 def restart_program():
 	os.system('cls' if os.name == 'nt' else 'clear')
 	args = sys.argv[:]
-	logger.info('Re-spawning %s' % ' '.join(args))
+	print(args)
+	# logger.info('Re-spawning %s' % ' '.join(args))
+	# #
+	# # args.insert(0, sys.executable)
+	# # if sys.platform == 'win32':
+	# # 	args = ['"%s"' % arg for arg in args]
 	#
-	# args.insert(0, sys.executable)
-	# if sys.platform == 'win32':
-	# 	args = ['"%s"' % arg for arg in args]
-
-	os.execl(sys.executable, *([sys.executable] + sys.argv))
+	# os.execl(sys.executable, *([sys.executable] + sys.argv))
 
 
+	logger.info("YAP is restarting...")
+	FULL_PATH = sys.argv[0]
+	exe = sys.executable
+	args = [exe, FULL_PATH]
+	args += sys.argv[1:]
+	# Separate out logger so we can shutdown logger after
+
+	logger.info('Restarting YAP with %s', args)
+
+	# os.execv fails with spaced names on Windows
+	# https://bugs.python.org/issue19066
+	if os.name == 'nt':
+		subprocess.Popen(args, cwd=os.getcwd())
+	else:
+		os.execv(exe, args)
+	os._exit(0)
 # os.execv(sys.executable, args)
 
 
