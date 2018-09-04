@@ -1343,7 +1343,7 @@ def dl_epg(source=1):
 		datetime.utcnow(), target_utc_datetime, datetime.utcfromtimestamp(os.stat(existing).st_mtime)))
 		if os.path.isfile(existing) and os.stat(existing).st_mtime > target_utc_datetime.timestamp():
 			logger.debug("Skipping download of epg")
-			# return
+			return
 	to_process = []
 	# override the xml with one of your own
 
