@@ -86,8 +86,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.812
+__version__ = 1.813
 # Changelog
+# 1.813 - EPG Hotfix
 # 1.812 - FixUrl Fix, readded EPG override (was inadvertantly removed in a commit revert), change of epg refresh to 4hrs
 # 1.811 - Dev disable
 # 1.81 - Improvement to Series Category detection.
@@ -1359,7 +1360,7 @@ def dl_epg(source=1):
 				unzipped = OVRXML
 		else:
 			logger.info("Downloading epg")
-			requests.urlretrieve("https://fast-guide.smoothstreams.tv/altepg/xmltv1.xml.gz",
+			requests.urlretrieve("https://fast-guide.smoothstreams.tv/altepg/xmltv5.xml.gz",
 								 os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz'))
 			unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz')
 		to_process.append([unzipped, "epg.xml", 'fog' if OVRXML == '' else 'ovr'])
@@ -1390,15 +1391,17 @@ def dl_epg(source=1):
 				newname = [chan_map[x].channum for x in range(len(chan_map) + 1) if
 						   x != 0 and chan_map[x].epg == a.attrib['id'] and chan_map[x].channame == b.text]
 				if len(newname) > 1:
-					logger.debug("EPG rename conflict")
-				# print(a.attrib['id'], newname)
-				else:
+					logger.debug("EPG rename conflict %s" % ",".join(newname))
 					newname = newname[0]
-					changelist[a.attrib['id']] = newname
+				changelist[a.attrib['id']] = newname
 				a.attrib['id'] = newname
 		for a in tree.iterfind('programme'):
 			if process[2] == 'fog':
-				a.attrib['channel'] = changelist[a.attrib['channel']]
+				try:
+					a.attrib['channel'] = changelist[a.attrib['channel']]
+				except:
+					logger.info("A programme was skipped as it couldn't be assigned to a channel, refer log.")
+					logger.debug(a.find('title').text, a.attrib)
 			for b in a.findall('title'):
 				ET.SubElement(a, 'category')
 				c = a.find('category')
