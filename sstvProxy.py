@@ -86,8 +86,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.813
+__version__ = 1.814
 # Changelog
+# 1.814 - EPG Hotfix
 # 1.813 - EPG Hotfix
 # 1.812 - FixUrl Fix, readded EPG override (was inadvertantly removed in a commit revert), change of epg refresh to 4hrs
 # 1.811 - Dev disable
@@ -1342,7 +1343,7 @@ def dl_epg(source=1):
 		datetime.utcnow(), target_utc_datetime, datetime.utcfromtimestamp(os.stat(existing).st_mtime)))
 		if os.path.isfile(existing) and os.stat(existing).st_mtime > target_utc_datetime.timestamp():
 			logger.debug("Skipping download of epg")
-			return
+			# return
 	to_process = []
 	# override the xml with one of your own
 
@@ -1377,75 +1378,83 @@ def dl_epg(source=1):
 		to_process.append([unzipped, "sports.xml", 'sstv'])
 	for process in to_process:
 		# try to categorise the sports events
-		if process[0].endswith('.gz'):
-			opened = gzip.open(process[0])
-		else:
-			opened = open(process[0], encoding="UTF-8")
-		tree = ET.parse(opened)
-		root = tree.getroot()
-		changelist = {}
-		# remove fogs xmltv channel names for readability in PLex Live
-		if process[2] == 'fog':
-			for a in tree.iterfind('channel'):
-				b = a.find('display-name')
-				newname = [chan_map[x].channum for x in range(len(chan_map) + 1) if
-						   x != 0 and chan_map[x].epg == a.attrib['id'] and chan_map[x].channame == b.text]
-				if len(newname) > 1:
-					logger.debug("EPG rename conflict %s" % ",".join(newname))
-					newname = newname[0]
-				changelist[a.attrib['id']] = newname
-				a.attrib['id'] = newname
-		for a in tree.iterfind('programme'):
+		try:
+			if process[0].endswith('.gz'):
+				opened = gzip.open(process[0])
+			else:
+				opened = open(process[0], encoding="UTF-8")
+			tree = ET.parse(opened)
+			root = tree.getroot()
+			changelist = {}
+			# remove fogs xmltv channel names for readability in PLex Live
 			if process[2] == 'fog':
-				try:
-					a.attrib['channel'] = changelist[a.attrib['channel']]
-				except:
-					logger.info("A programme was skipped as it couldn't be assigned to a channel, refer log.")
-					logger.debug(a.find('title').text, a.attrib)
-			for b in a.findall('title'):
-				ET.SubElement(a, 'category')
-				c = a.find('category')
-				ep_num = a.find('episode-num')
-				if ep_num is not None:
-					c.text = "Series"
-				else:
-					c.text = "Sports"
-					if 'nba' in b.text.lower() or 'nba' in b.text.lower() or 'ncaam' in b.text.lower():
-						c.text = "Basketball"
-					elif 'nfl' in b.text.lower() or 'football' in b.text.lower() or 'american football' in b.text.lower() or 'ncaaf' in b.text.lower() or 'cfb' in b.text.lower():
-						c.text = "Football"
-					elif 'epl' in b.text.lower() or 'efl' in b.text.lower() or 'soccer' in b.text.lower() or 'ucl' in b.text.lower() or 'mls' in b.text.lower() or 'uefa' in b.text.lower() or 'fifa' in b.text.lower() or 'fc' in b.text.lower() or 'la liga' in b.text.lower() or 'serie a' in b.text.lower() or 'wcq' in b.text.lower():
-						c.text = "Soccer"
-					elif 'rugby' in b.text.lower() or 'nrl' in b.text.lower() or 'afl' in b.text.lower():
-						c.text = "Rugby"
-					elif 'cricket' in b.text.lower() or 't20' in b.text.lower():
-						c.text = "Cricket"
-					elif 'tennis' in b.text.lower() or 'squash' in b.text.lower() or 'atp' in b.text.lower():
-						c.text = "Tennis/Squash"
-					elif 'f1' in b.text.lower() or 'nascar' in b.text.lower() or 'motogp' in b.text.lower() or 'racing' in b.text.lower():
-						c.text = "Motor Sport"
-					elif 'golf' in b.text.lower() or 'pga' in b.text.lower():
-						c.text = "Golf"
-					elif 'boxing' in b.text.lower() or 'mma' in b.text.lower() or 'ufc' in b.text.lower() or 'wrestling' in b.text.lower() or 'wwe' in b.text.lower():
-						c.text = "Martial Sports"
-					elif 'hockey' in b.text.lower() or 'nhl' in b.text.lower() or 'ice hockey' in b.text.lower():
-						c.text = "Ice Hockey"
-					elif 'baseball' in b.text.lower() or 'mlb' in b.text.lower() or 'beisbol' in b.text.lower() or 'minor league' in b.text.lower():
-						c.text = "Baseball"
-					elif 'news' in b.text.lower():
-						c.text = "News"
-				# c = a.find('category')
-				# if c.text == 'Sports':
-				#    print(b.text)
-		tree.write(os.path.join(os.path.dirname(sys.argv[0]), 'cache', process[1]))
-		logger.debug("writing to %s" % process[1])
-		# add xml header to file for Kodi support
-		with open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', process[1]), 'r+') as f:
-			content = f.read()
-			staticinfo = '''<channel id="static_refresh"><display-name lang="en">Static Refresh</display-name><icon src="http://speed.guide.smoothstreams.tv/assets/images/channels/150.png" /></channel><programme channel="static_refresh" start="20170118213000 +0000" stop="20201118233000 +0000"><title lang="us">Press to refresh rtmp channels</title><desc lang="en">Select this channel in order to refresh the RTMP playlist. Only use from the channels list and NOT the guide page. Required every 4hrs.</desc><category lang="us">Other</category><episode-num system="">1</episode-num></programme></tv>'''
-			content = content[:-5] + staticinfo
-			f.seek(0, 0)
-			f.write('<?xml version="1.0" encoding="UTF-8"?>'.rstrip('\r\n') + content)
+				for a in tree.iterfind('channel'):
+					b = a.find('display-name')
+					newname = [chan_map[x].channum for x in range(len(chan_map) + 1) if
+							   x != 0 and chan_map[x].epg == a.attrib['id'] and chan_map[x].channame == b.text]
+					if len(newname) > 1:
+						logger.debug("EPG rename conflict %s" % ",".join(newname))
+					# It's a list regardless of length so first item is always wanted.
+					newname = newname[0]
+					changelist[a.attrib['id']] = newname
+					a.attrib['id'] = newname
+			for a in tree.iterfind('programme'):
+				if process[2] == 'fog':
+					try:
+						a.attrib['channel'] = changelist[a.attrib['channel']]
+					except:
+						logger.info("A programme was skipped as it couldn't be assigned to a channel, refer log.")
+						logger.debug(a.find('title').text, a.attrib)
+				for b in a.findall('title'):
+					ET.SubElement(a, 'category')
+					c = a.find('category')
+					ep_num = a.find('episode-num')
+					if ep_num is not None:
+						c.text = "Series"
+					else:
+						c.text = "Sports"
+						if 'nba' in b.text.lower() or 'nba' in b.text.lower() or 'ncaam' in b.text.lower():
+							c.text = "Basketball"
+						elif 'nfl' in b.text.lower() or 'football' in b.text.lower() or 'american football' in b.text.lower() or 'ncaaf' in b.text.lower() or 'cfb' in b.text.lower():
+							c.text = "Football"
+						elif 'epl' in b.text.lower() or 'efl' in b.text.lower() or 'soccer' in b.text.lower() or 'ucl' in b.text.lower() or 'mls' in b.text.lower() or 'uefa' in b.text.lower() or 'fifa' in b.text.lower() or 'fc' in b.text.lower() or 'la liga' in b.text.lower() or 'serie a' in b.text.lower() or 'wcq' in b.text.lower():
+							c.text = "Soccer"
+						elif 'rugby' in b.text.lower() or 'nrl' in b.text.lower() or 'afl' in b.text.lower():
+							c.text = "Rugby"
+						elif 'cricket' in b.text.lower() or 't20' in b.text.lower():
+							c.text = "Cricket"
+						elif 'tennis' in b.text.lower() or 'squash' in b.text.lower() or 'atp' in b.text.lower():
+							c.text = "Tennis/Squash"
+						elif 'f1' in b.text.lower() or 'nascar' in b.text.lower() or 'motogp' in b.text.lower() or 'racing' in b.text.lower():
+							c.text = "Motor Sport"
+						elif 'golf' in b.text.lower() or 'pga' in b.text.lower():
+							c.text = "Golf"
+						elif 'boxing' in b.text.lower() or 'mma' in b.text.lower() or 'ufc' in b.text.lower() or 'wrestling' in b.text.lower() or 'wwe' in b.text.lower():
+							c.text = "Martial Sports"
+						elif 'hockey' in b.text.lower() or 'nhl' in b.text.lower() or 'ice hockey' in b.text.lower():
+							c.text = "Ice Hockey"
+						elif 'baseball' in b.text.lower() or 'mlb' in b.text.lower() or 'beisbol' in b.text.lower() or 'minor league' in b.text.lower():
+							c.text = "Baseball"
+						elif 'news' in b.text.lower():
+							c.text = "News"
+					# c = a.find('category')
+					# if c.text == 'Sports':
+					#    print(b.text)
+			tree.write(os.path.join(os.path.dirname(sys.argv[0]), 'cache', process[1]))
+			logger.debug("writing to %s" % process[1])
+			# add xml header to file for Kodi support
+			with open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', process[1]), 'r+') as f:
+				content = f.read()
+				staticinfo = '''<channel id="static_refresh"><display-name lang="en">Static Refresh</display-name><icon src="http://speed.guide.smoothstreams.tv/assets/images/channels/150.png" /></channel><programme channel="static_refresh" start="20170118213000 +0000" stop="20201118233000 +0000"><title lang="us">Press to refresh rtmp channels</title><desc lang="en">Select this channel in order to refresh the RTMP playlist. Only use from the channels list and NOT the guide page. Required every 4hrs.</desc><category lang="us">Other</category><episode-num system="">1</episode-num></programme></tv>'''
+				content = content[:-5] + staticinfo
+				f.seek(0, 0)
+				f.write('<?xml version="1.0" encoding="UTF-8"?>'.rstrip('\r\n') + content)
+		except:
+			logger.exception(process[0])
+			if process[0] == "I:\\Video\\epg\\xmltv5.xml or URL":
+				logger.info("Proxy failed to parse the example XMLTV provided by the EXAMPLE advancedsettings.json")
+			else:
+				logger.info("Proxy failed to parse the XMLTV from %s" % process[0])
 
 
 # started to create epg based off of the json but not needed
