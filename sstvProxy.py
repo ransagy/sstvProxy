@@ -86,8 +86,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.814
+__version__ = 1.815
 # Changelog
+# 1.815 - Restart option fix
 # 1.814 - EPG Hotfix
 # 1.813 - EPG Hotfix
 # 1.812 - FixUrl Fix, readded EPG override (was inadvertantly removed in a commit revert), change of epg refresh to 4hrs
@@ -3210,7 +3211,7 @@ if __name__ == "__main__":
 		requests.urlretrieve(latestfile, os.path.join(os.path.dirname(sys.argv[0]), 'updates', newfilename))
 	else:
 		logger.info("Your version (%s) is up to date." % (__version__))
-	logger.info("Listening on %s:%d at %s/", LISTEN_IP, LISTEN_PORT, urljoin(SERVER_HOST, SERVER_PATH))
+	logger.info("Listening on %s:%d", LISTEN_IP, LISTEN_PORT)
 	try:
 		a = threading.Thread(target=thread_updater)
 		a.setDaemon(True)
