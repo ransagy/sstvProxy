@@ -143,6 +143,35 @@ __version__ = 1.815
 # 1.1 - Refactoring and TVH inclusion
 # 1.0 - Initial post testing release
 
+############################################################
+# Logging
+############################################################
+
+# Setup logging
+log_formatter = logging.Formatter(
+	'%(asctime)s - %(levelname)-10s - %(name)-10s -  %(funcName)-25s- %(message)s')
+
+logger = logging.getLogger('SmoothStreamsProxy v' + str(__version__))
+logger.setLevel(logging.DEBUG)
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
+
+# Console logging
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)
+console_handler.setFormatter(log_formatter)
+logger.addHandler(console_handler)
+
+# Rotating Log Files
+if not os.path.isdir(os.path.join(os.path.dirname(sys.argv[0]), 'cache')):
+	os.mkdir(os.path.join(os.path.dirname(sys.argv[0]), 'cache'))
+file_handler = RotatingFileHandler(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'status.log'),
+								   maxBytes=1024 * 1024 * 2,
+								   backupCount=5)
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(log_formatter)
+logger.addHandler(file_handler)
+
+
 
 opener = requests.build_opener()
 opener.addheaders = [('User-agent', 'YAP - %s - %s - %s' % (sys.argv[0], platform.system(), str(__version__)))]
@@ -160,7 +189,11 @@ if not sys.argv[0].endswith('.py'):
 		type = "Macintosh/"
 		latestfile = "https://raw.githubusercontent.com/vorghahn/sstvProxy/master/Macintosh/sstvproxy"
 url = "https://raw.githubusercontent.com/vorghahn/sstvProxy/master/%sversion.txt" % type
-latest_ver = float(json.loads(requests.urlopen(url).read().decode('utf-8'))['Version'])
+try:
+	latest_ver = float(json.loads(requests.urlopen(url).read().decode('utf-8'))['Version'])
+except:
+	latest_ver = float(0.0)
+	logger.info("Latest version check failed, check internet.")
 
 token = {
 	'hash': '',
@@ -344,12 +377,13 @@ class EST5EDT(dt.tzinfo):
 USER = ""
 PASS = ""
 SITE = "viewstvn"
-SRVR = "dnaw2"
+SRVR = "dnaw1"
 SRVR_SPARE = "dnaw2"
 AUTO_SERVER = False
 CHECK_CHANNEL = True
 STRM = "hls"
 QUAL = "1"
+QUALLIMIT = 70
 LISTEN_IP = "127.0.0.1"
 LISTEN_PORT = 6969
 SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
@@ -421,8 +455,8 @@ serverList = [
 	['   West-Mix', 'dnaw'],
 	['   East-NJ', 'dnae1'],
 	['   East-VA', 'dnae2'],
-	['   East-Mtl', 'dnae3'],
-	['   East-Tor', 'dnae4'],
+	# ['   East-Mtl', 'dnae3'],
+	# ['   East-Tor', 'dnae4'],
 	['   East-NY', 'dnae6'],
 	['   West-Phx', 'dnaw1'],
 	['   West-LA', 'dnaw2'],
@@ -512,7 +546,7 @@ def adv_settings():
 
 
 def load_settings():
-	global QUAL, USER, PASS, SRVR,SRVR_SPARE, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, SERVER_HOST, EXTIP, EXT_HOST, EXTPORT
+	global QUAL, QUALLIMIT, USER, PASS, SRVR,SRVR_SPARE, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, SERVER_HOST, EXTIP, EXT_HOST, EXTPORT
 	if not os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'proxysettings.json')):
 		logger.debug("No config file found.")
 	try:
@@ -618,33 +652,6 @@ def load_settings():
 		installer()
 
 
-############################################################
-# Logging
-############################################################
-
-# Setup logging
-log_formatter = logging.Formatter(
-	'%(asctime)s - %(levelname)-10s - %(name)-10s -  %(funcName)-25s- %(message)s')
-
-logger = logging.getLogger('SmoothStreamsProxy')
-logger.setLevel(logging.DEBUG)
-logging.getLogger('werkzeug').setLevel(logging.ERROR)
-
-# Console logging
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-console_handler.setFormatter(log_formatter)
-logger.addHandler(console_handler)
-
-# Rotating Log Files
-if not os.path.isdir(os.path.join(os.path.dirname(sys.argv[0]), 'cache')):
-	os.mkdir(os.path.join(os.path.dirname(sys.argv[0]), 'cache'))
-file_handler = RotatingFileHandler(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'status.log'),
-								   maxBytes=1024 * 1024 * 2,
-								   backupCount=5)
-file_handler.setLevel(logging.DEBUG)
-file_handler.setFormatter(log_formatter)
-logger.addHandler(file_handler)
 
 
 ############################################################
@@ -1088,7 +1095,7 @@ if not HEADLESS:
 				config["externalport"] = userExternalPort.get()
 				for widget in master.winfo_children():
 					widget.destroy()
-				global playlist, kodiplaylist, QUAL, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, EXTIP, EXT_HOST, SERVER_HOST, EXTPORT
+				global playlist, kodiplaylist, QUAL, QUALLIMIT, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, EXTIP, EXT_HOST, SERVER_HOST, EXTPORT
 				with open(os.path.join(os.path.dirname(sys.argv[0]), 'proxysettings.json'), 'w') as fp:
 					dump(config, fp)
 				QUAL = config["quality"]
@@ -1297,7 +1304,7 @@ def findChannelURL(input_url=None, qual='1'):
 			ping_results = False
 			try:
 				url = input_url.replace('SRVR', host).replace('QUAL', qlist[q])
-
+				url = find_between(url,"://",":")
 				logger.debug('Testing url %s' % url)
 				if platform.system() == 'Windows':
 					p = subprocess.Popen(["ping", "-n", "4", url], stdout=subprocess.PIPE,
@@ -1307,11 +1314,13 @@ def findChannelURL(input_url=None, qual='1'):
 										 stderr=subprocess.PIPE)
 
 				ping_results = re.compile("time=(.*?)ms").findall(str(p.communicate()[0]))
+				print(ping_results)
 			except:
 				logger.info("Platform doesn't support ping. Disable auto server selection")
 				return None
 
 			if ping_results:
+
 				logger.debug("Server %s - %s: n%s" % (name, host, repr(ping_results)))
 				avg_ping = averageList(ping_results)
 				if avg_ping != 0:
@@ -1809,7 +1818,7 @@ def build_xspf(host, request_file):
 		program = getProgram(pos)
 		url = "{0}/playlist.m3u8?ch={1}"
 		vaders_url = "http://vapi.vaders.tv/play/{0}.{1}?"
-		quality = '720p' if QUAL == '1' or pos > 60 else '540p' if QUAL == '2' else '360p'
+		quality = '720p' if QUAL == '1' or pos > QUALLIMIT else '540p' if QUAL == '2' else '360p'
 		if SITE == 'vaders':
 			tokenDict = {"username": "vsmystreams_" + USER, "password": PASS}
 			jsonToken = json.dumps(tokenDict)
@@ -1824,7 +1833,7 @@ def build_xspf(host, request_file):
 				channel_url = urljoin(host, urlformatted)
 			else:
 				channel_url = template.format('https' if STRM == 'hls' else 'rtmp', SRVR, '443' if STRM == 'hls' else '3625',
-										   SITE, "{:02}".format(pos), QUAL if pos <= 60 else '1',
+										   SITE, "{:02}".format(pos), QUAL if pos <= QUALLIMIT else '1',
 										   '/playlist.m3u8' if STRM == 'hls' else '', token['hash'])
 		# build playlist entry
 		try:
@@ -1854,7 +1863,7 @@ def build_static_playlist():
 
 		template = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}q{5}.stream{6}?wmsAuthSign={7}'
 		urlformatted = template.format('https' if STRM == 'hls' else 'rtmp', SRVR, '443' if STRM == 'hls' else '3625',
-									   SITE, "{:02}".format(pos), QUAL if pos <= 60 else '1',
+									   SITE, "{:02}".format(pos), QUAL if pos <= QUALLIMIT else '1',
 									   '/playlist.m3u8' if STRM == 'hls' else '', token['hash'])
 		# build playlist entry
 		try:
@@ -1936,9 +1945,38 @@ def create_channel_playlist(sanitized_channel, qual, strm, hash):
 		#    f.write(file)
 		return rtmp_url
 
+def create_channel_file(url):
+	strm = 'hls'
+	if url.startswith('rtmp'):
+		strm = 'rtmp'
+	file = requests.urlopen(url, timeout=2).read().decode("utf-8")
+	if not os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'playlist.m3u8')):
+		f = open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'playlist.m3u8'), 'w')
+		f.close()
+	if strm == 'hls':
+		# Used to support HLS HTTPS requests
+		# https://dnaw1.smoothstreams.tv:443/viewmmasr/ch69q2.stream/playlist.m3u8?wmsAuthSign=c2VydmVyX3RpbWU9OS82LzIwMTggOToxOTowMCBQTSZoYXNoX3ZhbHVlPTZ4R0QzNlhNMW5OTTgzaXBseXpsY2c9PSZ2YWxpZG1pbnV0ZXM9MjQwJmlkPXZpZXdtbWFzci0yNDI2NjY =
+		template = find_between(url,'', 'playlist') + "chunks"  #'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/chunks'
+		file = file.replace('chunks', template)
+		with open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'playlist.m3u8'), 'r+') as f:
+			f.write(file)
+		return file
+	else:
+		# not used currently
+		template = 'http://{0}.smoothstreams.tv:9100/{1}/ch{2}q{3}.stream/chunks'
+		file = '#EXTM3U\n#EXTINF:' + file[43:110] + "\n" + rtmp_url
+		# with open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'playlist.m3u8'), 'r+') as f:
+		#    f.write(file)
+		return rtmp_url
+
 def checkChannelURL(url):
 	try:
-		code = requests.urlopen(url, timeout=2).getcode()
+		session = req.Session()
+		code = session.get(url)
+		# code = requests.urlopen(url, timeout=10).getcode()
+		if code.status_code != 200:
+			logger.debug("Exception on url %s with code %s" % (url, code.status_code))
+			return False
 		return True
 	except timeout:
 		logger.debug("Timeout on url %s" % url)
@@ -1948,8 +1986,10 @@ def checkChannelURL(url):
 		return False
 
 def fixURL(strm, ch, qual, hash):
-	template = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}q{5}.stream{6}?wmsAuthSign{7}'
+	template = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}q{5}.stream{6}?wmsAuthSign={7}'
 	urlformatted = template.format('https' if strm == 'hls' else 'rtmp', 'SRVR', '443' if strm == 'hls' else '3625', SITE, "{:02}".format(int(ch)), 'QUAL', '/playlist.m3u8' if strm == 'hls' else '', hash)
+	if checkChannelURL(urlformatted.replace('SRVR',SRVR).replace('QUAL',str(1))):
+		return urlformatted.replace('SRVR',SRVR).replace('QUAL',str(1))
 	# Check spare
 	if checkChannelURL(urlformatted.replace('SRVR',SRVR_SPARE).replace('QUAL',str(qual))):
 		return urlformatted.replace('SRVR',SRVR_SPARE).replace('QUAL',str(qual))
@@ -2279,7 +2319,7 @@ def build_kodi_playlist():
 				chan_map[pos].channum, chan_map[pos].channame, SERVER_HOST, SERVER_PATH, chan_map[pos].channum,
 				chan_map[pos].channum,
 				chan_map[pos].channame)
-			new_playlist += '%s\n' % rtmpTemplate.format(SRVR, SITE, "{:02}".format(pos), QUAL if pos <= 60 else '1',
+			new_playlist += '%s\n' % rtmpTemplate.format(SRVR, SITE, "{:02}".format(pos), QUAL if pos <= QUALLIMIT else '1',
 														 token['hash'])
 			prog = getProgram(pos)
 			if prog.title != 'none':
@@ -2700,7 +2740,7 @@ def restart_program():
 @app.route('/sstv/handle_data', methods=['POST'])
 def handle_data():
 	logger.info("Received new settings from %s", request.environ.get('REMOTE_ADDR'))
-	global playlist, kodiplaylist, QUAL, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, EXTIP, EXT_HOST, SERVER_HOST, EXTPORT
+	global playlist, kodiplaylist, QUAL, QUALLIMIT, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, EXTIP, EXT_HOST, SERVER_HOST, EXTPORT
 	inc_data = request.form
 	config = {}
 	if 'restart' in inc_data:
@@ -2960,9 +3000,9 @@ def bridge(request_file):
 				return redirect(channel_url, code=302)
 
 			qual = 1
-			if request.args.get('qual') and int(sanitized_channel) <= 60:
+			if request.args.get('qual'):# and int(sanitized_channel) <= QUALLIMIT:
 				qual = request.args.get('qual')
-			elif int(sanitized_channel) <= 60:
+			elif int(sanitized_channel) <= QUALLIMIT:
 				qual = QUAL
 			if request.args.get('strm') and request.args.get('strm') == 'rtmp':
 				strm = 'rtmp'
@@ -2976,45 +3016,54 @@ def bridge(request_file):
 				strm = 'hls'
 				hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}=='
 				pure_url = hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
+				output_url = pure_url
 
-				try:
-					output_url = create_channel_playlist(sanitized_channel, qual, strm, token[
-					'hash'])  # hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
-				except:
-					output_url = pure_url
+
+			# channel fixing for dead server/Quality
 			if CHECK_CHANNEL and not checkChannelURL(pure_url):
 				output_url = fixURL(strm, sanitized_channel, qual, token['hash'])
-			response = redirect(output_url, code=302)
-			headers = dict(response.headers)
-			headers.update({'Content-Type': 'application/x-mpegURL', "Access-Control-Allow-Origin": "*"})
-			response.headers = headers
+			# creates the output playlist files and returns it as a variable as well
+			if strm == 'hls':
+				output_file = create_channel_file(output_url)
+
 			logger.info("Channel %s playlist was requested by %s", sanitized_channel,
 						request.environ.get('REMOTE_ADDR'))
 			# useful for debugging
 			logger.debug("URL returned: %s" % output_url)
+
 			if request.args.get('type'):
 				returntype = request.args.get('type')
 			else:
 				returntype = 3
+
+			# different return types as different clients require it. Expect this to change as clients fail on certain things like dynamic hls
 			if strm == 'rtmp' or request.args.get('response'):
+				response = redirect(output_url, code=302)
+				headers = dict(response.headers)
+				headers.update({'Content-Type': 'application/x-mpegURL', "Access-Control-Allow-Origin": "*"})
+				response.headers = headers
 				logger.debug("returning response")
 				return response
+
 			elif returntype == 1 or client == 'kodi':
-				hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}=='
-				ss_url = hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
+				# hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}=='
+				# ss_url = hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
 				# some players are having issues with http/https redirects
 				logger.debug("returning hls url redirect")
-				return redirect(ss_url, code=302)
+				return redirect(output_url, code=302)
+
 			elif returntype == 2 or client == 'vlc':
 				logger.debug("returning m3u8 as file")
 				return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'playlist.m3u8')
+
 			elif returntype == 4:
 				logger.debug("returning hls url")
-				return pure_url
+				return output_url
+
 			else:
 				# some players are having issues with http/https redirects
 				logger.debug("returning m3u8 as variable")
-				return output_url
+				return output_file
 
 		# returning dynamic playlist
 		else:
@@ -3069,15 +3118,20 @@ def auto(request_file, qual=""):
 	sanitized_channel = ("0%d" % int(channel)) if int(channel) < 10 else channel
 
 	sanitized_qual = '1'
-	if int(channel) <= 60:
+	if int(channel) <= QUALLIMIT:
 		if qual == "":
 			sanitized_qual = QUAL
 		else:
 			sanitized_qual = qual
 	template = "https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}"
 	url = template.format(SRVR, SITE, sanitized_channel, sanitized_qual, token['hash'])
+
 	logger.debug(
 		"sanitized_channel: %s sanitized_qual: %s QUAL: %s qual: %s" % (sanitized_channel, sanitized_qual, QUAL, qual))
+
+	if CHECK_CHANNEL and not checkChannelURL(url):
+		url = fixURL('hls', sanitized_channel, qual, token['hash'])
+
 	logger.debug(url)
 	# try:
 	# 	urllib.request.urlopen(url, timeout=2).getcode()
