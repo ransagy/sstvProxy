@@ -1314,7 +1314,6 @@ def findChannelURL(input_url=None, qual='1'):
 										 stderr=subprocess.PIPE)
 
 				ping_results = re.compile("time=(.*?)ms").findall(str(p.communicate()[0]))
-				print(ping_results)
 			except:
 				logger.info("Platform doesn't support ping. Disable auto server selection")
 				return None
@@ -1326,6 +1325,7 @@ def findChannelURL(input_url=None, qual='1'):
 				if avg_ping != 0:
 					if avg_ping < ping or not ping:
 						res = url
+						res = input_url.replace('SRVR', host).replace('QUAL', qlist[q])
 						ping = avg_ping
 				else:
 					logger.info("Couldn't get ping")
