@@ -1292,7 +1292,7 @@ def testServers(update_settings=True):
 def findChannelURL(input_url=None, qual='1'):
 	global SRVR
 	service = SRVR
-	qlist = [qual, '1', '2', '3']
+	qlist = [qual] #, '1', '2', '3']
 	res = None
 	ping = False
 	for q in range(len(qlist)):
