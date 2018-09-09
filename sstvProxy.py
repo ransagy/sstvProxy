@@ -3109,7 +3109,7 @@ def bridge(request_file):
 
 
 			# channel fixing for dead server/Quality
-			if CHECK_CHANNEL and not checkChannelURL(pure_url):
+			if CHECK_CHANNEL and not checkChannelURL(pure_url) and strm == 'hls':
 				output_url = fixURL(strm, sanitized_channel, qual, token['hash'])
 			# creates the output playlist files and returns it as a variable as well
 			if strm == 'hls':
