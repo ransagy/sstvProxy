@@ -86,8 +86,9 @@ from flask import Flask, redirect, abort, request, Response, send_from_directory
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.815
+__version__ = 1.82
 # Changelog
+# 1.82 - Advanced settings added to web page, channel scanning work
 # 1.815 - Restart option fix
 # 1.814 - EPG Hotfix
 # 1.813 - EPG Hotfix
@@ -483,7 +484,6 @@ qualityList = [
 	['HQ', '2'],
 	['LQ', '3']
 ]
-
 
 def adv_settings():
 	if os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'advancedsettings.json')):
@@ -2401,13 +2401,13 @@ def create_menu():
 		html.write('<section class="container"><div class="left-half">')
 		html.write("<h1>YAP Settings</h1>")
 		template = "<a href='{1}/{2}/{0}.html'>{3}</a>"
-		html.write("<p>" + template.format("settings",SERVER_HOST, SERVER_PATH,"Options") + " " + template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions") + " " + template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List") + "</p>")
+		html.write("<p>" + template.format("settings",SERVER_HOST, SERVER_PATH,"Options") + " " + template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions") + " " + template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List") + " " + template.format("adv_channels",SERVER_HOST, SERVER_PATH,"Advanced Settings") + "</p>")
 
 		html.write('<form action="%s/%s/handle_data" method="post">' % (SERVER_HOST, SERVER_PATH))
 
 		channelmap = {}
 		chanindex = 0
-		list = ["Username", "Password", "Quality", "Stream", "Server", "Service", "IP", "Port", "Kodiport",
+		list = ["Username", "Password", "Quality", "Stream", "Server", "Service", "IP", "Port",
 				"ExternalIP", "ExternalPort"]
 		html.write('<table width="300" border="2">')
 		for setting in list:
@@ -2446,8 +2446,6 @@ def create_menu():
 					val = LISTEN_IP
 				elif setting == "Port":
 					val = LISTEN_PORT
-				elif setting == "Kodiport":
-					val = KODIPORT
 				elif setting == "ExternalIP":
 					val = EXTIP
 				elif setting == "ExternalPort":
@@ -2529,12 +2527,89 @@ def create_menu():
 		html.write("</div></section></body></html>\n")
 
 
+	with open("./cache/adv_settings.html", "w") as html:
+		html.write("""<html>
+		<head>
+		<meta charset="UTF-8">
+		%s
+		<title>YAP</title>
+		</head>
+		<body>\n""" % (style,))
+		html.write('<section class="container"><div class="left-half">')
+		html.write("<h1>YAP Settings</h1>")
+		template = "<a href='{1}/{2}/{0}.html'>{3}</a>"
+		html.write("<p>" + template.format("settings",SERVER_HOST, SERVER_PATH,"Options") + " " + template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions") + " " + template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List") + " " + template.format("adv_channels",SERVER_HOST, SERVER_PATH,"Advanced Settings") + "</p>")
+
+		html.write('<form action="%s/%s/handle_data" method="post">' % (SERVER_HOST, SERVER_PATH))
+
+		channelmap = {}
+		chanindex = 0
+		adv_set = ["kodiuser", "kodipass", "ffmpegloc", "kodiport", "extram3u8url", "extram3u8name", "extram3u8file",
+		           "extraxmlurl", "tvhredirect", "tvhaddress", "tvhuser", "tvhpass", "overridexml"]
+		html.write('<table width="300" border="2">')
+		for setting in adv_set:
+			if setting.lower() == 'kodipass':
+				html.write('<tr><td>%s:</td><td><input name="%s" type="Password" value="%s"></td></tr>' % (
+				setting, setting, KODIPASS))
+			else:
+				val = "Unknown"
+				if setting == "kodiuser":
+					val = KODIUSER
+				elif setting == "kodiport":
+					val = KODIPORT
+				elif setting == "ffmpegloc":
+					val = FFMPEGLOC
+				elif setting == "extram3u8url":
+					val = EXTM3URL
+				elif setting == "extram3u8file":
+					val = EXTM3UFILE
+				elif setting == "extram3u8name":
+					val = EXTM3UNAME
+				elif setting == "extraxmlurl":
+					val = EXTXMLURL
+				elif setting == "tvhredirect":
+					val = TVHREDIRECT
+				elif setting == "tvhaddress":
+					val = TVHURL
+				elif setting == "tvhuser":
+					val = TVHUSER
+				elif setting == "tvhpass":
+					val = TVHPASS
+				elif setting == "overridexml":
+					val = OVRXML
+				if not (setting == "ffmpegloc" and not platform.system() == 'Windows'):
+					html.write('<tr><td>%s:</td><td><input name="%s" type="text" value="%s"></td></tr>' % (setting, setting, val))
+		html.write('</table>')
+		html.write('<input type="submit"  value="Submit">')
+		html.write('</form>')
+		html.write("<p>You are running version (%s %s), the latest is %s</p>" % (type, __version__, latest_ver))
+		html.write("</br><p>Restarts can take a while, it is not immediate.</p>")
+		html.write('<form action="%s/%s/handle_data" method="post">' % (SERVER_HOST, SERVER_PATH))
+		html.write('<input type="hidden" name="restart"  value="1">')
+		html.write('<input type="submit"  value="Restart">')
+		html.write('</form>')
+		html.write('<form action="%s/%s/handle_data" method="post">' % (SERVER_HOST, SERVER_PATH))
+		html.write('<input type="hidden" name="restart"  value="2">')
+		html.write('<input type="submit"  value="Update + Restart">')
+		html.write('</form>')
+		html.write('<form action="%s/%s/handle_data" method="post">' % (SERVER_HOST, SERVER_PATH))
+		html.write('<input type="hidden" name="restart"  value="3">')
+		html.write('<input type="submit"  value="Update(Dev Branch) + Restart">')
+		html.write('</form>')
+		html.write('<p>&nbsp;</p>')
+		html.write('<p>&nbsp;</p>')
+		html.write('<p>&nbsp;</p>')
+		html.write('<p>&nbsp;</p>')
+		html.write(footer)
+		html.write("</div></section></body></html>\n")
+
+
 	with open("./cache/channels.html", "w") as html:
 		global chan_map
 		html.write("""<html><head><title>YAP</title><meta charset="UTF-8">%s</head><body>\n""" % (style,))
 		html.write("<h1>Channel List and Upcoming Shows</h1>")
 		template = "<a href='{1}/{2}/{0}.html'>{3}</a>"
-		html.write("<p>" + template.format("settings",SERVER_HOST, SERVER_PATH,"Options") + " " + template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions") + " " + template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List") + "</p>")
+		html.write("<p>" + template.format("settings",SERVER_HOST, SERVER_PATH,"Options") + " " + template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions") + " " + template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List") + " " + template.format("adv_channels",SERVER_HOST, SERVER_PATH,"Advanced Settings") + "</p>")
 		html.write('<section class="container"><div class="left-half"><table width="300" border="1">')
 		template = "<td>{0}</td><td><a href='{2}/{3}/playlist.m3u8?ch={0}'><img src='{2}/{3}/{0}.png'></a></td></td>"
 		for i in chan_map:
@@ -2564,6 +2639,7 @@ def create_menu():
 		html.write(template.format("settings",SERVER_HOST, SERVER_PATH,"Options"))
 		html.write(template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions"))
 		html.write(template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List"))
+		html.write(template.format("adv_channels", SERVER_HOST, SERVER_PATH, "Advanced Settings"))
 		html.write(footer)
 		html.write("</body></html>\n")
 
@@ -2571,7 +2647,7 @@ def create_menu():
 		html.write("""<html><head><title>YAP</title><meta charset="UTF-8">%s</head><body>\n""" % (style,))
 		template = "<a href='{1}/{2}/{0}.html'>{3}</a>"
 		html.write("<h1>Welcome to YAP!</h1>")
-		html.write("<p>" + template.format("settings",SERVER_HOST, SERVER_PATH,"Options") + " " + template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions") + " " + template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List") + "</p>")
+		html.write("<p>" + template.format("settings",SERVER_HOST, SERVER_PATH,"Options") + " " + template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions") + " " + template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List") + " " + template.format("adv_channels",SERVER_HOST, SERVER_PATH,"Advanced Settings") + "</p>")
 		html.write("<h2>Work in progress.</h2>")
 
 		html.write("""<h2>Commandline Arguments</h2></br><p>'install' - forces recreation of the install function which creates certain files, such as the tvh internal grabber</br></br>
@@ -2739,10 +2815,9 @@ def restart_program():
 ############################################################
 @app.route('/sstv/handle_data', methods=['POST'])
 def handle_data():
-	logger.info("Received new settings from %s", request.environ.get('REMOTE_ADDR'))
-	global playlist, kodiplaylist, QUAL, QUALLIMIT, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, EXTIP, EXT_HOST, SERVER_HOST, EXTPORT
-	inc_data = request.form
+	request_page = request.referrer
 	config = {}
+	inc_data = request.form
 	if 'restart' in inc_data:
 		if inc_data["restart"] == '3':
 			logger.info('Updating YAP Dev')
@@ -2756,53 +2831,61 @@ def handle_data():
 		logger.info('Restarting YAP')
 		restart_program()
 		return
-	config["username"] = inc_data['Username']
-	config["password"] = inc_data['Password']
-	config["stream"] = inc_data['Stream']
-	for sub in serverList:
-		if sub[0] == inc_data['Server']:
-			config["server"] = sub[1]
-	for sub in providerList:
-		if sub[0] == inc_data['Service']:
-			config["service"] = sub[1]
-	for sub in qualityList:
-		if sub[0] == inc_data['Quality']:
-			config["quality"] = sub[1]
-	config["ip"] = inc_data['IP']
-	config["port"] = int(inc_data['Port'])
-	config["kodiport"] = int(inc_data['Kodiport'])
-	config["externalip"] = inc_data['ExternalIP']
-	config["externalport"] = inc_data['ExternalPort']
-	QUAL = config["quality"]
-	USER = config["username"]
-	PASS = config["password"]
-	SRVR = config["server"]
-	SITE = config["service"]
-	STRM = config["stream"]
-	KODIPORT = config["kodiport"]
-	if LISTEN_IP != config["ip"] or LISTEN_PORT != config["port"]:
-		restartrequired = True
-	else:
+	if request_page.endswith("adv_channels.html"):
+		logger.info("Received new adv settings from %s", request.environ.get('REMOTE_ADDR'))
 		restartrequired = False
-	LISTEN_IP = config["ip"]
-	LISTEN_PORT = config["port"]
-	EXTIP = config["externalip"]
-	EXTPORT = config["externalport"]
-	EXT_HOST = "http://" + EXTIP + ":" + str(EXTPORT)
-	SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
-	with open('./proxysettings.json', 'w') as fp:
-		dump(config, fp)
-	logger.info("Updated Settings file.")
+		with open('./advancedsettings.json', 'w') as fp:
+			dump(inc_data, fp)
+		adv_settings()
+		logger.info("Updated adv Settings file.")
+	else:
+		logger.info("Received new settings from %s", request.environ.get('REMOTE_ADDR'))
+		global playlist, kodiplaylist, QUAL, QUALLIMIT, USER, PASS, SRVR, SITE, STRM, LISTEN_IP, LISTEN_PORT, EXTIP, EXT_HOST, SERVER_HOST, EXTPORT
+		config["username"] = inc_data['Username']
+		config["password"] = inc_data['Password']
+		config["stream"] = inc_data['Stream']
+		for sub in serverList:
+			if sub[0] == inc_data['Server']:
+				config["server"] = sub[1]
+		for sub in providerList:
+			if sub[0] == inc_data['Service']:
+				config["service"] = sub[1]
+		for sub in qualityList:
+			if sub[0] == inc_data['Quality']:
+				config["quality"] = sub[1]
+		config["ip"] = inc_data['IP']
+		config["port"] = int(inc_data['Port'])
+		config["externalip"] = inc_data['ExternalIP']
+		config["externalport"] = inc_data['ExternalPort']
+		QUAL = config["quality"]
+		USER = config["username"]
+		PASS = config["password"]
+		SRVR = config["server"]
+		SITE = config["service"]
+		STRM = config["stream"]
+		if LISTEN_IP != config["ip"] or LISTEN_PORT != config["port"]:
+			restartrequired = True
+		else:
+			restartrequired = False
+		LISTEN_IP = config["ip"]
+		LISTEN_PORT = config["port"]
+		EXTIP = config["externalip"]
+		EXTPORT = config["externalport"]
+		EXT_HOST = "http://" + EXTIP + ":" + str(EXTPORT)
+		SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
+		with open('./proxysettings.json', 'w') as fp:
+			dump(config, fp)
+		logger.info("Updated Settings file.")
 	check_token()
 	playlist = build_playlist(SERVER_HOST)
 	kodiplaylist = build_kodi_playlist()
 	if restartrequired:
-		logger.info("You have change either the IP or Port, please restart this program.")
+		logger.info("You have changed either the IP or Port, please restart this program.")
 		close_menu(True)
 	else:
 		close_menu(False)
-
-	return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'close.html')
+	return redirect(request_page, code=302)
+	# return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'close.html')
 
 
 @app.route('/')
@@ -2908,6 +2991,12 @@ def bridge(request_file):
 		logger.info("Settings was requested by %s", request.environ.get('REMOTE_ADDR'))
 		create_menu()
 		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'settings.html')
+
+	# return settings menu
+	elif request_file.lower().startswith('adv'):
+		logger.info("Adv_Settings was requested by %s", request.environ.get('REMOTE_ADDR'))
+		create_menu()
+		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'adv_settings.html')
 
 	# return channels menu
 	elif request_file.lower().startswith('channels'):
