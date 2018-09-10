@@ -1289,9 +1289,8 @@ def testServers(update_settings=True):
 	logger.info("Done %s: %s" % (res, ping))
 	return res
 
-def findChannelURL(input_url=None, qual='1'):
-	# todo, rtmp, best channel, not just server. start by searching based on start of the name of the one wanted ie dnaw
-	# print(input_url)
+def findChannelURL(input_url=None, qual='1', target_serv=SRVR, fail=0):
+	# todo, rtmp
 	global SRVR
 	service = SRVR
 	qlist = [qual] #, '1', '2', '3']
@@ -1300,7 +1299,26 @@ def findChannelURL(input_url=None, qual='1'):
 	for q in range(len(qlist)):
 		if q != 0 and qlist[q] == qual:
 			continue
-		for name, host in serverList:
+		options = []
+		if target_serv.startswith('dna') and fail != 2:
+			if 'dnaw' in target_serv and fail ==0:
+				options = [(name, host) for (name, host) in serverList if host.startswith('dnaw')]
+			elif 'dnae' in target_serv and fail ==0:
+				options = [(name, host) for (name, host) in serverList if host.startswith('dnae')]
+			else:
+				options = [(name, host) for (name, host) in serverList if host.startswith('dna')]
+		elif target_serv.startswith('deu') and fail != 2:
+			if 'deu-nl' in target_serv and fail == 0:
+				options = [(name, host) for (name, host) in serverList if host.startswith('deu-nl')]
+			elif 'deu-uk' in target_serv and fail == 0:
+				options = [(name, host) for (name, host) in serverList if host.startswith('deu-uk')]
+			else:
+				options = [(name, host) for (name, host) in serverList if host.startswith('deu')]
+		else:
+			# asia
+			options = serverList
+		print(options)
+		for name, host in options:
 			if 'mix' in name.lower():
 				continue
 			td = False
@@ -1340,6 +1358,9 @@ def findChannelURL(input_url=None, qual='1'):
 	if res != None:
 		logger.info('Done Server with lowest ping ({0}) set to:%s'.format(ping) % res)
 		return res
+	logger.info("Failed to find that channel on a similar quality or server")
+	if fail < 2:
+		return findChannelURL(input_url, qual='1', fail=fail+1)
 	logger.info("Failed to find that channel on any quality or server")
 	return input_url
 ############################################################
