@@ -1290,6 +1290,8 @@ def testServers(update_settings=True):
 	return res
 
 def findChannelURL(input_url=None, qual='1'):
+	# todo, rtmp, best channel, not just server. start by searching based on start of the name of the one wanted ie dnaw
+	# print(input_url)
 	global SRVR
 	service = SRVR
 	qlist = [qual] #, '1', '2', '3']
@@ -1301,27 +1303,32 @@ def findChannelURL(input_url=None, qual='1'):
 		for name, host in serverList:
 			if 'mix' in name.lower():
 				continue
-			ping_results = False
+			td = False
 			try:
 				url = input_url.replace('SRVR', host).replace('QUAL', qlist[q])
-				url = find_between(url,"://",":")
+				# url = find_between(url,"://",":")
 				logger.debug('Testing url %s' % url)
-				if platform.system() == 'Windows':
-					p = subprocess.Popen(["ping", "-n", "4", url], stdout=subprocess.PIPE,
-										 stderr=subprocess.PIPE, shell=True)
-				else:
-					p = subprocess.Popen(["ping", "-c", "4", url], stdout=subprocess.PIPE,
-										 stderr=subprocess.PIPE)
-
-				ping_results = re.compile("time=(.*?)ms").findall(str(p.communicate()[0]))
+				# if platform.system() == 'Windows':
+				# 	p = subprocess.Popen(["ping", "-n", "4", url], stdout=subprocess.PIPE,
+				# 						 stderr=subprocess.PIPE, shell=True)
+				# else:
+				# 	p = subprocess.Popen(["ping", "-c", "4", url], stdout=subprocess.PIPE,
+				# 						 stderr=subprocess.PIPE)
+				#
+				# ping_results = re.compile("time=(.*?)ms").findall(str(p.communicate()[0]))
+				t1 = time.time()
+				response = req.get(url)
+				t2 = time.time()
+				if response.status_code == 200:
+					td = t2 - t1
 			except:
 				logger.info("Platform doesn't support ping. Disable auto server selection")
 				return None
 
-			if ping_results:
+			if td:
 
-				logger.debug("Server %s - %s: n%s" % (name, host, repr(ping_results)))
-				avg_ping = averageList(ping_results)
+				logger.debug("Server %s - %s: %s" % (name, host, repr(td)))
+				avg_ping = td
 				if avg_ping != 0:
 					if avg_ping < ping or not ping:
 						res = url
