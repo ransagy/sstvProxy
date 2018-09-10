@@ -153,7 +153,7 @@ log_formatter = logging.Formatter(
 	'%(asctime)s - %(levelname)-10s - %(name)-10s -  %(funcName)-25s- %(message)s')
 
 logger = logging.getLogger('SmoothStreamsProxy v' + str(__version__))
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 # Console logging
@@ -379,7 +379,7 @@ USER = ""
 PASS = ""
 SITE = "viewstvn"
 SRVR = "dnaw1"
-SRVR_SPARE = "dnaw2"
+SRVR_SPARE = "dnaw1"
 AUTO_SERVER = False
 CHECK_CHANNEL = True
 STRM = "hls"
@@ -1317,7 +1317,6 @@ def findChannelURL(input_url=None, qual='1', target_serv=SRVR, fail=0):
 		else:
 			# asia
 			options = serverList
-		print(options)
 		for name, host in options:
 			if 'mix' in name.lower():
 				continue
