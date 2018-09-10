@@ -36,43 +36,23 @@
 ###DAMAGE.
 ###
 
-import logging
-import os
-import sys
-import time
+import logging, os, sys, time, argparse, json, gzip, base64, platform, threading, subprocess, urllib, glob, sqlite3, array, socket, struct, ntpath, timeit, re
+
 from datetime import datetime, timedelta
-import datetime as dt
-import json
 from json import load, dump
 from logging.handlers import RotatingFileHandler
 from xml.etree import ElementTree as ET
-import urllib
-import urllib.request as requests
-import gzip
-import base64
-import platform
-import threading
-import subprocess
 from socket import timeout
-import time
-import glob
-import sqlite3
-import array
 from io import StringIO
-import socket
-import struct
-import ntpath, timeit
-import requests as req
-import re
 from xml.sax.saxutils import escape
+
+import urllib.request as requests
+import requests as req
+import datetime as dt
+
+
 HEADLESS = False
-try:
-	import tkinter
-except:
-	HEADLESS = True
-	
-if 'headless' in sys.argv:
-	HEADLESS = True
+
 
 try:
 	from urlparse import urljoin
@@ -84,10 +64,27 @@ except ImportError:
 from flask import Flask, redirect, abort, request, Response, send_from_directory, jsonify, render_template, \
 	stream_with_context, url_for
 
+parser = argparse.ArgumentParser()
+
+parser.add_argument("-d", "--debug", action='store_true', help="Console Debugging Enable")
+parser.add_argument("-hl", "--headless", action='store_true', help="Force Headless mode")
+parser.add_argument("-t", "--tvh", action='store_true', help="Force TVH scanning mode")
+
+args = parser.parse_args()
+
+try:
+	import tkinter
+except:
+	HEADLESS = True
+
+if args.headless or 'headless' in sys.argv:
+	HEADLESS = True
+
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.82
+__version__ = 1.821
 # Changelog
+# 1.821 - Added CHECK_CHANNEL to adv settings
 # 1.82 - Advanced settings added to web page, channel scanning work
 # 1.815 - Restart option fix
 # 1.814 - EPG Hotfix
@@ -153,12 +150,15 @@ log_formatter = logging.Formatter(
 	'%(asctime)s - %(levelname)-10s - %(name)-10s -  %(funcName)-25s- %(message)s')
 
 logger = logging.getLogger('SmoothStreamsProxy v' + str(__version__))
-logger.setLevel(logging.INFO)
+if args.debug:
+	logger.setLevel(logging.DEBUG)
+else:
+	logger.setLevel(logging.INFO)
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 # Console logging
 console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.DEBUG)
+console_handler.setLevel(logging.INFO)
 console_handler.setFormatter(log_formatter)
 logger.addHandler(console_handler)
 
@@ -542,6 +542,10 @@ def adv_settings():
 				logger.debug("Overriding XML")
 				global OVRXML
 				OVRXML = advconfig["overridexml"]
+			if "checkchannel" in advconfig:
+				logger.debug("Overriding CheckChannel")
+				global CHECK_CHANNEL
+				CHECK_CHANNEL = advconfig["checkchannel"] == "True"
 
 
 
@@ -2572,12 +2576,14 @@ def create_menu():
 		channelmap = {}
 		chanindex = 0
 		adv_set = ["kodiuser", "kodipass", "ffmpegloc", "kodiport", "extram3u8url", "extram3u8name", "extram3u8file",
-		           "extraxmlurl", "tvhredirect", "tvhaddress", "tvhuser", "tvhpass", "overridexml"]
+		           "extraxmlurl", "tvhredirect", "tvhaddress", "tvhuser", "tvhpass", "overridexml", "checkchannel"]
 		html.write('<table width="300" border="2">')
 		for setting in adv_set:
 			if setting.lower() == 'kodipass':
 				html.write('<tr><td>%s:</td><td><input name="%s" type="Password" value="%s"></td></tr>' % (
 				setting, setting, KODIPASS))
+			elif setting == "checkchannel":
+				html.write('<tr><td>%s:</td><td><select name="%s"  size="1"><option value="True" %s>Enabled</option><option value="False" %s>Disabled</option></select></td></tr>' % (setting, setting,  ' selected' if CHECK_CHANNEL == True else "", ' selected' if CHECK_CHANNEL == False else ""))
 			else:
 				val = "Unknown"
 				if setting == "kodiuser":
@@ -2604,6 +2610,7 @@ def create_menu():
 					val = TVHPASS
 				elif setting == "overridexml":
 					val = OVRXML
+
 				if not (setting == "ffmpegloc" and not platform.system() == 'Windows'):
 					html.write('<tr><td>%s:</td><td><input name="%s" type="text" value="%s"></td></tr>' % (setting, setting, val))
 		html.write('</table>')
@@ -3259,7 +3266,7 @@ def auto(request_file, qual=""):
 	# 	sanitized_channel = '01'
 	# 	sanitized_qual = '3'
 	# 	url = template.format(SRVR, SITE, sanitized_channel,sanitized_qual, token['hash'])
-	if 'tvh' in sys.argv:
+	if args.tvh or 'tvh' in sys.argv:
 		logger.debug("TVH Trickery happening")
 		sanitized_channel = '01'
 		sanitized_qual = '3'
