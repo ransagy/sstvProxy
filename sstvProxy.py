@@ -82,8 +82,9 @@ if args.headless or 'headless' in sys.argv:
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.821
+__version__ = 1.822
 # Changelog
+# 1.822 - Added Auto server selection to Gui.
 # 1.821 - Added CHECK_CHANNEL to adv settings
 # 1.82 - Advanced settings added to web page, channel scanning work
 # 1.815 - Restart option fix
@@ -150,15 +151,16 @@ log_formatter = logging.Formatter(
 	'%(asctime)s - %(levelname)-10s - %(name)-10s -  %(funcName)-25s- %(message)s')
 
 logger = logging.getLogger('SmoothStreamsProxy v' + str(__version__))
-if args.debug:
-	logger.setLevel(logging.DEBUG)
-else:
-	logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 # Console logging
 console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
+
+if args.debug:
+	console_handler.setLevel(logging.DEBUG)
+else:
+	console_handler.setLevel(logging.INFO)
 console_handler.setFormatter(log_formatter)
 logger.addHandler(console_handler)
 
@@ -471,7 +473,7 @@ vaders_channels = {"1":"2499","2":"2500","3":"2501","4":"2502","5":"2503","6":"2
 
 providerList = [
 	['Live247', 'view247'],
-	['Mystreams/Usport', 'vaders'],
+	['Mystreams', 'vaders'],
 	['StarStreams', 'viewss'],
 	['StreamTVnow', 'viewstvn'],
 	['MMA-TV/MyShout', 'viewmmasr']
@@ -591,8 +593,16 @@ def load_settings():
 		if HEADLESS:
 			config = {}
 			config["username"] = input("Username?")
+			USER = config["username"]
 			config["password"] = input("Password?")
+			PASS = config["password"]
 			os.system('cls' if os.name == 'nt' else 'clear')
+			print("Type the number of the item you wish to select:")
+			for i in providerList:
+				print(providerList.index(i), providerList[providerList.index(i)][0])
+			config["service"] = providerList[int(input("Provider name?"))][1]
+			os.system('cls' if os.name == 'nt' else 'clear')
+			SITE = config["service"]
 			print("Type the number of the item you wish to select:")
 			for i in serverList:
 				print(serverList.index(i), serverList[serverList.index(i)][0])
@@ -607,11 +617,7 @@ def load_settings():
 				result = input("Backup Regional Server name?")
 				config["server_spare"] = serverList[int(result)][1]
 			os.system('cls' if os.name == 'nt' else 'clear')
-			print("Type the number of the item you wish to select:")
-			for i in providerList:
-				print(providerList.index(i), providerList[providerList.index(i)][0])
-			config["service"] = providerList[int(input("Provider name?"))][1]
-			os.system('cls' if os.name == 'nt' else 'clear')
+
 			print("Type the number of the item you wish to select:")
 			for i in streamtype:
 				print(streamtype.index(i), i)
@@ -624,18 +630,13 @@ def load_settings():
 			config["ip"] = input("Listening IP address?(ie recommend 127.0.0.1 for beginners)")
 			config["port"] = int(input("and port?(ie 99, do not use 8080)"))
 			os.system('cls' if os.name == 'nt' else 'clear')
-			config["kodiport"] = int(input("Kodiport? (def is 8080)"))
-			os.system('cls' if os.name == 'nt' else 'clear')
 			config["externalip"] = input("External IP?")
 			config["externalport"] = int(input("and ext port?(ie 99, do not use 8080)"))
 			os.system('cls' if os.name == 'nt' else 'clear')
 			QUAL = config["quality"]
-			USER = config["username"]
-			PASS = config["password"]
 			SRVR = config["server"]
-			SITE = config["service"]
+
 			STRM = config["stream"]
-			KODIPORT = config["kodiport"]
 			LISTEN_IP = config["ip"]
 			LISTEN_PORT = config["port"]
 			EXTIP = config["externalip"]
@@ -981,8 +982,8 @@ if not HEADLESS:
 			labelServer.grid(row=1, column=1)
 
 			userServer = tkinter.StringVar()
-			userServer.set('East-NY')
-			self.server = tkinter.OptionMenu(t2.sub_frame, userServer, *[x[0] for x in serverList])
+			userServer.set('Auto')
+			self.server = tkinter.OptionMenu(t2.sub_frame, userServer,  *['Auto'] + [x[0] for x in serverList])
 			self.server.grid(row=1, column=2)
 
 			self.labelStream = tkinter.StringVar()
@@ -1079,13 +1080,13 @@ if not HEADLESS:
 			self.extport.grid(row=3, column=2)
 
 			def gather():
+				global playlist, kodiplaylist, QUAL, QUALLIMIT, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, EXTIP, EXT_HOST, SERVER_HOST, EXTPORT
+
 				config = {}
 				config["username"] = userUsername.get()
 				config["password"] = userPassword.get()
 				config["stream"] = userStream.get().lower()
-				for sub in serverList:
-					if userServer.get() in sub[0]:
-						config["server"] = sub[1]
+
 				for sub in providerList:
 					if userSite.get() in sub[0]:
 						config["service"] = sub[1]
@@ -1097,15 +1098,10 @@ if not HEADLESS:
 				config["kodiport"] = userKodiPort.get()
 				config["externalip"] = userExternalIP.get()
 				config["externalport"] = userExternalPort.get()
-				for widget in master.winfo_children():
-					widget.destroy()
-				global playlist, kodiplaylist, QUAL, QUALLIMIT, USER, PASS, SRVR, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, EXTIP, EXT_HOST, SERVER_HOST, EXTPORT
-				with open(os.path.join(os.path.dirname(sys.argv[0]), 'proxysettings.json'), 'w') as fp:
-					dump(config, fp)
 				QUAL = config["quality"]
 				USER = config["username"]
 				PASS = config["password"]
-				SRVR = config["server"]
+
 				SITE = config["service"]
 				STRM = config["stream"]
 				KODIPORT = config["kodiport"]
@@ -1115,6 +1111,21 @@ if not HEADLESS:
 				EXTPORT = config["externalport"]
 				EXT_HOST = "http://" + EXTIP + ":" + str(EXTPORT)
 				SERVER_HOST = "http://" + LISTEN_IP + ":" + str(LISTEN_PORT)
+				if userServer.get() != 'Auto':
+					for sub in serverList:
+						if userServer.get() in sub[0]:
+							config["server"] = sub[1]
+							SRVR = config["server"]
+				else:
+					testServers(update_settings=True)
+					config["server"] = SRVR
+					config["server_spare"] = SRVR_SPARE
+
+				for widget in master.winfo_children():
+					widget.destroy()
+				with open(os.path.join(os.path.dirname(sys.argv[0]), 'proxysettings.json'), 'w') as fp:
+					dump(config, fp)
+
 
 
 				self.labelSetting1 = tkinter.StringVar()
@@ -1245,7 +1256,7 @@ def testServers(update_settings=True):
 	res_spare = None
 	res_spare_host = None
 	ping = False
-
+	check_token()
 	# with util.xbmcDialogProgress('Testing servers...') as prog:
 	for name, host in serverList:
 		if 'mix' in name.lower():
@@ -1253,24 +1264,29 @@ def testServers(update_settings=True):
 		logger.info('Testing servers... %s' % name)
 		ping_results = False
 		try:
-			url = host + ".SmoothStreams.tv"
-			logger.info('Testing url %s' % url)
-			if platform.system() == 'Windows':
-				p = subprocess.Popen(["ping", "-n", "4", url], stdout=subprocess.PIPE,
-									 stderr=subprocess.PIPE, shell=True)
-			else:
-				p = subprocess.Popen(["ping", "-c", "4", url], stdout=subprocess.PIPE,
-									 stderr=subprocess.PIPE)
-
-			ping_results = re.compile("time=(.*?)ms").findall(str(p.communicate()[0]))
+			url = "https://" + host + ".SmoothStreams.tv:443/"+ SITE + "/ch01q1.stream/playlist.m3u8?wmsAuthSign=" + token['hash']
+			logger.debug('Testing url %s' % url)
+			# if platform.system() == 'Windows':
+			# 	p = subprocess.Popen(["ping", "-n", "4", url], stdout=subprocess.PIPE,
+			# 						 stderr=subprocess.PIPE, shell=True)
+			# else:
+			# 	p = subprocess.Popen(["ping", "-c", "4", url], stdout=subprocess.PIPE,
+			# 						 stderr=subprocess.PIPE)
+			#
+			# ping_results = re.compile("time=(.*?)ms").findall(str(p.communicate()[0]))
+			t1 = time.time()
+			response = req.get(url)
+			t2 = time.time()
+			if response.status_code == 200:
+				ping_results = t2 - t1
 		except:
 			logger.info("Platform doesn't support ping. Disable auto server selection")
 			AUTO_SERVER = False
 			return None
 
 		if ping_results:
-			logger.debug("Server %s - %s: n%s" % (name, host, repr(ping_results)))
-			avg_ping = averageList(ping_results)
+			logger.debug("Server %s - %s: n%s" % (name, host, ping_results))
+			avg_ping = ping_results
 			if avg_ping != 0:
 				if avg_ping < ping or not ping:
 					res_spare = res
