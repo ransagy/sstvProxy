@@ -69,6 +69,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-d", "--debug", action='store_true', help="Console Debugging Enable")
 parser.add_argument("-hl", "--headless", action='store_true', help="Force Headless mode")
 parser.add_argument("-t", "--tvh", action='store_true', help="Force TVH scanning mode")
+parser.add_argument("-i", "--install", action='store_true', help="Force install again")
 
 args = parser.parse_args()
 
@@ -82,8 +83,9 @@ if args.headless or 'headless' in sys.argv:
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.822
+__version__ = 1.823
 # Changelog
+# 1.823 - Added -i for install trigger
 # 1.822 - Added Auto server selection to Gui.
 # 1.821 - Added CHECK_CHANNEL to adv settings
 # 1.82 - Advanced settings added to web page, channel scanning work
@@ -653,7 +655,7 @@ def load_settings():
 			root.mainloop()
 		installer()
 	adv_settings()
-	if 'install' in sys.argv:
+	if args.install:
 		installer()
 
 
@@ -1302,10 +1304,10 @@ def testServers(update_settings=True):
 				logger.info("Couldn't get ping")
 
 	if res != None:
-		logger.info('Done Server with lowest ping ({0}) set to:%s'.format(ping) % res)
+		logger.info('Done Server with lowest response time ({0}) set to:%s'.format(ping) % res)
 		AUTO_SERVER = False
 	if res_spare != None:
-		logger.info('Backup Server with second lowest ping set to:%s' % res_spare)
+		logger.info('Backup Server with second lowest response time set to:%s' % res_spare)
 	logger.info("Done %s: %s" % (res, ping))
 	return res
 
