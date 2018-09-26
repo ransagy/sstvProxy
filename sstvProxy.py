@@ -83,8 +83,9 @@ if args.headless or 'headless' in sys.argv:
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.823
+__version__ = 1.824
 # Changelog
+# 1.824 - Backup server prompt added for headless
 # 1.823 - Added -i for install trigger
 # 1.822 - Added Auto server selection to Gui.
 # 1.821 - Added CHECK_CHANNEL to adv settings
@@ -616,6 +617,8 @@ def load_settings():
 			else:
 				config["server"] = serverList[int(result)][1]
 				os.system('cls' if os.name == 'nt' else 'clear')
+				for i in serverList:
+					print(serverList.index(i), serverList[serverList.index(i)][0])
 				result = input("Backup Regional Server name?")
 				config["server_spare"] = serverList[int(result)][1]
 			os.system('cls' if os.name == 'nt' else 'clear')
@@ -3284,7 +3287,7 @@ def auto(request_file, qual=""):
 	# 	sanitized_channel = '01'
 	# 	sanitized_qual = '3'
 	# 	url = template.format(SRVR, SITE, sanitized_channel,sanitized_qual, token['hash'])
-	if args.tvh or 'tvh' in sys.argv:
+	if args.tvh:
 		logger.debug("TVH Trickery happening")
 		sanitized_channel = '01'
 		sanitized_qual = '3'
