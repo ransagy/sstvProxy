@@ -69,6 +69,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-d", "--debug", action='store_true', help="Console Debugging Enable")
 parser.add_argument("-hl", "--headless", action='store_true', help="Force Headless mode")
 parser.add_argument("-t", "--tvh", action='store_true', help="Force TVH scanning mode")
+parser.add_argument("-i", "--install", action='store_true', help="Force install again")
 
 args = parser.parse_args()
 
@@ -82,8 +83,10 @@ if args.headless or 'headless' in sys.argv:
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.822
+__version__ = 1.824
 # Changelog
+# 1.824 - Backup server prompt added for headless
+# 1.823 - Added -i for install trigger
 # 1.822 - Added Auto server selection to Gui.
 # 1.821 - Added CHECK_CHANNEL to adv settings
 # 1.82 - Advanced settings added to web page, channel scanning work
@@ -487,6 +490,13 @@ qualityList = [
 	['LQ', '3']
 ]
 
+STREAM_INFO = {'hls': {'domain': 'https', 'port': '443', 'playlist': '.stream/playlist.m3u8', 'quality': 'standard'},
+   'hlsa': {'domain': 'https', 'port': '443', 'playlist': '/playlist.m3u8', 'quality': '.smil'},
+   'rtmp': {'domain': 'rtmp', 'port': '3625', 'playlist': '.stream', 'quality': 'standard'},
+   'mpegts': {'domain': 'https', 'port': '443', 'playlist': '.stream/mpeg.2ts', 'quality': 'standard'},
+   'rtsp': {'domain': 'rtsp', 'port': '2935', 'playlist': '.stream', 'quality': 'standard'},
+   'dash': {'domain': 'https', 'port': '443', 'playlist': '/manifest.mpd', 'quality': '.smil'}}
+
 def adv_settings():
 	if os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'advancedsettings.json')):
 		logger.debug("Parsing advanced settings")
@@ -614,6 +624,8 @@ def load_settings():
 			else:
 				config["server"] = serverList[int(result)][1]
 				os.system('cls' if os.name == 'nt' else 'clear')
+				for i in serverList:
+					print(serverList.index(i), serverList[serverList.index(i)][0])
 				result = input("Backup Regional Server name?")
 				config["server_spare"] = serverList[int(result)][1]
 			os.system('cls' if os.name == 'nt' else 'clear')
@@ -653,7 +665,7 @@ def load_settings():
 			root.mainloop()
 		installer()
 	adv_settings()
-	if 'install' in sys.argv:
+	if args.install:
 		installer()
 
 
@@ -1302,10 +1314,10 @@ def testServers(update_settings=True):
 				logger.info("Couldn't get ping")
 
 	if res != None:
-		logger.info('Done Server with lowest ping ({0}) set to:%s'.format(ping) % res)
+		logger.info('Done Server with lowest response time ({0}) set to:%s'.format(ping) % res)
 		AUTO_SERVER = False
 	if res_spare != None:
-		logger.info('Backup Server with second lowest ping set to:%s' % res_spare)
+		logger.info('Backup Server with second lowest response time set to:%s' % res_spare)
 	logger.info("Done %s: %s" % (res, ping))
 	return res
 
@@ -2050,6 +2062,15 @@ def fixURL(strm, ch, qual, hash):
 		# oh boy we're in trouble now
 		return findChannelURL(input_url=urlformatted, qual=qual)
 
+def createURL(chan, qual, strm, token):
+	URLBASE = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}{5}{6}?wmsAuthSign={7}=='
+	url =  URLBASE.format(STREAM_INFO[strm]['domain'], SRVR, STREAM_INFO[strm]['port'], SITE, chan,
+	                     'q{0}'.format(qual) if STREAM_INFO[strm]['quality'] == 'standard' else '.smil',
+	                     STREAM_INFO[strm]['playlist'], token['hash'])
+	# print(url)
+	# file = requests.urlopen(url, timeout=2).read().decode("utf-8")
+	# print(file)
+	return url
 
 ############################################################
 # m3u8 merger
@@ -2260,7 +2281,7 @@ def m3u8_plex(lineup, inputm3u8):
 	return lineup
 
 
-def lineup(chan_map):
+def createLineup(chan_map):
 	lineup = []
 
 	for c in range(1, len(chan_map) + 1):
@@ -2334,7 +2355,32 @@ def tvh_device():
 	}
 	return render_template('device.xml', data=tvhdiscoverData), {'Content-Type': 'application/xml'}
 
+def ffmpegPipe():
+	logger.debug("starting generate function")
+	cmdline = list()
+	cmdline.append(FFMPEGLOC)
+	cmdline.append("-i")
+	cmdline.append(url)
+	cmdline.append("-vcodec")
+	cmdline.append("copy")
+	cmdline.append("-acodec")
+	cmdline.append("copy")
+	cmdline.append("-f")
+	cmdline.append("mpegts")
+	cmdline.append("pipe:1")
+	logger.debug(cmdline)
+	FNULL = open(os.devnull, 'w')
+	proc = subprocess.Popen(cmdline, stdout=subprocess.PIPE, stderr=FNULL)
+	logger.debug("pipe started")
+	try:
+		f = proc.stdout
+		byte = f.read(512)
+		while byte:
+			yield byte
+			byte = f.read(512)
 
+	finally:
+		proc.kill()
 
 ############################################################
 # Kodi
@@ -2954,7 +3000,7 @@ def index(request_file):
 	elif request_file.lower() == 'discover.json':
 		return discover()
 	elif request_file.lower() == 'lineup.json':
-		return lineup(chan_map)
+		return createLineup(chan_map)
 	elif request_file.lower() == 'lineup.post':
 		return lineup_post()
 	# logger.debug(request.headers)
@@ -3117,6 +3163,8 @@ def bridge(request_file):
 				sanitized_channel = ("0%d" % int(request.args.get('ch'))) if int(
 					request.args.get('ch')) < 10 else request.args.get('ch')
 			check_token()
+			logger.info("Channel %s playlist was requested by %s", sanitized_channel,
+						request.environ.get('REMOTE_ADDR'))
 			if SITE == 'vaders':
 				logger.info("Channel %s playlist was requested by %s", sanitized_channel,
 							request.environ.get('REMOTE_ADDR'))
@@ -3143,30 +3191,24 @@ def bridge(request_file):
 				qual = request.args.get('qual')
 			elif int(sanitized_channel) <= QUALLIMIT:
 				qual = QUAL
-			if request.args.get('strm') and request.args.get('strm') == 'rtmp':
-				strm = 'rtmp'
-				rtmpTemplate = 'rtmp://{0}.smoothstreams.tv:3625/{1}/ch{2}q{3}.stream?wmsAuthSign={4}'
-				pure_url = rtmpTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
-				output_url = rtmpTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
-			elif request.args.get('strm') and request.args.get('strm') == 'mpegts':
-				strm = 'mpegts'
-				return auto(sanitized_channel, qual)
-			else:
-				strm = 'hls'
-				hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}=='
-				pure_url = hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
-				output_url = pure_url
 
+			if request.args.get('strm'):
+				strm = request.args.get('strm')
+			else:
+				strm = STRM
+			output_url = createURL(sanitized_channel, qual, strm, token)
+
+			# if strm == 'mpegts':
+				# return auto(sanitized_channel, qual)
 
 			# channel fixing for dead server/Quality
-			if CHECK_CHANNEL and not checkChannelURL(pure_url) and strm == 'hls':
+			if CHECK_CHANNEL and not checkChannelURL(output_url) and strm == 'hls':
 				output_url = fixURL(strm, sanitized_channel, qual, token['hash'])
 			# creates the output playlist files and returns it as a variable as well
 			if strm == 'hls':
 				output_file = create_channel_file(output_url)
 
-			logger.info("Channel %s playlist was requested by %s", sanitized_channel,
-						request.environ.get('REMOTE_ADDR'))
+
 			# useful for debugging
 			logger.debug("URL returned: %s" % output_url)
 
@@ -3250,82 +3292,63 @@ def tvh_returns(request_file):
 # returns a piped stream, used for TVH/Plex Live TV
 def auto(request_file, qual=""):
 	logger.debug("starting pipe function")
-	check_token()
-	channel = request_file.replace("v", "")
-	logger.info("Channel %s playlist was requested by %s", channel,
-				request.environ.get('REMOTE_ADDR'))
-	sanitized_channel = ("0%d" % int(channel)) if int(channel) < 10 else channel
-
-	sanitized_qual = '1'
-	if int(channel) <= QUALLIMIT:
-		if qual == "":
-			sanitized_qual = QUAL
-		else:
-			sanitized_qual = qual
-	template = "https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}"
-	url = template.format(SRVR, SITE, sanitized_channel, sanitized_qual, token['hash'])
-
-	logger.debug(
-		"sanitized_channel: %s sanitized_qual: %s QUAL: %s qual: %s" % (sanitized_channel, sanitized_qual, QUAL, qual))
-
-	if CHECK_CHANNEL and not checkChannelURL(url):
-		url = fixURL('hls', sanitized_channel, qual, token['hash'])
-
-	logger.debug(url)
-	# try:
-	# 	urllib.request.urlopen(url, timeout=2).getcode()
-	# except:
-	# 	a = 1
-	# except timeout:
-	# 	#special arg for tricking tvh into saving every channel first time
-	# 	print("timeout")
-	# 	sanitized_channel = '01'
-	# 	sanitized_qual = '3'
-	# 	url = template.format(SRVR, SITE, sanitized_channel,sanitized_qual, token['hash'])
-	if args.tvh or 'tvh' in sys.argv:
-		logger.debug("TVH Trickery happening")
-		sanitized_channel = '01'
-		sanitized_qual = '3'
-		url = template.format(SRVR, SITE, sanitized_channel, sanitized_qual, token['hash'])
-		logger.debug(url)
 	if request.args.get('url'):
 		logger.info("Piping custom URL")
 		url = request.args.get('url')
 		if '|' in url:
 			url = url.split('|')[0]
 		logger.debug(url)
-	import subprocess
+		return Response(response=ffmpegPipe(), status=200, mimetype='video/mp2t',
+						headers={'Access-Control-Allow-Origin': '*', "Content-Type": "video/mp2t",
+								 "Content-Disposition": "inline", "Content-Transfer-Enconding": "binary"})
+	else:
+		check_token()
+		channel = request_file.replace("v", "")
+		logger.info("Channel %s playlist was requested by %s", channel,
+					request.environ.get('REMOTE_ADDR'))
+		sanitized_channel = ("0%d" % int(channel)) if int(channel) < 10 else channel
 
-	def generate():
-		logger.debug("starting generate function")
-		cmdline = list()
-		cmdline.append(FFMPEGLOC)
-		cmdline.append("-i")
-		cmdline.append(url)
-		cmdline.append("-vcodec")
-		cmdline.append("copy")
-		cmdline.append("-acodec")
-		cmdline.append("copy")
-		cmdline.append("-f")
-		cmdline.append("mpegts")
-		cmdline.append("pipe:1")
-		logger.debug(cmdline)
-		FNULL = open(os.devnull, 'w')
-		proc = subprocess.Popen(cmdline, stdout=subprocess.PIPE, stderr=FNULL)
-		logger.debug("pipe started")
-		try:
-			f = proc.stdout
-			byte = f.read(512)
-			while byte:
-				yield byte
-				byte = f.read(512)
+		# find the quality to use for the url
+		sanitized_qual = '1'
+		if qual == "" and checkChannelURL(createURL(sanitized_channel, QUAL, 'hls', token)):
+			sanitized_qual = QUAL
+		elif qual != "" and checkChannelURL(createURL(sanitized_channel, qual, 'hls', token)):
+			sanitized_qual = qual
 
-		finally:
-			proc.kill()
+		url = createURL(sanitized_channel, sanitized_qual, 'mpegts', token)
 
-	return Response(response=generate(), status=200, mimetype='video/mp2t',
-					headers={'Access-Control-Allow-Origin': '*', "Content-Type": "video/mp2t",
-							 "Content-Disposition": "inline", "Content-Transfer-Enconding": "binary"})
+		logger.debug(
+			"sanitized_channel: %s sanitized_qual: %s QUAL: %s qual: %s" % (sanitized_channel, sanitized_qual, QUAL, qual))
+
+		# changing to mpegts
+		# if CHECK_CHANNEL and not checkChannelURL(url):
+		# 	url = fixURL('hls', sanitized_channel, qual, token['hash'])
+
+		logger.debug(url)
+		# try:
+		# 	urllib.request.urlopen(url, timeout=2).getcode()
+		# except:
+		# 	a = 1
+		# except timeout:
+		# 	#special arg for tricking tvh into saving every channel first time
+		# 	print("timeout")
+		# 	sanitized_channel = '01'
+		# 	sanitized_qual = '3'
+		# 	url = template.format(SRVR, SITE, sanitized_channel,sanitized_qual, token['hash'])
+		if args.tvh:
+			logger.debug("TVH Trickery happening")
+			sanitized_channel = '01'
+			sanitized_qual = '3'
+			url = createURL(sanitized_channel, sanitized_qual, 'mpegts', token)
+			logger.debug(url)
+
+		response = redirect(url, code=302)
+		headers = dict(response.headers)
+		headers.update({'Content-Type': 'video/mp2t', "Access-Control-Allow-Origin": "*"})
+		response.headers = headers
+		logger.debug("returning response")
+		return response
+		# return redirect(url, code=302)
 
 
 ############################################################
