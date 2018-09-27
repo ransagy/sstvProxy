@@ -3261,7 +3261,7 @@ def bridge(request_file):
 		if TVHREDIRECT == True:
 			return tvh_lineup()
 		else:
-			return lineup(chan_map)
+			return createLineup(chan_map)
 	elif request_file.lower() == 'lineup.post':
 		return lineup_post()
 	elif request_file.lower() == 'device.xml':
