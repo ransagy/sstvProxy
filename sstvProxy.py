@@ -83,8 +83,9 @@ if args.headless or 'headless' in sys.argv:
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.824
+__version__ = 1.8241
 # Changelog
+# 1.8241 - Added user agent to log
 # 1.824 - Backup server prompt added for headless
 # 1.823 - Added -i for install trigger
 # 1.822 - Added Auto server selection to Gui.
@@ -482,7 +483,7 @@ providerList = [
 	['MMA-TV/MyShout', 'viewmmasr']
 ]
 
-streamtype = ['hls', 'rtmp', 'mpegts']
+streamtype = ['hls', 'hlsa', 'rtmp', 'mpegts', 'rtsp', 'dash']
 
 qualityList = [
 	['HD', '1'],
@@ -3016,6 +3017,7 @@ def bridge(request_file):
 	check_token()
 	try:
 		client = find_client(request.headers['User-Agent'])
+		logger.debug("Client is %s, user agent is %s" %(client, request.headers['User-Agent']))
 	except:
 		logger.debug("No user-agent provided by %s", request.environ.get('REMOTE_ADDR'))
 		client = 'unk'
