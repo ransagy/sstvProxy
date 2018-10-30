@@ -85,7 +85,7 @@ app = Flask(__name__, static_url_path='')
 
 __version__ = 1.8241
 # Changelog
-# 1.8241 - Added user agent to log
+# 1.8241 - Added user agent to log, Added new servers
 # 1.824 - Backup server prompt added for headless
 # 1.823 - Added -i for install trigger
 # 1.822 - Added Auto server selection to Gui.
@@ -464,12 +464,15 @@ serverList = [
 	['   East-VA', 'dnae2'],
 	# ['   East-Mtl', 'dnae3'],
 	# ['   East-Tor', 'dnae4'],
+	['   East-ATL', 'dnae5'],
 	['   East-NY', 'dnae6'],
 	['   West-Phx', 'dnaw1'],
 	['   West-LA', 'dnaw2'],
 	['   West-SJ', 'dnaw3'],
 	['   West-Chi', 'dnaw4'],
 	['Asia', 'dap'],
+	['   Asia', 'dap1'],
+	['   Asia', 'dap2'],
 	['Asia-Old', 'dsg']
 ]
 
@@ -1263,7 +1266,7 @@ def testServers(update_settings=True):
 	# todo
 	global SRVR, SRVR_SPARE, AUTO_SERVER
 	service = SRVR
-
+	fails = []
 	res = None
 	res_host = None
 	res_spare = None
@@ -1292,6 +1295,8 @@ def testServers(update_settings=True):
 			t2 = time.time()
 			if response.status_code == 200:
 				ping_results = t2 - t1
+			else:
+				fails.append(name)
 		except:
 			logger.info("Platform doesn't support ping. Disable auto server selection")
 			AUTO_SERVER = False
@@ -1320,6 +1325,7 @@ def testServers(update_settings=True):
 	if res_spare != None:
 		logger.info('Backup Server with second lowest response time set to:%s' % res_spare)
 	logger.info("Done %s: %s" % (res, ping))
+	logger.debug("Failed to access servers: %s" % fails)
 	return res
 
 def findChannelURL(input_url=None, qual='1', target_serv=SRVR, fail=0):
