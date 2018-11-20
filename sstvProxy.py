@@ -486,7 +486,7 @@ providerList = [
 	['MMA-TV/MyShout', 'viewmmasr']
 ]
 
-streamtype = ['hls', 'hlsa', 'rtmp', 'mpegts', 'rtsp', 'dash']
+streamtype = ['hls', 'hlsa', 'rtmp', 'mpegts', 'rtsp', 'dash', 'wss']
 
 qualityList = [
 	['HD', '1'],
@@ -499,7 +499,10 @@ STREAM_INFO = {'hls': {'domain': 'https', 'port': '443', 'playlist': '.stream/pl
    'rtmp': {'domain': 'rtmp', 'port': '3625', 'playlist': '.stream', 'quality': 'standard'},
    'mpegts': {'domain': 'https', 'port': '443', 'playlist': '.stream/mpeg.2ts', 'quality': 'standard'},
    'rtsp': {'domain': 'rtsp', 'port': '2935', 'playlist': '.stream', 'quality': 'standard'},
-   'dash': {'domain': 'https', 'port': '443', 'playlist': '/manifest.mpd', 'quality': '.smil'}}
+   'dash': {'domain': 'https', 'port': '443', 'playlist': '/manifest.mpd', 'quality': '.smil'},
+   'wss': {'domain': 'wss', 'port': '443', 'playlist': '.stream', 'quality': 'standard'},
+   'wssa': {'domain': 'wss', 'port': '443', 'playlist': '', 'quality': '.smil'}
+               }
 
 def adv_settings():
 	if os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'advancedsettings.json')):
@@ -3251,8 +3254,13 @@ def bridge(request_file):
 
 			else:
 				# some players are having issues with http/https redirects
-				logger.debug("returning m3u8 as variable")
-				return output_file
+				try:
+					logger.debug("returning m3u8 as variable")
+					return output_file
+				except:
+					logger.debug("returning hls url")
+					return output_url
+
 
 		# returning dynamic playlist
 		else:
