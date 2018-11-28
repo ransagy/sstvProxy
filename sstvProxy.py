@@ -83,8 +83,9 @@ if args.headless or 'headless' in sys.argv:
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.8241
+__version__ = 1.825
 # Changelog
+# 1.825 - Added support for enigma by adding in blank subtitle and desc fields to the EPG
 # 1.8241 - Added user agent to log, Added new servers
 # 1.824 - Backup server prompt added for headless
 # 1.823 - Added -i for install trigger
@@ -1485,6 +1486,16 @@ def dl_epg(source=1):
 						logger.info("A programme was skipped as it couldn't be assigned to a channel, refer log.")
 						logger.debug(a.find('title').text, a.attrib)
 				for b in a.findall('title'):
+					desc = a.find('desc')
+					if desc is None:
+						ET.SubElement(a, 'desc')
+						desc = a.find('desc')
+						desc.text = ""
+					sub = a.find('sub-title')
+					if sub is None:
+						ET.SubElement(a, 'sub-title')
+						sub = a.find('sub-title')
+						sub.text = ""
 					ET.SubElement(a, 'category')
 					c = a.find('category')
 					ep_num = a.find('episode-num')
@@ -3213,7 +3224,7 @@ def bridge(request_file):
 				# return auto(sanitized_channel, qual)
 
 			# channel fixing for dead server/Quality
-			if CHECK_CHANNEL and not checkChannelURL(output_url) and strm == 'hls':
+			if CHECK_CHANNEL and strm == 'hls' and not checkChannelURL(output_url):
 				output_url = fixURL(strm, sanitized_channel, qual, token['hash'])
 			# creates the output playlist files and returns it as a variable as well
 			if strm == 'hls':
