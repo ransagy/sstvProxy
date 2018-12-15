@@ -1993,6 +1993,22 @@ def build_test_playlist(hosts):
 	logger.info("Built static playlist")
 	return new_playlist
 
+def build_server_playlist():
+	# build playlist using the data we have
+	new_playlist = "#EXTM3U x-tvg-url='%s/epg.xml'\n" % urljoin(SERVER_HOST, SERVER_PATH)
+	template = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}q{5}.stream{6}?wmsAuthSign={7}'
+	url = "{0}/sstv/playlist.m3u8?ch=1&strm=mpeg&qual=1"
+	# build playlist entry
+	for server in serverList:
+		new_playlist += '#EXTINF:-1 tvg-id="1" tvg-name="%s" channel-id="1","%s"\n' % (server[0], server[0])
+		new_playlist += '%s\n' % template.format('https', server[1], '443', SITE, "01", 1, '/mpeg.2ts', token['hash'])
+
+
+
+	logger.info("Built server playlist")
+	return new_playlist
+
+
 
 def thread_playlist():
 	global playlist
@@ -3160,6 +3176,11 @@ def bridge(request_file):
 	# returns test playlist
 	elif request_file.lower() == "test.m3u8":
 		testplaylist = build_test_playlist([SERVER_HOST, EXT_HOST])
+		logger.info("Static playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
+		return Response(testplaylist, mimetype='application/x-mpegURL')
+
+	elif request_file.lower() == "server.m3u8":
+		testplaylist = build_server_playlist()
 		logger.info("Static playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
 		return Response(testplaylist, mimetype='application/x-mpegURL')
 
