@@ -2749,7 +2749,7 @@ def create_menu():
 			prog = getProgram(i)
 			if prog.title != 'none':
 				try:
-					html.write(template.format(chan_map[i].channum, prog.title.encode('utf-8'), SERVER_HOST, SERVER_PATH))
+					html.write(template.format(chan_map[i].channum, str(prog.title), SERVER_HOST, SERVER_PATH))
 				except:
 					logger.exception(prog.title)
 		html.write("</div></section>")
