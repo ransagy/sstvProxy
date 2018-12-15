@@ -414,6 +414,7 @@ OVRXML = ''
 tvhWeight = 300  # subscription priority
 tvhstreamProfile = 'pass'  # specifiy a stream profile that you want to use for adhoc transcoding in tvh, e.g. mp4
 GUIDELOOKAHEAD = 5 #minutes
+PIPE = True
 
 # LINUX/WINDOWS
 if platform.system() == 'Linux':
@@ -568,6 +569,10 @@ def adv_settings():
 				logger.debug("Overriding CheckChannel")
 				global CHECK_CHANNEL
 				CHECK_CHANNEL = advconfig["checkchannel"] == "True"
+			if "pipe" in advconfig:
+				logger.debug("Overriding Pipe")
+				global PIPE
+				PIPE = advconfig["pipe"] == "True"
 
 
 
@@ -2378,7 +2383,7 @@ def tvh_device():
 	}
 	return render_template('device.xml', data=tvhdiscoverData), {'Content-Type': 'application/xml'}
 
-def ffmpegPipe():
+def ffmpegPipe(url):
 	logger.debug("starting generate function")
 	cmdline = list()
 	cmdline.append(FFMPEGLOC)
@@ -2665,7 +2670,7 @@ def create_menu():
 		channelmap = {}
 		chanindex = 0
 		adv_set = ["kodiuser", "kodipass", "ffmpegloc", "kodiport", "extram3u8url", "extram3u8name", "extram3u8file",
-		           "extraxmlurl", "tvhredirect", "tvhaddress", "tvhuser", "tvhpass", "overridexml", "checkchannel"]
+		           "extraxmlurl", "tvhredirect", "tvhaddress", "tvhuser", "tvhpass", "overridexml", "checkchannel", "pipe"]
 		html.write('<table width="300" border="2">')
 		for setting in adv_set:
 			if setting.lower() == 'kodipass':
@@ -2673,6 +2678,9 @@ def create_menu():
 				setting, setting, KODIPASS))
 			elif setting == "checkchannel":
 				html.write('<tr><td>%s:</td><td><select name="%s"  size="1"><option value="True" %s>Enabled</option><option value="False" %s>Disabled</option></select></td></tr>' % (setting, setting,  ' selected' if CHECK_CHANNEL == True else "", ' selected' if CHECK_CHANNEL == False else ""))
+			elif setting == "pipe":
+				html.write('<tr><td>%s:</td><td><select name="%s"  size="1"><option value="True" %s>Enabled</option><option value="False" %s>Disabled</option></select></td></tr>' % (setting, setting,  ' selected' if PIPE == True else "", ' selected' if PIPE == False else ""))
+
 			else:
 				val = "Unknown"
 				if setting == "kodiuser":
@@ -2749,7 +2757,7 @@ def create_menu():
 			prog = getProgram(i)
 			if prog.title != 'none':
 				try:
-					html.write(template.format(chan_map[i].channum, str(prog.title), SERVER_HOST, SERVER_PATH))
+					html.write(template.format(chan_map[i].channum, str(prog.title).encode('utf-8'), SERVER_HOST, SERVER_PATH))
 				except:
 					logger.exception(prog.title)
 		html.write("</div></section>")
@@ -3324,14 +3332,14 @@ def tvh_returns(request_file):
 @app.route('/%s/auto/<request_file>' % SERVER_PATH)
 # returns a piped stream, used for TVH/Plex Live TV
 def auto(request_file, qual=""):
-	logger.debug("starting pipe function")
+	logger.debug("starting auto function")
 	if request.args.get('url'):
 		logger.info("Piping custom URL")
 		url = request.args.get('url')
 		if '|' in url:
 			url = url.split('|')[0]
 		logger.debug(url)
-		return Response(response=ffmpegPipe(), status=200, mimetype='video/mp2t',
+		return Response(response=ffmpegPipe(url), status=200, mimetype='video/mp2t',
 						headers={'Access-Control-Allow-Origin': '*', "Content-Type": "video/mp2t",
 								 "Content-Disposition": "inline", "Content-Transfer-Enconding": "binary"})
 	else:
@@ -3380,6 +3388,12 @@ def auto(request_file, qual=""):
 		headers.update({'Content-Type': 'video/mp2t', "Access-Control-Allow-Origin": "*"})
 		response.headers = headers
 		logger.debug("returning response")
+		if PIPE:
+			url = createURL(sanitized_channel, sanitized_qual, 'hls', token)
+			logger.debug("Piping")
+			return Response(response=ffmpegPipe(url), status=200, mimetype='video/mp2t',
+			                headers={'Access-Control-Allow-Origin': '*', "Content-Type": "video/mp2t",
+			                         "Content-Disposition": "inline", "Content-Transfer-Enconding": "binary"})
 		return response
 		# return redirect(url, code=302)
 
