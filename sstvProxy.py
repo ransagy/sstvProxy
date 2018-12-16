@@ -2538,7 +2538,7 @@ def create_menu():
 		html.write('<section class="container"><div class="left-half">')
 		html.write("<h1>YAP Settings</h1>")
 		template = "<a href='{1}/{2}/{0}.html'>{3}</a>"
-		html.write("<p>" + template.format("settings",SERVER_HOST, SERVER_PATH,"Options") + " " + template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions") + " " + template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List") + " " + template.format("adv_channels",SERVER_HOST, SERVER_PATH,"Advanced Settings") + "</p>")
+		html.write("<p>" + template.format("settings",SERVER_HOST, SERVER_PATH,"Options") + " " + template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions") + " " + template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List") + " " + template.format("adv_settings",SERVER_HOST, SERVER_PATH,"Advanced Settings") + "</p>")
 
 		html.write('<form action="%s/%s/handle_data" method="post">' % (SERVER_HOST, SERVER_PATH))
 
@@ -2679,7 +2679,7 @@ def create_menu():
 		html.write('<section class="container"><div class="left-half">')
 		html.write("<h1>YAP Settings</h1>")
 		template = "<a href='{1}/{2}/{0}.html'>{3}</a>"
-		html.write("<p>" + template.format("settings",SERVER_HOST, SERVER_PATH,"Options") + " " + template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions") + " " + template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List") + " " + template.format("adv_channels",SERVER_HOST, SERVER_PATH,"Advanced Settings") + "</p>")
+		html.write("<p>" + template.format("settings",SERVER_HOST, SERVER_PATH,"Options") + " " + template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions") + " " + template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List") + " " + template.format("adv_settings",SERVER_HOST, SERVER_PATH,"Advanced Settings") + "</p>")
 
 		html.write('<form action="%s/%s/handle_data" method="post">' % (SERVER_HOST, SERVER_PATH))
 
@@ -2756,7 +2756,7 @@ def create_menu():
 		html.write("""<html><head><title>YAP</title><meta charset="UTF-8">%s</head><body>\n""" % (style,))
 		html.write("<h1>Channel List and Upcoming Shows</h1>")
 		template = "<a href='{1}/{2}/{0}.html'>{3}</a>"
-		html.write("<p>" + template.format("settings",SERVER_HOST, SERVER_PATH,"Options") + " " + template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions") + " " + template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List") + " " + template.format("adv_channels",SERVER_HOST, SERVER_PATH,"Advanced Settings") + "</p>")
+		html.write("<p>" + template.format("settings",SERVER_HOST, SERVER_PATH,"Options") + " " + template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions") + " " + template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List") + " " + template.format("adv_settings",SERVER_HOST, SERVER_PATH,"Advanced Settings") + "</p>")
 		html.write('<section class="container"><div class="left-half"><table width="300" border="1">')
 		template = "<td>{0}</td><td><a href='{2}/{3}/playlist.m3u8?ch={0}'><img src='{2}/{3}/{0}.png'></a></td></td>"
 		for i in chan_map:
@@ -2786,7 +2786,7 @@ def create_menu():
 		html.write(template.format("settings",SERVER_HOST, SERVER_PATH,"Options"))
 		html.write(template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions"))
 		html.write(template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List"))
-		html.write(template.format("adv_channels", SERVER_HOST, SERVER_PATH, "Advanced Settings"))
+		html.write(template.format("adv_settings", SERVER_HOST, SERVER_PATH, "Advanced Settings"))
 		html.write(footer)
 		html.write("</body></html>\n")
 
@@ -2794,7 +2794,7 @@ def create_menu():
 		html.write("""<html><head><title>YAP</title><meta charset="UTF-8">%s</head><body>\n""" % (style,))
 		template = "<a href='{1}/{2}/{0}.html'>{3}</a>"
 		html.write("<h1>Welcome to YAP!</h1>")
-		html.write("<p>" + template.format("settings",SERVER_HOST, SERVER_PATH,"Options") + " " + template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions") + " " + template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List") + " " + template.format("adv_channels",SERVER_HOST, SERVER_PATH,"Advanced Settings") + "</p>")
+		html.write("<p>" + template.format("settings",SERVER_HOST, SERVER_PATH,"Options") + " " + template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions") + " " + template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List") + " " + template.format("adv_settings",SERVER_HOST, SERVER_PATH,"Advanced Settings") + "</p>")
 		html.write("<h2>Work in progress.</h2>")
 
 		html.write("""<h2>Commandline Arguments</h2></br><p>'install' - forces recreation of the install function which creates certain files, such as the tvh internal grabber</br></br>
@@ -2978,7 +2978,7 @@ def handle_data():
 		logger.info('Restarting YAP')
 		restart_program()
 		return
-	if request_page.endswith("adv_channels.html"):
+	if request_page.endswith("adv_settings.html"):
 		logger.info("Received new adv settings from %s", request.environ.get('REMOTE_ADDR'))
 		restartrequired = False
 		with open('./advancedsettings.json', 'w') as fp:
