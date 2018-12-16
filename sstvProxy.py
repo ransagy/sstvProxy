@@ -83,8 +83,9 @@ if args.headless or 'headless' in sys.argv:
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.8251
+__version__ = 1.83
 # Changelog
+# 1.83 - Rewrote create url to use chan api, added strm arg to playlist.m3u8 and static.m3u8 and dynamic playlists can be called using streamtype.m3u8 ie /sstv/hls.m3u8
 # 1.8251 - Make pipe an option still and other small fixes
 # 1.825 - Added support for enigma by adding in blank subtitle and desc fields to the EPG
 # 1.8241 - Added user agent to log, Added new servers
@@ -416,6 +417,7 @@ tvhWeight = 300  # subscription priority
 tvhstreamProfile = 'pass'  # specifiy a stream profile that you want to use for adhoc transcoding in tvh, e.g. mp4
 GUIDELOOKAHEAD = 5 #minutes
 PIPE = True
+CHANAPI = None
 
 # LINUX/WINDOWS
 if platform.system() == 'Linux':
@@ -1833,10 +1835,10 @@ def build_channel_map_sstv():
 	return chan_map
 
 
-def build_playlist(host):
+def build_playlist(host, strmType = None):
 	# standard dynamic playlist
 	global chan_map
-
+	if not strmType or strmType not in streamtype: strmType = STRM
 	# build playlist using the data we have
 	new_playlist = "#EXTM3U x-tvg-url='%s/epg.xml'\n" % urljoin(host, SERVER_PATH)
 	for pos in range(1, len(chan_map) + 1):
@@ -1853,7 +1855,7 @@ def build_playlist(host):
 				tokens = urllib.parse.urlencode({"token": str(tokens)[1:]})
 				channel_url = vaders_url.format(vaders_channels[str(pos)], strm) + tokens
 			else:
-				urlformatted = url.format(SERVER_PATH, chan_map[pos].channum, STRM, QUAL)
+				urlformatted = url.format(SERVER_PATH, chan_map[pos].channum, strmType, QUAL)
 				channel_url = urljoin(host, urlformatted)
 			# build playlist entry
 
@@ -1906,7 +1908,7 @@ def build_xspf(host, request_file):
 		program = getProgram(pos)
 		url = "{0}/playlist.m3u8?ch={1}"
 		vaders_url = "http://vapi.vaders.tv/play/{0}.{1}?"
-		quality = '720p' if QUAL == '1' or pos > QUALLIMIT else '540p' if QUAL == '2' else '360p'
+		# quality = '720p' if QUAL == '1' or pos > QUALLIMIT else '540p' if QUAL == '2' else '360p'
 		if SITE == 'vaders':
 			tokenDict = {"username": "vsmystreams_" + USER, "password": PASS}
 			jsonToken = json.dumps(tokenDict)
@@ -1920,9 +1922,10 @@ def build_xspf(host, request_file):
 			if not 'static' in request_file:
 				channel_url = urljoin(host, urlformatted)
 			else:
-				channel_url = template.format('https' if STRM == 'hls' else 'rtmp', SRVR, '443' if STRM == 'hls' else '3625',
-										   SITE, "{:02}".format(pos), QUAL if pos <= QUALLIMIT else '1',
-										   '/playlist.m3u8' if STRM == 'hls' else '', token['hash'])
+				channel_url =createURL(pos,QUAL,STRM,token)
+				# channel_url = template.format('https' if STRM == 'hls' else 'rtmp', SRVR, '443' if STRM == 'hls' else '3625',
+				# 						   SITE, "{:02}".format(pos), QUAL if pos <= QUALLIMIT else '1',
+				# 						   '/playlist.m3u8' if STRM == 'hls' else '', token['hash'])
 		# build playlist entry
 		try:
 			xspfTracks += xspfTrackTemplate.format(escape(program.album), escape(program.quality),
@@ -1942,24 +1945,26 @@ def build_xspf(host, request_file):
 	return xspf
 
 
-def build_static_playlist():
+def build_static_playlist(strmType=None):
 	global chan_map
+	if not strmType or strmType not in streamtype:
+		strmType = STRM
 	# build playlist using the data we have
 	new_playlist = "#EXTM3U x-tvg-url='%s/epg.xml'\n" % urljoin(SERVER_HOST, SERVER_PATH)
 	for pos in range(1, len(chan_map) + 1):
 		# build channel url
 
-		template = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}q{5}.stream{6}?wmsAuthSign={7}'
-		urlformatted = template.format('https' if STRM == 'hls' else 'rtmp', SRVR, '443' if STRM == 'hls' else '3625',
-									   SITE, "{:02}".format(pos), QUAL if pos <= QUALLIMIT else '1',
-									   '/playlist.m3u8' if STRM == 'hls' else '', token['hash'])
+		# template = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}q{5}.stream{6}?wmsAuthSign={7}'
+		# urlformatted = template.format('https' if STRM == 'hls' else 'rtmp', SRVR, '443' if STRM == 'hls' else '3625',
+		# 							   SITE, "{:02}".format(pos), QUAL if pos <= QUALLIMIT else '1',
+		# 							   '/playlist.m3u8' if STRM == 'hls' else '', token['hash'])
 		# build playlist entry
 		try:
 			new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s",%s\n' % (
 				chan_map[pos].channum, chan_map[pos].channame, SERVER_HOST, SERVER_PATH, chan_map[pos].channum,
 				chan_map[pos].channum,
 				chan_map[pos].channame)
-			new_playlist += '%s\n' % urlformatted
+			new_playlist += '%s\n' % createURL(pos, QUAL, strmType,token)
 		except:
 			logger.exception("Exception while updating static playlist: ")
 	logger.info("Built static playlist")
@@ -2108,13 +2113,40 @@ def fixURL(strm, ch, qual, hash):
 		return findChannelURL(input_url=urlformatted, qual=qual)
 
 def createURL(chan, qual, strm, token):
+	chan = int(chan)
+	qualOptions = {}
+	chanData = CHANAPI[str(chan)]
+	for i in chanData:
+		if i['id'] == '3':
+			qualOptions['720'] = 'q' + i['stream']
+		elif i['id'] == '4':
+			qualOptions['540'] = 'q' + i['stream']
+		elif i['id'] == '5':
+			qualOptions['360'] = 'q' + i['stream']
+
+	if int(qual) == 1:
+		quality = "720"  # HD - 2800k
+	elif int(qual) == 2:
+		quality = "540"  # LD - 1250k
+	elif int(qual) == 3:
+		quality = "360"  # Mobile - 400k ( Not in settings)
+	else:
+		quality = "720"
+	sanitizedQuality = 'q1'
+	if quality in qualOptions:
+		sanitizedQuality = qualOptions[quality]
+
+
 	URLBASE = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}{5}{6}?wmsAuthSign={7}=='
-	url =  URLBASE.format(STREAM_INFO[strm]['domain'], SRVR, STREAM_INFO[strm]['port'], SITE, chan,
-	                     'q{0}'.format(qual) if STREAM_INFO[strm]['quality'] == 'standard' else '.smil',
-	                     STREAM_INFO[strm]['playlist'], token['hash'])
-	# print(url)
-	# file = requests.urlopen(url, timeout=2).read().decode("utf-8")
-	# print(file)
+	url =  URLBASE.format(STREAM_INFO[strm]['domain'],
+	                      SRVR,
+	                      STREAM_INFO[strm]['port'],
+	                      SITE,
+	                      chan,
+	                      sanitizedQuality if STREAM_INFO[strm]['quality'] == 'standard' else '.smil',
+	                      STREAM_INFO[strm]['playlist'],
+	                      token['hash'])
+
 	return url
 
 ############################################################
@@ -2457,8 +2489,7 @@ def build_kodi_playlist():
 				chan_map[pos].channum, chan_map[pos].channame, SERVER_HOST, SERVER_PATH, chan_map[pos].channum,
 				chan_map[pos].channum,
 				chan_map[pos].channame)
-			new_playlist += '%s\n' % rtmpTemplate.format(SRVR, SITE, "{:02}".format(pos), QUAL if pos <= QUALLIMIT else '1',
-														 token['hash'])
+			new_playlist += '%s\n' % createURL(pos,QUAL,'rtmp',token) #rtmpTemplate.format(SRVR, SITE, "{:02}".format(pos), QUAL if pos <= QUALLIMIT else '1',token['hash'])
 			prog = getProgram(pos)
 			if prog.title != 'none':
 				new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s" group-title="LIVE",%s\n' % (
@@ -3170,19 +3201,23 @@ def bridge(request_file):
 
 	# returns static playlist
 	elif request_file.lower().startswith('static'):
-		staticplaylist = build_static_playlist()
+		if request.args.get('strm'):
+			strmType = request.args.get('strm')
+		else:
+			strmType = STRM
+		staticplaylist = build_static_playlist(strmType)
 		logger.info("Static playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
 		return Response(staticplaylist, mimetype='application/x-mpegURL')
 
 	# returns test playlist
 	elif request_file.lower() == "test.m3u8":
 		testplaylist = build_test_playlist([SERVER_HOST, EXT_HOST])
-		logger.info("Static playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
+		logger.info("Test playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
 		return Response(testplaylist, mimetype='application/x-mpegURL')
 
 	elif request_file.lower() == "server.m3u8":
 		testplaylist = build_server_playlist()
-		logger.info("Static playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
+		logger.info("Server playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
 		return Response(testplaylist, mimetype='application/x-mpegURL')
 
 	# returns kodi playlist
@@ -3311,10 +3346,23 @@ def bridge(request_file):
 
 		# returning dynamic playlist
 		else:
-			playlist = build_playlist(SERVER_HOST)
-			logger.info("All channels playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
+			if request.args.get('strm'):
+				strmType = request.args.get('strm')
+			else:
+				strmType = STRM
+			playlist = build_playlist(SERVER_HOST, strmType)
+			logger.info("All channels playlist(%s) was requested by %s" % (strmType, request.environ.get('REMOTE_ADDR')))
 			return Response(playlist, mimetype='application/x-mpegURL')
 
+	elif '.m3u8' in request_file.lower():
+		strng = request_file.lower().replace('.m3u8','')
+		if strng in streamtype:
+			strmType = strng
+		else:
+			strmType = STRM
+		playlist = build_playlist(SERVER_HOST, strmType)
+		logger.info("All channels playlist(%s) was requested by %s" % (strmType, request.environ.get('REMOTE_ADDR')))
+		return Response(playlist, mimetype='application/x-mpegURL')
 	# HDHomeRun emulated json files for Plex Live tv.
 	elif request_file.lower() == 'lineup_status.json':
 		return status()
@@ -3442,6 +3490,11 @@ if __name__ == "__main__":
 			# cannot get response from fog, resorting to fallback
 			fallback = True
 			chan_map = build_channel_map_sstv()
+		try:
+			chanAPIURL = 'https://guide.smoothstreams.tv/api/api-qualities-new.php'
+			CHANAPI = json.loads(requests.urlopen(chanAPIURL).read().decode("utf-8"))
+		except:
+			CHANAPI = None
 		jsonGuide1 = getJSON("iptv.json", "https://iptvguide.netlify.com/iptv.json",
 							 "https://fast-guide.smoothstreams.tv/altepg/feed1.json")
 		jsonGuide2 = getJSON("tv.json", "https://iptvguide.netlify.com/tv.json",
