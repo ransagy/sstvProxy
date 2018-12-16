@@ -83,8 +83,9 @@ if args.headless or 'headless' in sys.argv:
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.825
+__version__ = 1.8251
 # Changelog
+# 1.8251 - Make pipe an option still and other small fixes
 # 1.825 - Added support for enigma by adding in blank subtitle and desc fields to the EPG
 # 1.8241 - Added user agent to log, Added new servers
 # 1.824 - Backup server prompt added for headless
