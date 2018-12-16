@@ -3141,7 +3141,7 @@ def bridge(request_file):
 		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'settings.html')
 
 	# return settings menu
-	elif request_file.lower().startswith('adv'):
+	elif request_file.lower().startswith('adv_settings'):
 		logger.info("Adv_Settings was requested by %s", request.environ.get('REMOTE_ADDR'))
 		create_menu()
 		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'adv_settings.html')
