@@ -83,7 +83,7 @@ if args.headless or 'headless' in sys.argv:
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.83
+__version__ = 1.8301
 # Changelog
 # 1.83 - Rewrote create url to use chan api, added strm arg to playlist.m3u8 and static.m3u8 and dynamic playlists can be called using streamtype.m3u8 ie /sstv/hls.m3u8
 # 1.8251 - Make pipe an option still and other small fixes
@@ -2136,13 +2136,13 @@ def createURL(chan, qual, strm, token):
 	if quality in qualOptions:
 		sanitizedQuality = qualOptions[quality]
 
-
+	sanitized_channel = "{:02.0f}".format(int(chan))
 	URLBASE = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}{5}{6}?wmsAuthSign={7}=='
 	url =  URLBASE.format(STREAM_INFO[strm]['domain'],
 	                      SRVR,
 	                      STREAM_INFO[strm]['port'],
 	                      SITE,
-	                      chan,
+	                      sanitized_channel,
 	                      sanitizedQuality if STREAM_INFO[strm]['quality'] == 'standard' else '.smil',
 	                      STREAM_INFO[strm]['playlist'],
 	                      token['hash'])
@@ -3403,6 +3403,7 @@ def tvh_returns(request_file):
 # returns a piped stream, used for TVH/Plex Live TV
 def auto(request_file, qual=""):
 	logger.debug("starting auto function")
+	logger.debug(request_file)
 	if request.args.get('url'):
 		logger.info("Piping custom URL")
 		url = request.args.get('url')
