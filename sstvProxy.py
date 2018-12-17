@@ -47,7 +47,7 @@ from io import StringIO
 from xml.sax.saxutils import escape
 import requests
 import datetime as dt
-
+import xml.sax.saxutils as saxutils
 
 HEADLESS = False
 
@@ -81,8 +81,9 @@ if args.headless or 'headless' in sys.argv:
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.831
+__version__ = 1.832
 # Changelog
+# 1.832 - Escape characters for Emby EPG scanning
 # 1.831 - Added translation of plex dvr transcode settings to SSTV quality settings.
 # 1.83 - Rewrote create url to use chan api, added strm arg to playlist.m3u8 and static.m3u8 and dynamic playlists can be called using streamtype.m3u8 ie /sstv/hls.m3u8
 # 1.8251 - Make pipe an option still and other small fixes
@@ -1472,42 +1473,59 @@ def dl_epg(source=1):
 				opened = gzip.open(process[0])
 			else:
 				opened = open(process[0], encoding="UTF-8")
-			tree = ET.parse(opened)
-			root = tree.getroot()
+			source = ET.parse(opened)
+			root = source.getroot()
 			changelist = {}
-			# remove fogs xmltv channel names for readability in PLex Live
-			if process[2] == 'fog':
-				for a in tree.iterfind('channel'):
-					b = a.find('display-name')
+
+			with open('./cache/prep.xml', 'w') as f:
+				f.write('<?xml version="1.0" encoding="UTF-8"?>'.rstrip('\r\n'))
+				f.write('''<tv><channel id="static_refresh"><display-name lang="en">Static Refresh</display-name><icon src="http://speed.guide.smoothstreams.tv/assets/images/channels/150.png" /></channel><programme channel="static_refresh" start="20170118213000 +0000" stop="20201118233000 +0000"><title lang="us">Press to refresh rtmp channels</title><desc lang="en">Select this channel in order to refresh the RTMP playlist. Only use from the channels list and NOT the guide page. Required every 4hrs.</desc><category lang="us">Other</category><episode-num system="">1</episode-num></programme></tv>''')
+			desttree = ET.parse('./cache/prep.xml')
+			desttreeroot = desttree.getroot()
+
+
+			for channel in source.iter('channel'):
+				if process[2] == 'fog':
+					b = channel.find('display-name')
 					newname = [chan_map[x].channum for x in range(len(chan_map) + 1) if
-							   x != 0 and chan_map[x].epg == a.attrib['id'] and chan_map[x].channame == b.text]
+					           x != 0 and chan_map[x].epg == channel.attrib['id'] and chan_map[x].channame == b.text]
 					if len(newname) > 1:
 						logger.debug("EPG rename conflict %s" % ",".join(newname))
 					# It's a list regardless of length so first item is always wanted.
 					newname = newname[0]
-					changelist[a.attrib['id']] = newname
-					a.attrib['id'] = newname
-			for a in tree.iterfind('programme'):
+					changelist[channel.attrib['id']] = newname
+					channel.attrib['id'] = newname
+				b = channel.find('display-name')
+				b.text = saxutils.escape(str(b.text))
+				desttreeroot.append(channel)
+
+			for programme in source.iter('programme'):
 				if process[2] == 'fog':
 					try:
-						a.attrib['channel'] = changelist[a.attrib['channel']]
+						programme.attrib['channel'] = changelist[programme.attrib['channel']]
 					except:
 						logger.info("A programme was skipped as it couldn't be assigned to a channel, refer log.")
-						logger.debug(a.find('title').text, a.attrib)
-				for b in a.findall('title'):
-					desc = a.find('desc')
-					if desc is None:
-						ET.SubElement(a, 'desc')
-						desc = a.find('desc')
-						desc.text = ""
-					sub = a.find('sub-title')
-					if sub is None:
-						ET.SubElement(a, 'sub-title')
-						sub = a.find('sub-title')
-						sub.text = ""
-					ET.SubElement(a, 'category')
-					c = a.find('category')
-					ep_num = a.find('episode-num')
+						logger.debug(programme.find('title').text, programme.attrib)
+				desc = programme.find('desc')
+				if desc is None:
+					ET.SubElement(programme, 'desc')
+					desc = programme.find('desc')
+					desc.text = ""
+				else:
+					desc.text = saxutils.escape(str(desc.text))
+				sub = programme.find('sub-title')
+				if sub is None:
+					ET.SubElement(programme, 'sub-title')
+					sub = programme.find('sub-title')
+					sub.text = ""
+				else:
+					sub.text = saxutils.escape(str(sub.text))
+				for b in programme.find('title'):
+					b.text = saxutils.escape(str(b.text))
+
+					ET.SubElement(programme, 'category')
+					c = programme.find('category')
+					ep_num = programme.find('episode-num')
 					if ep_num is not None:
 						c.text = "Series"
 					else:
@@ -1536,18 +1554,28 @@ def dl_epg(source=1):
 							c.text = "Baseball"
 						elif 'news' in b.text.lower():
 							c.text = "News"
-					# c = a.find('category')
-					# if c.text == 'Sports':
-					#    print(b.text)
-			tree.write(os.path.join(os.path.dirname(sys.argv[0]), 'cache', process[1]))
+				desttreeroot.append(programme)
+
+			# tree.write('./cache/combined.xml')
+			# with open('./cache/combined.xml', 'r+') as f:
+			# 	content = f.read()
+			# 	f.seek(0, 0)
+			# 	f.write('<?xml version="1.0" encoding="UTF-8"?>'.rstrip('\r\n') + content)
+			# return
+
+
+
+
+			desttree.write(os.path.join(os.path.dirname(sys.argv[0]), 'cache', process[1]))
 			logger.debug("writing to %s" % process[1])
 			# add xml header to file for Kodi support
-			with open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', process[1]), 'r+') as f:
-				content = f.read()
-				staticinfo = '''<channel id="static_refresh"><display-name lang="en">Static Refresh</display-name><icon src="http://speed.guide.smoothstreams.tv/assets/images/channels/150.png" /></channel><programme channel="static_refresh" start="20170118213000 +0000" stop="20201118233000 +0000"><title lang="us">Press to refresh rtmp channels</title><desc lang="en">Select this channel in order to refresh the RTMP playlist. Only use from the channels list and NOT the guide page. Required every 4hrs.</desc><category lang="us">Other</category><episode-num system="">1</episode-num></programme></tv>'''
-				content = content[:-5] + staticinfo
-				f.seek(0, 0)
-				f.write('<?xml version="1.0" encoding="UTF-8"?>'.rstrip('\r\n') + content)
+			# with open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', process[1]), 'r+') as f:
+			# 	content = f.read()
+			# 	staticinfo = '''<channel id="static_refresh"><display-name lang="en">Static Refresh</display-name><icon src="http://speed.guide.smoothstreams.tv/assets/images/channels/150.png" /></channel><programme channel="static_refresh" start="20170118213000 +0000" stop="20201118233000 +0000"><title lang="us">Press to refresh rtmp channels</title><desc lang="en">Select this channel in order to refresh the RTMP playlist. Only use from the channels list and NOT the guide page. Required every 4hrs.</desc><category lang="us">Other</category><episode-num system="">1</episode-num></programme></tv>'''
+			# 	content = content[:-5] + staticinfo
+			# 	f.write(content)
+				# f.seek(0, 0)
+				# f.write('<?xml version="1.0" encoding="UTF-8"?>'.rstrip('\r\n') + content)
 		except:
 			logger.exception(process[0])
 			if process[0] == "I:\\Video\\epg\\xmltv5.xml or URL":
