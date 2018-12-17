@@ -45,9 +45,7 @@ from xml.etree import ElementTree as ET
 from socket import timeout
 from io import StringIO
 from xml.sax.saxutils import escape
-
-import urllib.request as requests
-import requests as req
+import requests
 import datetime as dt
 
 
@@ -83,8 +81,9 @@ if args.headless or 'headless' in sys.argv:
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.8301
+__version__ = 1.831
 # Changelog
+# 1.831 - Added translation of plex dvr transcode settings to SSTV quality settings.
 # 1.83 - Rewrote create url to use chan api, added strm arg to playlist.m3u8 and static.m3u8 and dynamic playlists can be called using streamtype.m3u8 ie /sstv/hls.m3u8
 # 1.8251 - Make pipe an option still and other small fixes
 # 1.825 - Added support for enigma by adding in blank subtitle and desc fields to the EPG
@@ -182,10 +181,10 @@ file_handler.setFormatter(log_formatter)
 logger.addHandler(file_handler)
 
 
-
-opener = requests.build_opener()
-opener.addheaders = [('User-agent', 'YAP - %s - %s - %s' % (sys.argv[0], platform.system(), str(__version__)))]
-requests.install_opener(opener)
+USERAGENT = 'YAP - %s - %s - %s' % (sys.argv[0], platform.system(), str(__version__))
+opener = urllib.request.build_opener()
+opener.addheaders = [('User-agent', USERAGENT)]
+urllib.request.install_opener(opener)
 type = ""
 latestfile = "https://raw.githubusercontent.com/vorghahn/sstvProxy/master/sstvProxy.py"
 if not sys.argv[0].endswith('.py'):
@@ -200,7 +199,7 @@ if not sys.argv[0].endswith('.py'):
 		latestfile = "https://raw.githubusercontent.com/vorghahn/sstvProxy/master/Macintosh/sstvproxy"
 url = "https://raw.githubusercontent.com/vorghahn/sstvProxy/master/%sversion.txt" % type
 try:
-	latest_ver = float(json.loads(requests.urlopen(url).read().decode('utf-8'))['Version'])
+	latest_ver = float(json.loads(urllib.request.urlopen(url).read().decode('utf-8'))['Version'])
 except:
 	latest_ver = float(0.0)
 	logger.info("Latest version check failed, check internet.")
@@ -1215,11 +1214,11 @@ def dl_icons(channum):
 	logger.debug("Downloading icons")
 	icontemplate = 'https://guide.smoothstreams.tv/assets/images/channels/{0}.png'
 	# create blank icon
-	requests.urlretrieve(icontemplate.format(150), os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'empty.png'))
+	urllib.request.urlretrieve(icontemplate.format(150), os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'empty.png'))
 	for i in range(1, channum + 1):
 		name = str(i) + '.png'
 		try:
-			requests.urlretrieve(icontemplate.format(i), os.path.join(os.path.dirname(sys.argv[0]), 'cache', name))
+			urllib.request.urlretrieve(icontemplate.format(i), os.path.join(os.path.dirname(sys.argv[0]), 'cache', name))
 		except:
 			continue
 		# logger.debug("No icon for channel:%s"% i)
@@ -1236,7 +1235,7 @@ def thread_updater():
 			newfilename = ntpath.basename(latestfile)
 			if not os.path.isdir(os.path.join(os.path.dirname(sys.argv[0]), 'updates')):
 				os.mkdir(os.path.join(os.path.dirname(sys.argv[0]), 'updates'))
-			requests.urlretrieve(latestfile, os.path.join(os.path.dirname(sys.argv[0]), 'updates', newfilename))
+			urllib.request.urlretrieve(latestfile, os.path.join(os.path.dirname(sys.argv[0]), 'updates', newfilename))
 
 
 def find_client(useragent):
@@ -1305,7 +1304,7 @@ def testServers(update_settings=True):
 			#
 			# ping_results = re.compile("time=(.*?)ms").findall(str(p.communicate()[0]))
 			t1 = time.time()
-			response = req.get(url)
+			response = requests.get(url)
 			t2 = time.time()
 			if response.status_code == 200:
 				ping_results = t2 - t1
@@ -1387,7 +1386,7 @@ def findChannelURL(input_url=None, qual='1', target_serv=SRVR, fail=0):
 				#
 				# ping_results = re.compile("time=(.*?)ms").findall(str(p.communicate()[0]))
 				t1 = time.time()
-				response = req.get(url)
+				response = requests.get(url)
 				t2 = time.time()
 				if response.status_code == 200:
 					td = t2 - t1
@@ -1442,26 +1441,26 @@ def dl_epg(source=1):
 		if OVRXML != '':
 			if OVRXML.startswith('http://') or OVRXML.startswith('https://'):
 				if OVRXML.endswith('.gz') or OVRXML.endswith('.gz?raw=1'):
-					requests.urlretrieve(OVRXML, os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml.gz'))
+					urllib.request.urlretrieve(OVRXML, os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml.gz'))
 					unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml.gz')
 				else:
-					requests.urlretrieve(OVRXML, os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml'))
+					urllib.request.urlretrieve(OVRXML, os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml'))
 					unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml')
 			else:
 				unzipped = OVRXML
 		else:
 			logger.info("Downloading epg")
-			requests.urlretrieve("https://fast-guide.smoothstreams.tv/altepg/xmltv5.xml.gz",
+			urllib.request.urlretrieve("https://fast-guide.smoothstreams.tv/altepg/xmltv5.xml.gz",
 								 os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz'))
 			unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz')
 		to_process.append([unzipped, "epg.xml", 'fog' if OVRXML == '' else 'ovr'])
-		requests.urlretrieve("https://fast-guide.smoothstreams.tv/feed.xml",
+		urllib.request.urlretrieve("https://fast-guide.smoothstreams.tv/feed.xml",
 							 os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml'))
 		unzippedsports = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml')
 		to_process.append([unzippedsports, "sports.xml", 'sstv'])
 	else:
 		logger.info("Downloading sstv epg")
-		requests.urlretrieve("https://fast-guide.smoothstreams.tv/feed.xml",
+		urllib.request.urlretrieve("https://fast-guide.smoothstreams.tv/feed.xml",
 							 os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml'))
 		unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml')
 		to_process.append([unzipped, "epg.xml", 'sstv'])
@@ -1574,7 +1573,7 @@ def dl_sstv_epg():
 	logger.debug("Downloading sstv epg")
 	url = "https://guide.smoothstreams.tv/feed-new-full-latest.zip"
 	import zipfile
-	requests.urlretrieve(url, os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'testepg.zip'))
+	urllib.request.urlretrieve(url, os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'testepg.zip'))
 	archive = zipfile.ZipFile(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'testepg.zip'), 'r')
 	jsonepg = archive.read('feed-new-full.json')
 	epg = json.loads(jsonepg.decode('utf-8'))
@@ -1751,15 +1750,15 @@ def get_auth_token(user, passwd, site):
 		"password": passwd,
 		"site": site
 	}
-
-	session = req.Session()
+	headers = {'User-Agent': USERAGENT}
+	session = requests.Session()
 	url = baseUrl + urllib.parse.urlencode(params)
 	try:
-		data = session.post(url, params).json()
+		data = session.post(url, params, headers=headers).json()
 	except:
-		data = json.loads(requests.urlopen(url).read().decode("utf--8"))
+		data = json.loads(urllib.request.urlopen(url).read().decode("utf--8"))
 	# old
-	# data = json.loads(requests.urlopen('http://auth.SmoothStreams.tv/hash_api.php?username=%s&password=%s&site=%s' % (user,passwd,site)).read().decode("utf-8"))
+	# data = json.loads(urllib.request.urlopen('http://auth.SmoothStreams.tv/hash_api.php?username=%s&password=%s&site=%s' % (user,passwd,site)).read().decode("utf-8"))
 	if 'hash' not in data or 'valid' not in data:
 		logger.error("There was no hash auth token returned from auth.SmoothStreams.tv...")
 		return
@@ -1792,7 +1791,7 @@ def build_channel_map():
 	chan_map = {}
 	logger.debug("Loading channel list")
 	url = 'https://fast-guide.smoothstreams.tv/altepg/channels.json'
-	jsonChanList = json.loads(requests.urlopen(url).read().decode("utf-8"))
+	jsonChanList = json.loads(urllib.request.urlopen(url).read().decode("utf-8"))
 
 	for item in jsonChanList:
 		retVal = channelinfo()
@@ -1815,7 +1814,7 @@ def build_channel_map_sstv():
 	chan_map = {}
 	logger.debug("Loading channel list (fallback)")
 	url = 'https://speed.guide.smoothstreams.tv/feed-new.json'
-	jsonChanList = json.loads(requests.urlopen(url).read().decode("utf-8"))
+	jsonChanList = json.loads(urllib.request.urlopen(url).read().decode("utf-8"))
 	jsonEPG = jsonChanList['data']
 
 	for item in jsonEPG:
@@ -2035,12 +2034,12 @@ def create_channel_playlist(sanitized_channel, qual, strm, hash):
 	hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}=='
 	hls_url = hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, hash)
 	rtmp_url = rtmpTemplate.format(SRVR, SITE, sanitized_channel, qual, hash)
-	file = requests.urlopen(hls_url, timeout=2).read().decode("utf-8")
+	file = urllib.request.urlopen(hls_url, timeout=2).read().decode("utf-8")
 	if not os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'playlist.m3u8')):
 		f = open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'playlist.m3u8'), 'w')
 		f.close()
 	if strm == 'hls':
-		# Used to support HLS HTTPS requests
+		# Used to support HLS HTTPS urllib.request
 		template = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/chunks'
 		file = file.replace('chunks', template.format(SRVR, SITE, sanitized_channel, qual))
 		with open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'playlist.m3u8'), 'r+') as f:
@@ -2058,12 +2057,12 @@ def create_channel_file(url):
 	strm = 'hls'
 	if url.startswith('rtmp'):
 		strm = 'rtmp'
-	file = requests.urlopen(url, timeout=2).read().decode("utf-8")
+	file = urllib.request.urlopen(url, timeout=2).read().decode("utf-8")
 	if not os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'playlist.m3u8')):
 		f = open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'playlist.m3u8'), 'w')
 		f.close()
 	if strm == 'hls':
-		# Used to support HLS HTTPS requests
+		# Used to support HLS HTTPS urllib.request
 		# https://dnaw1.smoothstreams.tv:443/viewmmasr/ch69q2.stream/playlist.m3u8?wmsAuthSign=c2VydmVyX3RpbWU9OS82LzIwMTggOToxOTowMCBQTSZoYXNoX3ZhbHVlPTZ4R0QzNlhNMW5OTTgzaXBseXpsY2c9PSZ2YWxpZG1pbnV0ZXM9MjQwJmlkPXZpZXdtbWFzci0yNDI2NjY =
 		template = find_between(url,'', 'playlist') + "chunks"  #'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/chunks'
 		file = file.replace('chunks', template)
@@ -2080,9 +2079,9 @@ def create_channel_file(url):
 
 def checkChannelURL(url):
 	try:
-		session = req.Session()
+		session = requests.Session()
 		code = session.get(url)
-		# code = requests.urlopen(url, timeout=10).getcode()
+		# code = urllib.request.urlopen(url, timeout=10).getcode()
 		if code.status_code != 200:
 			logger.debug("Exception on url %s with code %s" % (url, code.status_code))
 			return False
@@ -2160,7 +2159,7 @@ def obtain_m3u8():
 	file = EXTM3UFILE
 	if url != '':
 		logger.debug("extra m3u8 url")
-		inputm3u8 = requests.urlopen(url).read().decode('utf-8')
+		inputm3u8 = urllib.request.urlopen(url).read().decode('utf-8')
 		inputm3u8 = inputm3u8.split("\n")[1:]
 	elif file != '':
 		logger.debug("extra m3u8 file")
@@ -2212,7 +2211,7 @@ def obtain_epg():
 
 def xmltv_merger(xml_url):
 	# todo download each xmltv
-	response = req.get(xml_url)
+	response = requests.get(xml_url)
 	if response.history:
 		logger.debug("Request was redirected")
 		for resp in response.history:
@@ -2222,10 +2221,10 @@ def xmltv_merger(xml_url):
 	else:
 		logger.debug("Request was not redirected")
 	if xml_url.endswith('.gz'):
-		requests.urlretrieve(xml_url, './cache/raw.xml.gz')
+		urllib.request.urlretrieve(xml_url, './cache/raw.xml.gz')
 		opened = gzip.open('./cache/raw.xml.gz')
 	else:
-		requests.urlretrieve(xml_url, './cache/raw.xml')
+		urllib.request.urlretrieve(xml_url, './cache/raw.xml')
 		opened = open('./cache/raw.xml', encoding="UTF-8")
 
 	tree = ET.parse('./cache/epg.xml')
@@ -2235,7 +2234,7 @@ def xmltv_merger(xml_url):
 		source = ET.parse(opened)
 	except:
 		# Try file as gzip instead
-		requests.urlretrieve(xml_url, './cache/raw.xml.gz')
+		urllib.request.urlretrieve(xml_url, './cache/raw.xml.gz')
 		opened = gzip.open('./cache/raw.xml.gz')
 		source = ET.parse(opened)
 
@@ -2284,7 +2283,7 @@ def build_tvh_playlist():
 def get_tvh_channels():
 	url = 'HTTP://%s:9981/api/channel/grid?start=0&limit=999999' % TVHURL
 	try:
-		r = req.get(url, auth=req.auth.HTTPBasicAuth(TVHUSER, TVHPASS)).text
+		r = requests.get(url, auth=requests.auth.HTTPBasicAuth(TVHUSER, TVHPASS)).text
 		data = json.loads(r)
 		return (data['entries'])
 	except:
@@ -2371,7 +2370,7 @@ def createLineup(chan_map):
 	formatted_m3u8 = ''
 	if EXTM3URL != '':
 		logger.debug("extra m3u8 url")
-		inputm3u8 = requests.urlopen(EXTM3URL).read().decode('utf-8')
+		inputm3u8 = urllib.request.urlopen(EXTM3URL).read().decode('utf-8')
 		inputm3u8 = inputm3u8.split("\n")[1:]
 		return jsonify(m3u8_plex(lineup, inputm3u8))
 	elif EXTM3UFILE != '':
@@ -2532,10 +2531,10 @@ def rescan_channels():
 	apiurl = 'http://%s:%s/jsonrpc' % (request.environ.get('REMOTE_ADDR'), KODIPORT)
 	json_data = json.dumps(apidata)
 	post_data = json_data.encode('utf-8')
-	apirequest = requests.Request(apiurl, post_data, apiheaders)
+	apirequest = urllib.request.Request(apiurl, post_data, apiheaders)
 	# has to happen twice to toggle off then back on
-	result = requests.urlopen(apirequest)
-	result = requests.urlopen(apirequest)
+	result = urllib.request.urlopen(apirequest)
+	result = urllib.request.urlopen(apirequest)
 	logger.info("Forcing Kodi to rescan, result:%s " % result.read())
 
 
@@ -3002,11 +3001,11 @@ def handle_data():
 			logger.info('Updating YAP Dev')
 			newfilename = ntpath.basename(latestfile)
 			devname = latestfile.replace('master', 'dev')
-			requests.urlretrieve(devname, os.path.join(os.path.dirname(sys.argv[0]), newfilename))
+			urllib.request.urlretrieve(devname, os.path.join(os.path.dirname(sys.argv[0]), newfilename))
 		elif inc_data["restart"] == '2':
 			logger.info('Updating YAP')
 			newfilename = ntpath.basename(latestfile)
-			requests.urlretrieve(latestfile, os.path.join(os.path.dirname(sys.argv[0]), newfilename))
+			urllib.request.urlretrieve(latestfile, os.path.join(os.path.dirname(sys.argv[0]), newfilename))
 		logger.info('Restarting YAP')
 		restart_program()
 		return
@@ -3403,7 +3402,14 @@ def tvh_returns(request_file):
 # returns a piped stream, used for TVH/Plex Live TV
 def auto(request_file, qual=""):
 	logger.debug("starting auto function")
-	logger.debug(request_file)
+	if request.args.get('transcode') and request.args.get('transcode') != 'none':
+		desired = request.args.get('transcode')
+		if desired == 'heavy' or desired == 'mobile':
+			qual = '1'
+		elif desired == 'internet540' or desired == 'internet480':
+			qual = '2'
+		elif desired == 'internet360' or desired == 'internet240':
+			qual = '3'
 	if request.args.get('url'):
 		logger.info("Piping custom URL")
 		url = request.args.get('url')
@@ -3493,7 +3499,7 @@ if __name__ == "__main__":
 			chan_map = build_channel_map_sstv()
 		try:
 			chanAPIURL = 'https://guide.smoothstreams.tv/api/api-qualities-new.php'
-			CHANAPI = json.loads(requests.urlopen(chanAPIURL).read().decode("utf-8"))
+			CHANAPI = json.loads(urllib.request.urlopen(chanAPIURL).read().decode("utf-8"))
 		except:
 			CHANAPI = None
 		jsonGuide1 = getJSON("iptv.json", "https://iptvguide.netlify.com/iptv.json",
@@ -3547,7 +3553,7 @@ if __name__ == "__main__":
 		newfilename = ntpath.basename(latestfile)
 		if not os.path.isdir(os.path.join(os.path.dirname(sys.argv[0]), 'updates')):
 			os.mkdir(os.path.join(os.path.dirname(sys.argv[0]), 'updates'))
-		requests.urlretrieve(latestfile, os.path.join(os.path.dirname(sys.argv[0]), 'updates', newfilename))
+		urllib.request.urlretrieve(latestfile, os.path.join(os.path.dirname(sys.argv[0]), 'updates', newfilename))
 	else:
 		logger.info("Your version (%s) is up to date." % (__version__))
 	logger.info("Listening on %s:%d", LISTEN_IP, LISTEN_PORT)
