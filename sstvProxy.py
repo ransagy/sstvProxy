@@ -81,8 +81,9 @@ if args.headless or 'headless' in sys.argv:
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.832
+__version__ = 1.833
 # Changelog
+# 1.833 - EPG category tinkering
 # 1.832 - Escape characters for Emby EPG scanning
 # 1.831 - Added translation of plex dvr transcode settings to SSTV quality settings.
 # 1.83 - Rewrote create url to use chan api, added strm arg to playlist.m3u8 and static.m3u8 and dynamic playlists can be called using streamtype.m3u8 ie /sstv/hls.m3u8
@@ -1506,6 +1507,8 @@ def dl_epg(source=1):
 					except:
 						logger.info("A programme was skipped as it couldn't be assigned to a channel, refer log.")
 						logger.debug(programme.find('title').text, programme.attrib)
+
+
 				desc = programme.find('desc')
 				if desc is None:
 					ET.SubElement(programme, 'desc')
@@ -1513,6 +1516,8 @@ def dl_epg(source=1):
 					desc.text = ""
 				else:
 					desc.text = saxutils.escape(str(desc.text))
+
+
 				sub = programme.find('sub-title')
 				if sub is None:
 					ET.SubElement(programme, 'sub-title')
@@ -1520,40 +1525,47 @@ def dl_epg(source=1):
 					sub.text = ""
 				else:
 					sub.text = saxutils.escape(str(sub.text))
-				for b in programme.find('title'):
-					b.text = saxutils.escape(str(b.text))
 
-					ET.SubElement(programme, 'category')
-					c = programme.find('category')
-					ep_num = programme.find('episode-num')
-					if ep_num is not None:
-						c.text = "Series"
-					else:
-						c.text = "Sports"
-						if 'nba' in b.text.lower() or 'nba' in b.text.lower() or 'ncaam' in b.text.lower():
-							c.text = "Basketball"
-						elif 'nfl' in b.text.lower() or 'football' in b.text.lower() or 'american football' in b.text.lower() or 'ncaaf' in b.text.lower() or 'cfb' in b.text.lower():
-							c.text = "Football"
-						elif 'epl' in b.text.lower() or 'efl' in b.text.lower() or 'soccer' in b.text.lower() or 'ucl' in b.text.lower() or 'mls' in b.text.lower() or 'uefa' in b.text.lower() or 'fifa' in b.text.lower() or 'fc' in b.text.lower() or 'la liga' in b.text.lower() or 'serie a' in b.text.lower() or 'wcq' in b.text.lower():
-							c.text = "Soccer"
-						elif 'rugby' in b.text.lower() or 'nrl' in b.text.lower() or 'afl' in b.text.lower():
-							c.text = "Rugby"
-						elif 'cricket' in b.text.lower() or 't20' in b.text.lower():
-							c.text = "Cricket"
-						elif 'tennis' in b.text.lower() or 'squash' in b.text.lower() or 'atp' in b.text.lower():
-							c.text = "Tennis/Squash"
-						elif 'f1' in b.text.lower() or 'nascar' in b.text.lower() or 'motogp' in b.text.lower() or 'racing' in b.text.lower():
-							c.text = "Motor Sport"
-						elif 'golf' in b.text.lower() or 'pga' in b.text.lower():
-							c.text = "Golf"
-						elif 'boxing' in b.text.lower() or 'mma' in b.text.lower() or 'ufc' in b.text.lower() or 'wrestling' in b.text.lower() or 'wwe' in b.text.lower():
-							c.text = "Martial Sports"
-						elif 'hockey' in b.text.lower() or 'nhl' in b.text.lower() or 'ice hockey' in b.text.lower():
-							c.text = "Ice Hockey"
-						elif 'baseball' in b.text.lower() or 'mlb' in b.text.lower() or 'beisbol' in b.text.lower() or 'minor league' in b.text.lower():
-							c.text = "Baseball"
-						elif 'news' in b.text.lower():
-							c.text = "News"
+
+				title = programme.find('title')
+				title.text = saxutils.escape(str(title.text))
+
+
+				ET.SubElement(programme, 'category')
+				cat = programme.find('category')
+				if process[2] == 'sstv':
+					cat.text = 'Sports'
+				ep_num = programme.find('episode-num')
+
+				if cat.text == "Sports":
+					if any(sport in title.text.lower() for sport in ['nba','ncaam','nba','basquetebol','wnba','g-league']):
+						cat.text = "Basketball"
+					elif any(sport in title.text.lower() for sport in ['nfl','football','american football','ncaaf','cfb']):
+						cat.text = "Football"
+					elif any(sport in title.text.lower() for sport in ['epl','efl','fa cup','spl','taca de portugal','w-league','soccer','ucl','coupe de la ligue','league cup','mls','uefa','fifa','fc','la liga','serie a','wcq','khl:','shl:','1.bl:','euroleague','knvb','superliga turca','liga holandesa']):
+						cat.text = "Soccer"
+					elif any(sport in title.text.lower() for sport in ['rugby','nrl','afl','rfu','french top 14:',"women's premier 15",'guinness pro14']):
+						cat.text = "Rugby"
+					elif any(sport in title.text.lower() for sport in ['cricket','t20','t20i']):
+						cat.text = "Cricket"
+					elif any(sport in title.text.lower() for sport in ['tennis','squash','atp']):
+						cat.text = "Tennis/Squash"
+					elif any(sport in title.text.lower() for sport in ['f1','nascar','motogp','racing']):
+						cat.text = "Motor Sport"
+					elif any(sport in title.text.lower() for sport in ['golf','pga']):
+						cat.text = "Golf"
+					elif any(sport in title.text.lower() for sport in ['boxing','mma','ufc','wrestling','wwe']):
+						cat.text = "Martial Sports"
+					elif any(sport in title.text.lower() for sport in ['hockey','nhl','ice hockey','iihf']):
+						cat.text = "Ice Hockey"
+					elif any(sport in title.text.lower() for sport in ['baseball','mlb','beisbol','minor league','ncaab']):
+						cat.text = "Baseball"
+					elif any(sport in title.text.lower() for sport in ['news']):
+						cat.text = "News"
+					elif any(sport in title.text.lower() for sport in ['alpine','skiing','snow']):
+						cat.text = "Alpine Sports"
+					elif any(sport in title.text.lower() for sport in ['darts']):
+						cat.text = "Darts"
 				desttreeroot.append(programme)
 
 			# tree.write('./cache/combined.xml')
