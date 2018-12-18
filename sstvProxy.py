@@ -416,7 +416,7 @@ OVRXML = ''
 tvhWeight = 300  # subscription priority
 tvhstreamProfile = 'pass'  # specifiy a stream profile that you want to use for adhoc transcoding in tvh, e.g. mp4
 GUIDELOOKAHEAD = 5 #minutes
-PIPE = True
+PIPE = False
 CHANAPI = None
 
 # LINUX/WINDOWS
