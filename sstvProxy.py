@@ -81,8 +81,9 @@ if args.headless or 'headless' in sys.argv:
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.834
+__version__ = 1.835
 # Changelog
+# 1.835 - Emby fix for categories
 # 1.834 - Dynamic mpegts added
 # 1.833 - EPG category tinkering
 # 1.832 - Escape characters for Emby EPG scanning
@@ -1515,6 +1516,8 @@ def dl_epg(source=1):
 					ET.SubElement(programme, 'desc')
 					desc = programme.find('desc')
 					desc.text = ""
+				elif desc.text == 'None':
+					desc.text = ""
 				else:
 					desc.text = saxutils.escape(str(desc.text))
 
@@ -1532,12 +1535,17 @@ def dl_epg(source=1):
 				title.text = saxutils.escape(str(title.text))
 
 
-				ET.SubElement(programme, 'category')
+
 				cat = programme.find('category')
+				if cat is None:
+					ET.SubElement(programme, 'category')
+					cat = programme.find('category')
+
 				if process[2] == 'sstv':
 					cat.text = 'Sports'
 				ep_num = programme.find('episode-num')
-
+				# emby
+				# sports|basketball|baseball|football|Rugby|Soccer|Cricket|Tennis/Squash|Motor Sport|Golf|Martial Sports|Ice Hockey|Alpine Sports|Darts
 				if cat.text == "Sports":
 					if any(sport in title.text.lower() for sport in ['nba','ncaam','nba','basquetebol','wnba','g-league']):
 						cat.text = "Basketball"
@@ -1567,6 +1575,7 @@ def dl_epg(source=1):
 						cat.text = "Alpine Sports"
 					elif any(sport in title.text.lower() for sport in ['darts']):
 						cat.text = "Darts"
+				cat.text = saxutils.escape(str(cat.text))
 				desttreeroot.append(programme)
 
 			# tree.write('./cache/combined.xml')
