@@ -81,8 +81,9 @@ if args.headless or 'headless' in sys.argv:
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.833
+__version__ = 1.834
 # Changelog
+# 1.834 - Dynamic mpegts added
 # 1.833 - EPG category tinkering
 # 1.832 - Escape characters for Emby EPG scanning
 # 1.831 - Added translation of plex dvr transcode settings to SSTV quality settings.
@@ -1884,6 +1885,8 @@ def build_playlist(host, strmType = None):
 		try:
 			# build channel url
 			url = "{0}/playlist.m3u8?ch={1}&strm={2}&qual={3}"
+			if strmType == 'mpegts':
+				url = "{0}/mpeg.2ts?ch={1}&strm={2}&qual={3}"
 			vaders_url = "http://vapi.vaders.tv/play/{0}.{1}?"
 
 			if SITE == 'vaders':
@@ -3284,7 +3287,7 @@ def bridge(request_file):
 		logger.info("TVH channels playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
 		return Response(tvhplaylist, mimetype='application/x-mpegURL')
 
-	elif request_file.lower() == 'playlist.m3u8' or request_file.lower().startswith('ch'):
+	elif request_file.lower() == 'playlist.m3u8' or request_file.lower().startswith('ch') or request_file.lower() == 'mpeg.2ts' :
 		# returning Dynamic channels
 		if request.args.get('ch') or request_file.lower().startswith('ch'):
 			if request_file.lower().startswith('ch'):
