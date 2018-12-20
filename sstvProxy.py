@@ -81,8 +81,9 @@ if args.headless or 'headless' in sys.argv:
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.835
+__version__ = 1.8351
 # Changelog
+# 1.8351 - XML tag fix, xml path fix
 # 1.835 - Emby fix for categories
 # 1.834 - Dynamic mpegts added
 # 1.833 - EPG category tinkering
@@ -1480,10 +1481,10 @@ def dl_epg(source=1):
 			root = source.getroot()
 			changelist = {}
 
-			with open('./cache/prep.xml', 'w') as f:
+			with open(os.path.join(os.path.dirname(sys.argv[0]), 'cache','prep.xml'), 'w+') as f:
 				f.write('<?xml version="1.0" encoding="UTF-8"?>'.rstrip('\r\n'))
 				f.write('''<tv><channel id="static_refresh"><display-name lang="en">Static Refresh</display-name><icon src="http://speed.guide.smoothstreams.tv/assets/images/channels/150.png" /></channel><programme channel="static_refresh" start="20170118213000 +0000" stop="20201118233000 +0000"><title lang="us">Press to refresh rtmp channels</title><desc lang="en">Select this channel in order to refresh the RTMP playlist. Only use from the channels list and NOT the guide page. Required every 4hrs.</desc><category lang="us">Other</category><episode-num system="">1</episode-num></programme></tv>''')
-			desttree = ET.parse('./cache/prep.xml')
+			desttree = ET.parse(os.path.join(os.path.dirname(sys.argv[0]), 'cache','prep.xml'))
 			desttreeroot = desttree.getroot()
 
 
@@ -1591,13 +1592,13 @@ def dl_epg(source=1):
 			desttree.write(os.path.join(os.path.dirname(sys.argv[0]), 'cache', process[1]))
 			logger.debug("writing to %s" % process[1])
 			# add xml header to file for Kodi support
-			# with open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', process[1]), 'r+') as f:
-			# 	content = f.read()
-			# 	staticinfo = '''<channel id="static_refresh"><display-name lang="en">Static Refresh</display-name><icon src="http://speed.guide.smoothstreams.tv/assets/images/channels/150.png" /></channel><programme channel="static_refresh" start="20170118213000 +0000" stop="20201118233000 +0000"><title lang="us">Press to refresh rtmp channels</title><desc lang="en">Select this channel in order to refresh the RTMP playlist. Only use from the channels list and NOT the guide page. Required every 4hrs.</desc><category lang="us">Other</category><episode-num system="">1</episode-num></programme></tv>'''
-			# 	content = content[:-5] + staticinfo
-			# 	f.write(content)
-				# f.seek(0, 0)
-				# f.write('<?xml version="1.0" encoding="UTF-8"?>'.rstrip('\r\n') + content)
+			with open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', process[1]), 'r+') as f:
+				content = f.read()
+				# staticinfo = '''<channel id="static_refresh"><display-name lang="en">Static Refresh</display-name><icon src="http://speed.guide.smoothstreams.tv/assets/images/channels/150.png" /></channel><programme channel="static_refresh" start="20170118213000 +0000" stop="20201118233000 +0000"><title lang="us">Press to refresh rtmp channels</title><desc lang="en">Select this channel in order to refresh the RTMP playlist. Only use from the channels list and NOT the guide page. Required every 4hrs.</desc><category lang="us">Other</category><episode-num system="">1</episode-num></programme></tv>'''
+				# content = content[:-5] + staticinfo
+				# f.write(content)
+				f.seek(0, 0)
+				f.write('<?xml version="1.0" encoding="UTF-8"?>'.rstrip('\r\n') + content)
 		except:
 			logger.exception(process[0])
 			if process[0] == "I:\\Video\\epg\\xmltv5.xml or URL":
