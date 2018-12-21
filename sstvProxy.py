@@ -1231,8 +1231,14 @@ def dl_icons(channum):
 
 
 def thread_updater():
+	# todo
 	while True:
 		time.sleep(21600)
+		try:
+			latest_ver = float(json.loads(urllib.request.urlopen(url).read().decode('utf-8'))['Version'])
+		except:
+			latest_ver = float(0.0)
+			logger.info("Latest version check failed, check internet.")
 		if __version__ < latest_ver:
 			logger.info(
 				"Your version (%s%s) is out of date, the latest is %s, which has now be downloaded for you into the 'updates' subdirectory." % (
@@ -1419,6 +1425,14 @@ def findChannelURL(input_url=None, qual='1', target_serv=SRVR, fail=0):
 		return findChannelURL(input_url, qual='1', fail=fail+1)
 	logger.info("Failed to find that channel on any quality or server")
 	return input_url
+def launch_browser():
+	try:
+		import webbrowser
+		webbrowser.open('%s://%s:%i%s' % ('http', LISTEN_IP, LISTEN_PORT, '/sstv/index.html'))
+	except Exception as e:
+		logger.error(u"Could not launch browser: %s" % e)
+
+
 ############################################################
 # EPG
 ############################################################
@@ -2263,7 +2277,6 @@ def obtain_epg():
 
 
 def xmltv_merger(xml_url):
-	# todo download each xmltv
 	response = requests.get(xml_url)
 	if response.history:
 		logger.debug("Request was redirected")
@@ -3013,14 +3026,6 @@ def restart_program():
 	os.system('cls' if os.name == 'nt' else 'clear')
 	args = sys.argv[:]
 	print(args)
-	# logger.info('Re-spawning %s' % ' '.join(args))
-	# #
-	# # args.insert(0, sys.executable)
-	# # if sys.platform == 'win32':
-	# # 	args = ['"%s"' % arg for arg in args]
-	#
-	# os.execl(sys.executable, *([sys.executable] + sys.argv))
-
 
 	logger.info("YAP is restarting...")
 	FULL_PATH = sys.argv[0]
@@ -3038,7 +3043,6 @@ def restart_program():
 	else:
 		os.execv(exe, args)
 	os._exit(0)
-# os.execv(sys.executable, args)
 
 
 ############################################################
@@ -3617,6 +3621,7 @@ if __name__ == "__main__":
 	except (KeyboardInterrupt, SystemExit):
 		sys.exit()
 
+	launch_browser()
 	# debug causes it to load twice on initial startup and every time the script is saved, TODO disbale later
 	try:
 		app.run(host=LISTEN_IP, port=LISTEN_PORT, threaded=True, debug=False)
