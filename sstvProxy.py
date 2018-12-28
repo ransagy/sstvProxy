@@ -457,7 +457,7 @@ else:
 serverList = [
 	[' EU-Mix', 'deu'],
 	['    DE-Frankfurt', 'deu-de'],
-	['    FR-Paris', 'deu-fr'],
+	['    FR-Paris', 'deu-fr1'],
 	['    NL-Mix', 'deu-nl'],
 	['    NL-1', 'deu-nl1'],
 	['    NL-2', 'deu-nl2'],
@@ -3160,6 +3160,10 @@ def bridge(request_file):
 		logger.debug("No user-agent provided by %s", request.environ.get('REMOTE_ADDR'))
 		client = 'unk'
 
+	if request_file.lower() == ('version'):
+		resp = {'version':__version__, 'type':type}
+		return jsonify(resp)
+	
 	if request_file.lower().endswith('.xspf'):
 		playlist = build_xspf(SERVER_HOST, request_file)
 		logger.info("XSPF playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
