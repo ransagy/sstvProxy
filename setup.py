@@ -31,9 +31,9 @@ class PostInstallCommand(install):
 
 setup(
 	name = 'YAPSSTV',
-	version = '1.3',
+	version = '1.4',
 	cmdclass = {'install': PostInstallCommand},
 	description = 'Yet Another Proxy',
 	python_requires = '>=3.5',
-	install_requires=['requests','flask']
+	install_requires=['requests','flask>=0.12.0']
 )

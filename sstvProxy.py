@@ -36,7 +36,8 @@
 ###DAMAGE.
 ###
 
-import logging, os, sys, time, argparse, json, gzip, base64, platform, threading, subprocess, urllib, glob, sqlite3, array, socket, struct, ntpath, timeit, re
+import logging, os, sys, time, argparse, json, gzip, base64, platform, threading, subprocess, urllib, glob, sqlite3, \
+	array, socket, struct, ntpath, timeit, re
 
 from datetime import datetime, timedelta
 from json import load, dump
@@ -45,14 +46,11 @@ from xml.etree import ElementTree as ET
 from socket import timeout
 from io import StringIO
 from xml.sax.saxutils import escape
-
-import urllib.request as requests
-import requests as req
+import requests
 import datetime as dt
-
+import xml.sax.saxutils as saxutils
 
 HEADLESS = False
-
 
 try:
 	from urlparse import urljoin
@@ -83,8 +81,18 @@ if args.headless or 'headless' in sys.argv:
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.824
+__version__ = 1.8351
 # Changelog
+# 1.8351 - XML tag fix, xml path fix
+# 1.835 - Emby fix for categories
+# 1.834 - Dynamic mpegts added
+# 1.833 - EPG category tinkering
+# 1.832 - Escape characters for Emby EPG scanning
+# 1.831 - Added translation of plex dvr transcode settings to SSTV quality settings.
+# 1.83 - Rewrote create url to use chan api, added strm arg to playlist.m3u8 and static.m3u8 and dynamic playlists can be called using streamtype.m3u8 ie /sstv/hls.m3u8
+# 1.8251 - Make pipe an option still and other small fixes
+# 1.825 - Added support for enigma by adding in blank subtitle and desc fields to the EPG
+# 1.8241 - Added user agent to log, Added new servers
 # 1.824 - Backup server prompt added for headless
 # 1.823 - Added -i for install trigger
 # 1.822 - Added Auto server selection to Gui.
@@ -171,17 +179,16 @@ logger.addHandler(console_handler)
 if not os.path.isdir(os.path.join(os.path.dirname(sys.argv[0]), 'cache')):
 	os.mkdir(os.path.join(os.path.dirname(sys.argv[0]), 'cache'))
 file_handler = RotatingFileHandler(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'status.log'),
-								   maxBytes=1024 * 1024 * 2,
-								   backupCount=5)
+                                   maxBytes=1024 * 1024 * 2,
+                                   backupCount=5)
 file_handler.setLevel(logging.DEBUG)
 file_handler.setFormatter(log_formatter)
 logger.addHandler(file_handler)
 
-
-
-opener = requests.build_opener()
-opener.addheaders = [('User-agent', 'YAP - %s - %s - %s' % (sys.argv[0], platform.system(), str(__version__)))]
-requests.install_opener(opener)
+USERAGENT = 'YAP - %s - %s - %s' % (sys.argv[0], platform.system(), str(__version__))
+opener = urllib.request.build_opener()
+opener.addheaders = [('User-agent', USERAGENT)]
+urllib.request.install_opener(opener)
 type = ""
 latestfile = "https://raw.githubusercontent.com/vorghahn/sstvProxy/master/sstvProxy.py"
 if not sys.argv[0].endswith('.py'):
@@ -196,7 +203,7 @@ if not sys.argv[0].endswith('.py'):
 		latestfile = "https://raw.githubusercontent.com/vorghahn/sstvProxy/master/Macintosh/sstvproxy"
 url = "https://raw.githubusercontent.com/vorghahn/sstvProxy/master/%sversion.txt" % type
 try:
-	latest_ver = float(json.loads(requests.urlopen(url).read().decode('utf-8'))['Version'])
+	latest_ver = float(json.loads(urllib.request.urlopen(url).read().decode('utf-8'))['Version'])
 except:
 	latest_ver = float(0.0)
 	logger.info("Latest version check failed, check internet.")
@@ -215,6 +222,7 @@ class channelinfo:
 	channum = 0
 	channame = ""
 
+
 class programinfo:
 	description = ""
 	channel = 0
@@ -228,13 +236,11 @@ class programinfo:
 	_quality = ""
 	_language = ""
 
-
 	def get_title(self):
 		if len(self._title) == 0:
 			return ("none " + self.timeRange).strip()
 		else:
 			return (self._title + " " + self.quality + " " + self.timeRange).replace("  ", " ").strip()
-
 
 	def set_title(self, title):
 		self._title = title
@@ -242,8 +248,9 @@ class programinfo:
 			if title.startswith("NHL") or "hockey" in title.lower():
 				self._category = "Ice Hockey"
 			elif title.startswith("UEFA") or title.startswith("EPL") or title.startswith(
-					"Premier League") or title.startswith("La Liga") or title.startswith("Bundesliga") or title.startswith(
-					"Serie A") or "soccer" in title.lower():
+					"Premier League") or title.startswith("La Liga") or title.startswith(
+				"Bundesliga") or title.startswith(
+				"Serie A") or "soccer" in title.lower():
 				self._category = "World Football"
 			elif title.startswith("MLB") or "baseball" in title.lower():
 				self._category = "Baseball"
@@ -257,7 +264,7 @@ class programinfo:
 				self._category = "Wrestling"
 			elif title.startswith("NFL") or title.startswith("NBA"):
 				self._category = title.split(" ")[0].replace(":", "").strip()
-			elif 'nba' in title.lower() or 'nbl' in title.lower() or 'ncaam' in title.lower()or 'basketball' in title.lower():
+			elif 'nba' in title.lower() or 'nbl' in title.lower() or 'ncaam' in title.lower() or 'basketball' in title.lower():
 				self._category = "Basketball"
 			elif 'nfl' in title.lower() or 'football' in title.lower() or 'american football' in title.lower() or 'ncaaf' in title.lower() or 'cfb' in title.lower():
 				self._category = "Football"
@@ -282,19 +289,16 @@ class programinfo:
 			elif 'news' in title.lower():
 				self._category = "News"
 
-			# print(title,",", self._category)
-
+	# print(title,",", self._category)
 
 	title = property(get_title, set_title)
 
-
 	def get_category(self):
 		if (len(self._category) == 0 or self._category == "none") and (
-			self.title.lower().find("news") or self.description.lower().find("news")) > -1:
+				self.title.lower().find("news") or self.description.lower().find("news")) > -1:
 			return "News"
 		else:
 			return self._category
-
 
 	def set_category(self, category):
 		if category == "tv":
@@ -302,13 +306,10 @@ class programinfo:
 		else:
 			self._category = category
 
-
 	category = property(get_category, set_category)
-
 
 	def get_language(self):
 		return self._language
-
 
 	def set_language(self, language):
 		if language.upper() == "US" or language.upper() == "EN":
@@ -316,13 +317,10 @@ class programinfo:
 		else:
 			self._language = language.upper()
 
-
 	language = property(get_language, set_language)
-
 
 	def get_quality(self):
 		return self._quality
-
 
 	def set_quality(self, quality):
 		if quality.endswith("x1080"):
@@ -341,15 +339,12 @@ class programinfo:
 			self._quality = quality
 			self.height = 0
 
-
 	quality = property(get_quality, set_quality)
-
 
 	def get_album(self):
 		if self._quality.upper() == "HQLQ" and self.channelname.upper().find(" 720P") > -1:
 			self._quality = "720p"
 		return (self._category + " " + self.quality + " " + self._language).strip().replace("  ", " ")
-
 
 	album = property(get_album)
 
@@ -374,6 +369,8 @@ class EST5EDT(dt.tzinfo):
 
 	def tzname(self, dt):
 		return 'EST5EDT'
+
+
 ############################################################
 # CONFIG
 ############################################################
@@ -411,7 +408,9 @@ TVHPASS = ''
 OVRXML = ''
 tvhWeight = 300  # subscription priority
 tvhstreamProfile = 'pass'  # specifiy a stream profile that you want to use for adhoc transcoding in tvh, e.g. mp4
-GUIDELOOKAHEAD = 5 #minutes
+GUIDELOOKAHEAD = 5  # minutes
+PIPE = False
+CHANAPI = None
 
 # LINUX/WINDOWS
 if platform.system() == 'Linux':
@@ -423,18 +422,18 @@ if platform.system() == 'Linux':
 elif platform.system() == 'Windows':
 	FFMPEGLOC = os.path.join('C:\FFMPEG', 'bin', 'ffmpeg.exe')
 	if os.path.isdir(os.path.join(os.path.expanduser("~"), 'AppData', 'Roaming', 'Kodi', 'userdata', 'addon_data',
-								  'pvr.iptvsimple')):
+	                              'pvr.iptvsimple')):
 		ADDONPATH = os.path.join(os.path.expanduser("~"), 'AppData', 'Roaming', 'Kodi', 'userdata', 'addon_data',
-								 'pvr.iptvsimple')
+		                         'pvr.iptvsimple')
 	else:
 		ADDONPATH = False
 elif platform.system() == 'Darwin':
 	FFMPEGLOC = '/usr/local/bin/ffmpeg'
 	if os.path.isdir(
 			os.path.join(os.path.expanduser("~"), "Library", "Application Support", 'Kodi', 'userdata', 'addon_data',
-						 'pvr.iptvsimple')):
+			             'pvr.iptvsimple')):
 		ADDONPATH = os.path.join(os.path.expanduser("~"), "Library", "Application Support", 'Kodi', 'userdata',
-								 'addon_data', 'pvr.iptvsimple')
+		                         'addon_data', 'pvr.iptvsimple')
 	else:
 		ADDONPATH = False
 else:
@@ -447,6 +446,7 @@ else:
 serverList = [
 	[' EU-Mix', 'deu'],
 	['    DE-Frankfurt', 'deu-de'],
+	['    FR-Paris', 'deu-fr1'],
 	['    NL-Mix', 'deu-nl'],
 	['    NL-1', 'deu-nl1'],
 	['    NL-2', 'deu-nl2'],
@@ -463,16 +463,42 @@ serverList = [
 	['   East-VA', 'dnae2'],
 	# ['   East-Mtl', 'dnae3'],
 	# ['   East-Tor', 'dnae4'],
+	['   East-ATL', 'dnae5'],
 	['   East-NY', 'dnae6'],
 	['   West-Phx', 'dnaw1'],
 	['   West-LA', 'dnaw2'],
 	['   West-SJ', 'dnaw3'],
 	['   West-Chi', 'dnaw4'],
 	['Asia', 'dap'],
-	['Asia-Old', 'dsg']
+	['   Asia1', 'dap1'],
+	['   Asia2', 'dap2'],
+	['   Asia3', 'dap3'],
+	['   Asia-Old', 'dsg']
 ]
 
-vaders_channels = {"1":"2499","2":"2500","3":"2501","4":"2502","5":"2503","6":"2504","7":"2505","8":"2506","9":"2507","10":"2508","11":"2509","12":"2510","13":"2511","14":"2512","15":"2513","16":"2514","17":"2515","18":"2516","19":"2517","20":"2518","21":"2519","22":"2520","23":"2521","24":"2522","25":"2523","26":"2524","27":"2525","28":"2526","29":"2527","30":"2528","31":"2529","32":"2530","33":"2531","34":"2532","35":"2533","36":"2534","37":"2535","38":"2536","39":"2537","40":"2538","41":"2541","42":"2542","43":"2543","44":"2544","45":"2545","46":"2546","47":"2547","48":"2548","49":"2549","50":"2550","51":"2551","52":"2552","53":"2553","54":"2554","55":"2555","56":"2556","57":"2557","58":"2606","59":"2607","60":"2608","61":"2609","62":"2610","63":"2611","64":"2612","65":"2613","66":"2614","67":"2615","68":"2616","69":"2617","70":"2618","71":"2619","72":"2620","73":"2622","74":"2621","75":"2623","76":"2624","77":"2625","78":"2626","79":"2627","80":"2628","81":"2629","82":"2630","83":"2631","84":"2632","85":"2633","86":"2634","87":"2635","88":"2636","89":"2637","90":"2638","91":"2639","92":"2640","93":"2641","94":"2642","95":"2643","96":"2644","97":"2645","98":"2646","99":"2647","100":"2648","101":"2649","102":"2650","103":"2651","104":"2652","105":"2653","106":"2654","107":"2655","108":"2656","109":"2657","110":"2658","111":"2659","112":"2660","113":"2661","114":"2662","115":"2663","116":"2664","117":"2665","118":"2666","119":"2667","120":"2668","121":"47381","122":"2679","123":"2680","124":"2681","125":"2682","126":"47376","127":"47377","128":"47378","129":"47379","130":"47380","131":"47718","132":"47719","133":"49217","134":"50314","135":"50315","136":"50319","137":"50320","138":"50321","139":"50322","141":"49215","140":"50394","142":"49216","143":"50395","144":"50396","145":"50397","146":"50398","147":"50399","148":"47707","149":"47670","150":"47716"}
+vaders_channels = {"1": "2499", "2": "2500", "3": "2501", "4": "2502", "5": "2503", "6": "2504", "7": "2505",
+                   "8": "2506", "9": "2507", "10": "2508", "11": "2509", "12": "2510", "13": "2511", "14": "2512",
+                   "15": "2513", "16": "2514", "17": "2515", "18": "2516", "19": "2517", "20": "2518", "21": "2519",
+                   "22": "2520", "23": "2521", "24": "2522", "25": "2523", "26": "2524", "27": "2525", "28": "2526",
+                   "29": "2527", "30": "2528", "31": "2529", "32": "2530", "33": "2531", "34": "2532", "35": "2533",
+                   "36": "2534", "37": "2535", "38": "2536", "39": "2537", "40": "2538", "41": "2541", "42": "2542",
+                   "43": "2543", "44": "2544", "45": "2545", "46": "2546", "47": "2547", "48": "2548", "49": "2549",
+                   "50": "2550", "51": "2551", "52": "2552", "53": "2553", "54": "2554", "55": "2555", "56": "2556",
+                   "57": "2557", "58": "2606", "59": "2607", "60": "2608", "61": "2609", "62": "2610", "63": "2611",
+                   "64": "2612", "65": "2613", "66": "2614", "67": "2615", "68": "2616", "69": "2617", "70": "2618",
+                   "71": "2619", "72": "2620", "73": "2622", "74": "2621", "75": "2623", "76": "2624", "77": "2625",
+                   "78": "2626", "79": "2627", "80": "2628", "81": "2629", "82": "2630", "83": "2631", "84": "2632",
+                   "85": "2633", "86": "2634", "87": "2635", "88": "2636", "89": "2637", "90": "2638", "91": "2639",
+                   "92": "2640", "93": "2641", "94": "2642", "95": "2643", "96": "2644", "97": "2645", "98": "2646",
+                   "99": "2647", "100": "2648", "101": "2649", "102": "2650", "103": "2651", "104": "2652",
+                   "105": "2653", "106": "2654", "107": "2655", "108": "2656", "109": "2657", "110": "2658",
+                   "111": "2659", "112": "2660", "113": "2661", "114": "2662", "115": "2663", "116": "2664",
+                   "117": "2665", "118": "2666", "119": "2667", "120": "2668", "121": "47381", "122": "2679",
+                   "123": "2680", "124": "2681", "125": "2682", "126": "47376", "127": "47377", "128": "47378",
+                   "129": "47379", "130": "47380", "131": "47718", "132": "47719", "133": "49217", "134": "50314",
+                   "135": "50315", "136": "50319", "137": "50320", "138": "50321", "139": "50322", "141": "49215",
+                   "140": "50394", "142": "49216", "143": "50395", "144": "50396", "145": "50397", "146": "50398",
+                   "147": "50399", "148": "47707", "149": "47670", "150": "47716"}
 
 providerList = [
 	['Live247', 'view247'],
@@ -482,13 +508,24 @@ providerList = [
 	['MMA-TV/MyShout', 'viewmmasr']
 ]
 
-streamtype = ['hls', 'rtmp', 'mpegts']
+streamtype = ['hls', 'hlsa', 'rtmp', 'mpegts', 'rtsp', 'dash', 'wss']
 
 qualityList = [
 	['HD', '1'],
 	['HQ', '2'],
 	['LQ', '3']
 ]
+
+STREAM_INFO = {'hls': {'domain': 'https', 'port': '443', 'playlist': '.stream/playlist.m3u8', 'quality': 'standard'},
+               'hlsa': {'domain': 'https', 'port': '443', 'playlist': '/playlist.m3u8', 'quality': '.smil'},
+               'rtmp': {'domain': 'rtmp', 'port': '3625', 'playlist': '.stream', 'quality': 'standard'},
+               'mpegts': {'domain': 'https', 'port': '443', 'playlist': '.stream/mpeg.2ts', 'quality': 'standard'},
+               'rtsp': {'domain': 'rtsp', 'port': '2935', 'playlist': '.stream', 'quality': 'standard'},
+               'dash': {'domain': 'https', 'port': '443', 'playlist': '/manifest.mpd', 'quality': '.smil'},
+               'wss': {'domain': 'wss', 'port': '443', 'playlist': '.stream', 'quality': 'standard'},
+               'wssa': {'domain': 'wss', 'port': '443', 'playlist': '', 'quality': '.smil'}
+               }
+
 
 def adv_settings():
 	if os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'advancedsettings.json')):
@@ -551,11 +588,14 @@ def adv_settings():
 				logger.debug("Overriding CheckChannel")
 				global CHECK_CHANNEL
 				CHECK_CHANNEL = advconfig["checkchannel"] == "True"
-
+			if "pipe" in advconfig:
+				logger.debug("Overriding Pipe")
+				global PIPE
+				PIPE = advconfig["pipe"] == "True"
 
 
 def load_settings():
-	global QUAL, QUALLIMIT, USER, PASS, SRVR,SRVR_SPARE, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, SERVER_HOST, EXTIP, EXT_HOST, EXTPORT
+	global QUAL, QUALLIMIT, USER, PASS, SRVR, SRVR_SPARE, SITE, STRM, KODIPORT, LISTEN_IP, LISTEN_PORT, SERVER_HOST, EXTIP, EXT_HOST, EXTPORT
 	if not os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'proxysettings.json')):
 		logger.debug("No config file found.")
 	try:
@@ -660,8 +700,6 @@ def load_settings():
 	adv_settings()
 	if args.install:
 		installer()
-
-
 
 
 ############################################################
@@ -918,7 +956,7 @@ if not HEADLESS:
 			tkinter.Label(self.title_frame, text=text).pack(side="left", fill="x", expand=1)
 
 			self.toggle_button = tkinter.Checkbutton(self.title_frame, width=2, text='+', command=self.toggle,
-													 variable=self.show)
+			                                         variable=self.show)
 			self.toggle_button.pack(side="left")
 
 			self.sub_frame = tkinter.Frame(self, relief="sunken", borderwidth=1)
@@ -931,10 +969,10 @@ if not HEADLESS:
 				self.sub_frame.forget()
 				self.toggle_button.configure(text='+')
 
+
 	class GUI(tkinter.Frame):
 		def client_exit(self, root):
 			root.destroy()
-
 
 		def __init__(self, master):
 			tkinter.Frame.__init__(self, master)
@@ -988,7 +1026,7 @@ if not HEADLESS:
 
 			userServer = tkinter.StringVar()
 			userServer.set('Auto')
-			self.server = tkinter.OptionMenu(t2.sub_frame, userServer,  *['Auto'] + [x[0] for x in serverList])
+			self.server = tkinter.OptionMenu(t2.sub_frame, userServer, *['Auto'] + [x[0] for x in serverList])
 			self.server.grid(row=1, column=2)
 
 			self.labelStream = tkinter.StringVar()
@@ -1131,10 +1169,10 @@ if not HEADLESS:
 				with open(os.path.join(os.path.dirname(sys.argv[0]), 'proxysettings.json'), 'w') as fp:
 					dump(config, fp)
 
-
-
 				self.labelSetting1 = tkinter.StringVar()
-				self.labelSetting1.set("Open a web browser and go to %s for instructions and output URLs." % urljoin(SERVER_HOST, SERVER_PATH))
+				self.labelSetting1.set(
+					"Open a web browser and go to %s for instructions and output URLs." % urljoin(SERVER_HOST,
+					                                                                              SERVER_PATH))
 				labelSetting1 = tkinter.Label(master, textvariable=self.labelSetting1, height=2)
 				labelSetting1.grid(row=1)
 
@@ -1144,13 +1182,11 @@ if not HEADLESS:
 				labelFooter.grid(row=2)
 
 				button1 = tkinter.Button(master, text="Launch YAP!!", width=20,
-										 command=lambda: self.client_exit(master))
+				                         command=lambda: self.client_exit(master))
 				button1.grid(row=3)
 
 			button1 = tkinter.Button(master, text="Submit", width=20, command=lambda: gather())
 			button1.grid(row=7, column=1, columnspan=3)
-
-
 
 ############################################################
 # MISC
@@ -1190,20 +1226,28 @@ def dl_icons(channum):
 	logger.debug("Downloading icons")
 	icontemplate = 'https://guide.smoothstreams.tv/assets/images/channels/{0}.png'
 	# create blank icon
-	requests.urlretrieve(icontemplate.format(150), os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'empty.png'))
+	urllib.request.urlretrieve(icontemplate.format(150),
+	                           os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'empty.png'))
 	for i in range(1, channum + 1):
 		name = str(i) + '.png'
 		try:
-			requests.urlretrieve(icontemplate.format(i), os.path.join(os.path.dirname(sys.argv[0]), 'cache', name))
+			urllib.request.urlretrieve(icontemplate.format(i),
+			                           os.path.join(os.path.dirname(sys.argv[0]), 'cache', name))
 		except:
 			continue
-		# logger.debug("No icon for channel:%s"% i)
+	# logger.debug("No icon for channel:%s"% i)
 	logger.debug("Icon download completed.")
 
 
 def thread_updater():
+	# todo
 	while True:
 		time.sleep(21600)
+		try:
+			latest_ver = float(json.loads(urllib.request.urlopen(url).read().decode('utf-8'))['Version'])
+		except:
+			latest_ver = float(0.0)
+			logger.info("Latest version check failed, check internet.")
 		if __version__ < latest_ver:
 			logger.info(
 				"Your version (%s%s) is out of date, the latest is %s, which has now be downloaded for you into the 'updates' subdirectory." % (
@@ -1211,7 +1255,7 @@ def thread_updater():
 			newfilename = ntpath.basename(latestfile)
 			if not os.path.isdir(os.path.join(os.path.dirname(sys.argv[0]), 'updates')):
 				os.mkdir(os.path.join(os.path.dirname(sys.argv[0]), 'updates'))
-			requests.urlretrieve(latestfile, os.path.join(os.path.dirname(sys.argv[0]), 'updates', newfilename))
+			urllib.request.urlretrieve(latestfile, os.path.join(os.path.dirname(sys.argv[0]), 'updates', newfilename))
 
 
 def find_client(useragent):
@@ -1251,11 +1295,12 @@ def averageList(lst):
 			logger.debug("Couldn't convert %s to float" % repr(p))
 	return avg_ping / avg_ping_cnt
 
+
 def testServers(update_settings=True):
 	# todo
 	global SRVR, SRVR_SPARE, AUTO_SERVER
 	service = SRVR
-
+	fails = []
 	res = None
 	res_host = None
 	res_spare = None
@@ -1269,7 +1314,8 @@ def testServers(update_settings=True):
 		logger.info('Testing servers... %s' % name)
 		ping_results = False
 		try:
-			url = "https://" + host + ".SmoothStreams.tv:443/"+ SITE + "/ch01q1.stream/playlist.m3u8?wmsAuthSign=" + token['hash']
+			url = "https://" + host + ".SmoothStreams.tv:443/" + SITE + "/ch01q1.stream/playlist.m3u8?wmsAuthSign=" + \
+			      token['hash']
 			logger.debug('Testing url %s' % url)
 			# if platform.system() == 'Windows':
 			# 	p = subprocess.Popen(["ping", "-n", "4", url], stdout=subprocess.PIPE,
@@ -1280,10 +1326,12 @@ def testServers(update_settings=True):
 			#
 			# ping_results = re.compile("time=(.*?)ms").findall(str(p.communicate()[0]))
 			t1 = time.time()
-			response = req.get(url)
+			response = requests.get(url)
 			t2 = time.time()
 			if response.status_code == 200:
 				ping_results = t2 - t1
+			else:
+				fails.append(name)
 		except:
 			logger.info("Platform doesn't support ping. Disable auto server selection")
 			AUTO_SERVER = False
@@ -1312,13 +1360,15 @@ def testServers(update_settings=True):
 	if res_spare != None:
 		logger.info('Backup Server with second lowest response time set to:%s' % res_spare)
 	logger.info("Done %s: %s" % (res, ping))
+	logger.debug("Failed to access servers: %s" % fails)
 	return res
+
 
 def findChannelURL(input_url=None, qual='1', target_serv=SRVR, fail=0):
 	# todo, rtmp
 	global SRVR
 	service = SRVR
-	qlist = [qual] #, '1', '2', '3']
+	qlist = [qual]  # , '1', '2', '3']
 	res = None
 	ping = False
 	for q in range(len(qlist)):
@@ -1326,9 +1376,9 @@ def findChannelURL(input_url=None, qual='1', target_serv=SRVR, fail=0):
 			continue
 		options = []
 		if target_serv.startswith('dna') and fail != 2:
-			if 'dnaw' in target_serv and fail ==0:
+			if 'dnaw' in target_serv and fail == 0:
 				options = [(name, host) for (name, host) in serverList if host.startswith('dnaw')]
-			elif 'dnae' in target_serv and fail ==0:
+			elif 'dnae' in target_serv and fail == 0:
 				options = [(name, host) for (name, host) in serverList if host.startswith('dnae')]
 			else:
 				options = [(name, host) for (name, host) in serverList if host.startswith('dna')]
@@ -1359,7 +1409,7 @@ def findChannelURL(input_url=None, qual='1', target_serv=SRVR, fail=0):
 				#
 				# ping_results = re.compile("time=(.*?)ms").findall(str(p.communicate()[0]))
 				t1 = time.time()
-				response = req.get(url)
+				response = requests.get(url)
 				t2 = time.time()
 				if response.status_code == 200:
 					td = t2 - t1
@@ -1384,9 +1434,19 @@ def findChannelURL(input_url=None, qual='1', target_serv=SRVR, fail=0):
 		return res
 	logger.info("Failed to find that channel on a similar quality or server")
 	if fail < 2:
-		return findChannelURL(input_url, qual='1', fail=fail+1)
+		return findChannelURL(input_url, qual='1', fail=fail + 1)
 	logger.info("Failed to find that channel on any quality or server")
 	return input_url
+
+
+def launch_browser():
+	try:
+		import webbrowser
+		webbrowser.open('%s://%s:%i%s' % ('http', LISTEN_IP, LISTEN_PORT, '/sstv/index.html'))
+	except Exception as e:
+		logger.error(u"Could not launch browser: %s" % e)
+
+
 ############################################################
 # EPG
 ############################################################
@@ -1402,39 +1462,40 @@ def dl_epg(source=1):
 		target_utc_hr = (cur_utc_hr // 4) * 4
 		target_utc_datetime = datetime.utcnow().replace(microsecond=0, second=0, minute=0, hour=target_utc_hr)
 		logger.debug("utc time is: %s,    utc target time is: %s,    file time is: %s" % (
-		datetime.utcnow(), target_utc_datetime, datetime.utcfromtimestamp(os.stat(existing).st_mtime)))
+			datetime.utcnow(), target_utc_datetime, datetime.utcfromtimestamp(os.stat(existing).st_mtime)))
 		if os.path.isfile(existing) and os.stat(existing).st_mtime > target_utc_datetime.timestamp():
 			logger.debug("Skipping download of epg")
 			return
 	to_process = []
 	# override the xml with one of your own
 
-
 	if source == 1:
 		if OVRXML != '':
 			if OVRXML.startswith('http://') or OVRXML.startswith('https://'):
 				if OVRXML.endswith('.gz') or OVRXML.endswith('.gz?raw=1'):
-					requests.urlretrieve(OVRXML, os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml.gz'))
+					urllib.request.urlretrieve(OVRXML,
+					                           os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml.gz'))
 					unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml.gz')
 				else:
-					requests.urlretrieve(OVRXML, os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml'))
+					urllib.request.urlretrieve(OVRXML,
+					                           os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml'))
 					unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawovrepg.xml')
 			else:
 				unzipped = OVRXML
 		else:
 			logger.info("Downloading epg")
-			requests.urlretrieve("https://fast-guide.smoothstreams.tv/altepg/xmltv5.xml.gz",
-								 os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz'))
+			urllib.request.urlretrieve("https://fast-guide.smoothstreams.tv/altepg/xmltv5.xml.gz",
+			                           os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz'))
 			unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml.gz')
 		to_process.append([unzipped, "epg.xml", 'fog' if OVRXML == '' else 'ovr'])
-		requests.urlretrieve("https://fast-guide.smoothstreams.tv/feed.xml",
-							 os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml'))
+		urllib.request.urlretrieve("https://fast-guide.smoothstreams.tv/feed.xml",
+		                           os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml'))
 		unzippedsports = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawsports.xml')
 		to_process.append([unzippedsports, "sports.xml", 'sstv'])
 	else:
 		logger.info("Downloading sstv epg")
-		requests.urlretrieve("https://fast-guide.smoothstreams.tv/feed.xml",
-							 os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml'))
+		urllib.request.urlretrieve("https://fast-guide.smoothstreams.tv/feed.xml",
+		                           os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml'))
 		unzipped = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'rawepg.xml')
 		to_process.append([unzipped, "epg.xml", 'sstv'])
 		to_process.append([unzipped, "sports.xml", 'sstv'])
@@ -1445,70 +1506,126 @@ def dl_epg(source=1):
 				opened = gzip.open(process[0])
 			else:
 				opened = open(process[0], encoding="UTF-8")
-			tree = ET.parse(opened)
-			root = tree.getroot()
+			source = ET.parse(opened)
+			root = source.getroot()
 			changelist = {}
-			# remove fogs xmltv channel names for readability in PLex Live
-			if process[2] == 'fog':
-				for a in tree.iterfind('channel'):
-					b = a.find('display-name')
+
+			with open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'prep.xml'), 'w+') as f:
+				f.write('<?xml version="1.0" encoding="UTF-8"?>'.rstrip('\r\n'))
+				f.write(
+					'''<tv><channel id="static_refresh"><display-name lang="en">Static Refresh</display-name><icon src="http://speed.guide.smoothstreams.tv/assets/images/channels/150.png" /></channel><programme channel="static_refresh" start="20170118213000 +0000" stop="20201118233000 +0000"><title lang="us">Press to refresh rtmp channels</title><desc lang="en">Select this channel in order to refresh the RTMP playlist. Only use from the channels list and NOT the guide page. Required every 4hrs.</desc><category lang="us">Other</category><episode-num system="">1</episode-num></programme></tv>''')
+			desttree = ET.parse(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'prep.xml'))
+			desttreeroot = desttree.getroot()
+
+			for channel in source.iter('channel'):
+				if process[2] == 'fog':
+					b = channel.find('display-name')
 					newname = [chan_map[x].channum for x in range(len(chan_map) + 1) if
-							   x != 0 and chan_map[x].epg == a.attrib['id'] and chan_map[x].channame == b.text]
+					           x != 0 and chan_map[x].epg == channel.attrib['id'] and chan_map[x].channame == b.text]
 					if len(newname) > 1:
 						logger.debug("EPG rename conflict %s" % ",".join(newname))
 					# It's a list regardless of length so first item is always wanted.
 					newname = newname[0]
-					changelist[a.attrib['id']] = newname
-					a.attrib['id'] = newname
-			for a in tree.iterfind('programme'):
+					changelist[channel.attrib['id']] = newname
+					channel.attrib['id'] = newname
+				b = channel.find('display-name')
+				b.text = saxutils.escape(str(b.text))
+				desttreeroot.append(channel)
+
+			for programme in source.iter('programme'):
 				if process[2] == 'fog':
 					try:
-						a.attrib['channel'] = changelist[a.attrib['channel']]
+						programme.attrib['channel'] = changelist[programme.attrib['channel']]
 					except:
 						logger.info("A programme was skipped as it couldn't be assigned to a channel, refer log.")
-						logger.debug(a.find('title').text, a.attrib)
-				for b in a.findall('title'):
-					ET.SubElement(a, 'category')
-					c = a.find('category')
-					ep_num = a.find('episode-num')
-					if ep_num is not None:
-						c.text = "Series"
-					else:
-						c.text = "Sports"
-						if 'nba' in b.text.lower() or 'nba' in b.text.lower() or 'ncaam' in b.text.lower():
-							c.text = "Basketball"
-						elif 'nfl' in b.text.lower() or 'football' in b.text.lower() or 'american football' in b.text.lower() or 'ncaaf' in b.text.lower() or 'cfb' in b.text.lower():
-							c.text = "Football"
-						elif 'epl' in b.text.lower() or 'efl' in b.text.lower() or 'soccer' in b.text.lower() or 'ucl' in b.text.lower() or 'mls' in b.text.lower() or 'uefa' in b.text.lower() or 'fifa' in b.text.lower() or 'fc' in b.text.lower() or 'la liga' in b.text.lower() or 'serie a' in b.text.lower() or 'wcq' in b.text.lower():
-							c.text = "Soccer"
-						elif 'rugby' in b.text.lower() or 'nrl' in b.text.lower() or 'afl' in b.text.lower():
-							c.text = "Rugby"
-						elif 'cricket' in b.text.lower() or 't20' in b.text.lower():
-							c.text = "Cricket"
-						elif 'tennis' in b.text.lower() or 'squash' in b.text.lower() or 'atp' in b.text.lower():
-							c.text = "Tennis/Squash"
-						elif 'f1' in b.text.lower() or 'nascar' in b.text.lower() or 'motogp' in b.text.lower() or 'racing' in b.text.lower():
-							c.text = "Motor Sport"
-						elif 'golf' in b.text.lower() or 'pga' in b.text.lower():
-							c.text = "Golf"
-						elif 'boxing' in b.text.lower() or 'mma' in b.text.lower() or 'ufc' in b.text.lower() or 'wrestling' in b.text.lower() or 'wwe' in b.text.lower():
-							c.text = "Martial Sports"
-						elif 'hockey' in b.text.lower() or 'nhl' in b.text.lower() or 'ice hockey' in b.text.lower():
-							c.text = "Ice Hockey"
-						elif 'baseball' in b.text.lower() or 'mlb' in b.text.lower() or 'beisbol' in b.text.lower() or 'minor league' in b.text.lower():
-							c.text = "Baseball"
-						elif 'news' in b.text.lower():
-							c.text = "News"
-					# c = a.find('category')
-					# if c.text == 'Sports':
-					#    print(b.text)
-			tree.write(os.path.join(os.path.dirname(sys.argv[0]), 'cache', process[1]))
+						logger.debug(programme.find('title').text, programme.attrib)
+
+				desc = programme.find('desc')
+				if desc is None:
+					ET.SubElement(programme, 'desc')
+					desc = programme.find('desc')
+					desc.text = ""
+				elif desc.text == 'None':
+					desc.text = ""
+				else:
+					desc.text = saxutils.escape(str(desc.text))
+
+				sub = programme.find('sub-title')
+				if sub is None:
+					ET.SubElement(programme, 'sub-title')
+					sub = programme.find('sub-title')
+					sub.text = ""
+				else:
+					sub.text = saxutils.escape(str(sub.text))
+
+				title = programme.find('title')
+				title.text = saxutils.escape(str(title.text))
+
+				cat = programme.find('category')
+				if cat is None:
+					ET.SubElement(programme, 'category')
+					cat = programme.find('category')
+
+				if process[2] == 'sstv':
+					cat.text = 'Sports'
+				ep_num = programme.find('episode-num')
+				# emby
+				# sports|basketball|baseball|football|Rugby|Soccer|Cricket|Tennis/Squash|Motor Sport|Golf|Martial Sports|Ice Hockey|Alpine Sports|Darts
+				if cat.text == "Sports":
+					if any(sport in title.text.lower() for sport in
+					       ['nba', 'ncaam', 'nba', 'basquetebol', 'wnba', 'g-league']):
+						cat.text = "Basketball"
+					elif any(sport in title.text.lower() for sport in
+					         ['nfl', 'football', 'american football', 'ncaaf', 'cfb']):
+						cat.text = "Football"
+					elif any(sport in title.text.lower() for sport in
+					         ['epl', 'efl', 'fa cup', 'spl', 'taca de portugal', 'w-league', 'soccer', 'ucl',
+					          'coupe de la ligue', 'league cup', 'mls', 'uefa', 'fifa', 'fc', 'la liga', 'serie a',
+					          'wcq', 'khl:', 'shl:', '1.bl:', 'euroleague', 'knvb', 'superliga turca',
+					          'liga holandesa']):
+						cat.text = "Soccer"
+					elif any(sport in title.text.lower() for sport in
+					         ['rugby', 'nrl', 'afl', 'rfu', 'french top 14:', "women's premier 15", 'guinness pro14']):
+						cat.text = "Rugby"
+					elif any(sport in title.text.lower() for sport in ['cricket', 't20', 't20i']):
+						cat.text = "Cricket"
+					elif any(sport in title.text.lower() for sport in ['tennis', 'squash', 'atp']):
+						cat.text = "Tennis/Squash"
+					elif any(sport in title.text.lower() for sport in ['f1', 'nascar', 'motogp', 'racing']):
+						cat.text = "Motor Sport"
+					elif any(sport in title.text.lower() for sport in ['golf', 'pga']):
+						cat.text = "Golf"
+					elif any(sport in title.text.lower() for sport in ['boxing', 'mma', 'ufc', 'wrestling', 'wwe']):
+						cat.text = "Martial Sports"
+					elif any(sport in title.text.lower() for sport in ['hockey', 'nhl', 'ice hockey', 'iihf']):
+						cat.text = "Ice Hockey"
+					elif any(sport in title.text.lower() for sport in
+					         ['baseball', 'mlb', 'beisbol', 'minor league', 'ncaab']):
+						cat.text = "Baseball"
+					elif any(sport in title.text.lower() for sport in ['news']):
+						cat.text = "News"
+					elif any(sport in title.text.lower() for sport in ['alpine', 'skiing', 'snow']):
+						cat.text = "Alpine Sports"
+					elif any(sport in title.text.lower() for sport in ['darts']):
+						cat.text = "Darts"
+				cat.text = saxutils.escape(str(cat.text))
+				desttreeroot.append(programme)
+
+			# tree.write('./cache/combined.xml')
+			# with open('./cache/combined.xml', 'r+') as f:
+			# 	content = f.read()
+			# 	f.seek(0, 0)
+			# 	f.write('<?xml version="1.0" encoding="UTF-8"?>'.rstrip('\r\n') + content)
+			# return
+
+			desttree.write(os.path.join(os.path.dirname(sys.argv[0]), 'cache', process[1]))
 			logger.debug("writing to %s" % process[1])
 			# add xml header to file for Kodi support
 			with open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', process[1]), 'r+') as f:
 				content = f.read()
-				staticinfo = '''<channel id="static_refresh"><display-name lang="en">Static Refresh</display-name><icon src="http://speed.guide.smoothstreams.tv/assets/images/channels/150.png" /></channel><programme channel="static_refresh" start="20170118213000 +0000" stop="20201118233000 +0000"><title lang="us">Press to refresh rtmp channels</title><desc lang="en">Select this channel in order to refresh the RTMP playlist. Only use from the channels list and NOT the guide page. Required every 4hrs.</desc><category lang="us">Other</category><episode-num system="">1</episode-num></programme></tv>'''
-				content = content[:-5] + staticinfo
+				# staticinfo = '''<channel id="static_refresh"><display-name lang="en">Static Refresh</display-name><icon src="http://speed.guide.smoothstreams.tv/assets/images/channels/150.png" /></channel><programme channel="static_refresh" start="20170118213000 +0000" stop="20201118233000 +0000"><title lang="us">Press to refresh rtmp channels</title><desc lang="en">Select this channel in order to refresh the RTMP playlist. Only use from the channels list and NOT the guide page. Required every 4hrs.</desc><category lang="us">Other</category><episode-num system="">1</episode-num></programme></tv>'''
+				# content = content[:-5] + staticinfo
+				# f.write(content)
 				f.seek(0, 0)
 				f.write('<?xml version="1.0" encoding="UTF-8"?>'.rstrip('\r\n') + content)
 		except:
@@ -1529,14 +1646,14 @@ def dl_sstv_epg():
 		target_utc_hr = (cur_utc_hr // 3) * 3
 		target_utc_datetime = datetime.utcnow().replace(microsecond=0, second=0, minute=0, hour=target_utc_hr)
 		logger.debug("utc time is: %s,    utc target time is: %s,    file time is: %s" % (
-		datetime.utcnow(), target_utc_datetime, datetime.utcfromtimestamp(os.stat(existing).st_mtime)))
+			datetime.utcnow(), target_utc_datetime, datetime.utcfromtimestamp(os.stat(existing).st_mtime)))
 		if os.path.isfile(existing) and os.stat(existing).st_mtime > target_utc_datetime.timestamp():
 			logger.debug("Skipping download of epg")
 			return
 	logger.debug("Downloading sstv epg")
 	url = "https://guide.smoothstreams.tv/feed-new-full-latest.zip"
 	import zipfile
-	requests.urlretrieve(url, os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'testepg.zip'))
+	urllib.request.urlretrieve(url, os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'testepg.zip'))
 	archive = zipfile.ZipFile(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'testepg.zip'), 'r')
 	jsonepg = archive.read('feed-new-full.json')
 	epg = json.loads(jsonepg.decode('utf-8'))
@@ -1620,19 +1737,23 @@ def json2xml(json_obj):
 	mtree.write(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'sstv_full.xml'))
 	return
 
+
 def getProgram(channel):
 	global jsonGuide1, jsonGuide2
 	tmNow = time.localtime(time.time() + GUIDELOOKAHEAD * 60)
 	sched_offest = EST5EDT().utc_seconds()
 	retVal = programinfo()
-	local_off = datetime.utcoffset(datetime.utcnow().replace(tzinfo=dt.timezone.utc).astimezone(tz=None)).total_seconds()
+	local_off = datetime.utcoffset(
+		datetime.utcnow().replace(tzinfo=dt.timezone.utc).astimezone(tz=None)).total_seconds()
 	if str(int(channel)) in jsonGuide1:
 		oChannel = jsonGuide1[str(int(channel))]
 		retVal.channel = channel
 		retVal.channelname = oChannel["name"].replace(format(channel, "02") + " - ", "").strip()
 		for item in oChannel["items"]:
-			startTime = time.localtime(time.mktime(datetime.strptime(item["time"], '%Y-%m-%d %H:%M:%S').timetuple()) - sched_offest + local_off)
-			endTime = time.localtime(time.mktime(datetime.strptime(item["end_time"], '%Y-%m-%d %H:%M:%S').timetuple()) - sched_offest + local_off)
+			startTime = time.localtime(time.mktime(
+				datetime.strptime(item["time"], '%Y-%m-%d %H:%M:%S').timetuple()) - sched_offest + local_off)
+			endTime = time.localtime(time.mktime(
+				datetime.strptime(item["end_time"], '%Y-%m-%d %H:%M:%S').timetuple()) - sched_offest + local_off)
 			if startTime < tmNow and endTime > tmNow:
 				retVal.category = item["category"].strip()
 				retVal.quality = item["quality"].upper()
@@ -1693,6 +1814,7 @@ def getJSON(sFile, sURL, sURL2):
 
 	return retVal
 
+
 ############################################################
 # SSTV
 ############################################################
@@ -1713,15 +1835,15 @@ def get_auth_token(user, passwd, site):
 		"password": passwd,
 		"site": site
 	}
-
-	session = req.Session()
+	headers = {'User-Agent': USERAGENT}
+	session = requests.Session()
 	url = baseUrl + urllib.parse.urlencode(params)
 	try:
-		data = session.post(url, params).json()
+		data = session.post(url, params, headers=headers).json()
 	except:
-		data = json.loads(requests.urlopen(url).read().decode("utf--8"))
+		data = json.loads(urllib.request.urlopen(url).read().decode("utf--8"))
 	# old
-	# data = json.loads(requests.urlopen('http://auth.SmoothStreams.tv/hash_api.php?username=%s&password=%s&site=%s' % (user,passwd,site)).read().decode("utf-8"))
+	# data = json.loads(urllib.request.urlopen('http://auth.SmoothStreams.tv/hash_api.php?username=%s&password=%s&site=%s' % (user,passwd,site)).read().decode("utf-8"))
 	if 'hash' not in data or 'valid' not in data:
 		logger.error("There was no hash auth token returned from auth.SmoothStreams.tv...")
 		return
@@ -1754,7 +1876,7 @@ def build_channel_map():
 	chan_map = {}
 	logger.debug("Loading channel list")
 	url = 'https://fast-guide.smoothstreams.tv/altepg/channels.json'
-	jsonChanList = json.loads(requests.urlopen(url).read().decode("utf-8"))
+	jsonChanList = json.loads(urllib.request.urlopen(url).read().decode("utf-8"))
 
 	for item in jsonChanList:
 		retVal = channelinfo()
@@ -1777,7 +1899,7 @@ def build_channel_map_sstv():
 	chan_map = {}
 	logger.debug("Loading channel list (fallback)")
 	url = 'https://speed.guide.smoothstreams.tv/feed-new.json'
-	jsonChanList = json.loads(requests.urlopen(url).read().decode("utf-8"))
+	jsonChanList = json.loads(urllib.request.urlopen(url).read().decode("utf-8"))
 	jsonEPG = jsonChanList['data']
 
 	for item in jsonEPG:
@@ -1797,27 +1919,29 @@ def build_channel_map_sstv():
 	return chan_map
 
 
-def build_playlist(host):
+def build_playlist(host, strmType=None):
 	# standard dynamic playlist
 	global chan_map
-
+	if not strmType or strmType not in streamtype: strmType = STRM
 	# build playlist using the data we have
 	new_playlist = "#EXTM3U x-tvg-url='%s/epg.xml'\n" % urljoin(host, SERVER_PATH)
 	for pos in range(1, len(chan_map) + 1):
 		try:
 			# build channel url
 			url = "{0}/playlist.m3u8?ch={1}&strm={2}&qual={3}"
+			if strmType == 'mpegts':
+				url = "{0}/mpeg.2ts?ch={1}&strm={2}&qual={3}"
 			vaders_url = "http://vapi.vaders.tv/play/{0}.{1}?"
 
 			if SITE == 'vaders':
 				tokenDict = {"username": "vsmystreams_" + USER, "password": PASS}
 				jsonToken = json.dumps(tokenDict)
 				tokens = base64.b64encode(jsonToken.encode('utf-8'))
-				strm = 'ts'  if STRM == 'mpegts' else 'm3u8'
+				strm = 'ts' if STRM == 'mpegts' else 'm3u8'
 				tokens = urllib.parse.urlencode({"token": str(tokens)[1:]})
 				channel_url = vaders_url.format(vaders_channels[str(pos)], strm) + tokens
 			else:
-				urlformatted = url.format(SERVER_PATH, chan_map[pos].channum, STRM, QUAL)
+				urlformatted = url.format(SERVER_PATH, chan_map[pos].channum, strmType, QUAL)
 				channel_url = urljoin(host, urlformatted)
 			# build playlist entry
 
@@ -1833,35 +1957,35 @@ def build_playlist(host):
 
 	return new_playlist
 
+
 def build_xspf(host, request_file):
 	# standard dynamic playlist
 	global chan_map
 
 	xspfBodyTemplate = ('<?xml version="1.0" encoding="UTF-8"?>\n' +
-		 '<playlist xmlns="http://xspf.org/ns/0/" xmlns:vlc="http://www.videolan.org/vlc/playlist/ns/0/" version="1">\n' +
-		'\t<title>Playlist</title>\n' +
-		'\t<trackList>\n' +
-		'{0}' +
-		'\t</trackList>\n' +
-		'\t<extension application="http://www.videolan.org/vlc/playlist/0">\n' +
-		'{1}' +
-		'\t</extension>\n' +
-		'</playlist>')
+	                    '<playlist xmlns="http://xspf.org/ns/0/" xmlns:vlc="http://www.videolan.org/vlc/playlist/ns/0/" version="1">\n' +
+	                    '\t<title>Playlist</title>\n' +
+	                    '\t<trackList>\n' +
+	                    '{0}' +
+	                    '\t</trackList>\n' +
+	                    '\t<extension application="http://www.videolan.org/vlc/playlist/0">\n' +
+	                    '{1}' +
+	                    '\t</extension>\n' +
+	                    '</playlist>')
 	xspfTrackTemplate = ('\t\t<track>\n' +
-		'\t\t\t<location>{5}</location>\n' +
-		'\t\t\t<title>{3}</title>\n' +
-		'\t\t\t<creator>{8}</creator>\n' +
-		'\t\t\t<album>{0}</album>\n' +
-		'\t\t\t<trackNum>{6}</trackNum>\n' +
-		'\t\t\t<annotation>{9}</annotation>\n' +
-		'\t\t\t<extension application="http://www.videolan.org/vlc/playlist/0">\n' +
-		'\t\t\t\t<vlc:id>{7}</vlc:id>\n' +
-		'\t\t\t</extension>\n' +
-		'\t\t</track>\n')
+	                     '\t\t\t<location>{5}</location>\n' +
+	                     '\t\t\t<title>{3}</title>\n' +
+	                     '\t\t\t<creator>{8}</creator>\n' +
+	                     '\t\t\t<album>{0}</album>\n' +
+	                     '\t\t\t<trackNum>{6}</trackNum>\n' +
+	                     '\t\t\t<annotation>{9}</annotation>\n' +
+	                     '\t\t\t<extension application="http://www.videolan.org/vlc/playlist/0">\n' +
+	                     '\t\t\t\t<vlc:id>{7}</vlc:id>\n' +
+	                     '\t\t\t</extension>\n' +
+	                     '\t\t</track>\n')
 	xspfTrack2Template = '\t\t<vlc:item tid="{0}"/>\n'
 	xspfTracks = ""
 	xspfTracks2 = ""
-
 
 	# build playlist using the data we have
 	for pos in range(1, len(chan_map) + 1):
@@ -1870,12 +1994,12 @@ def build_xspf(host, request_file):
 		program = getProgram(pos)
 		url = "{0}/playlist.m3u8?ch={1}"
 		vaders_url = "http://vapi.vaders.tv/play/{0}.{1}?"
-		quality = '720p' if QUAL == '1' or pos > QUALLIMIT else '540p' if QUAL == '2' else '360p'
+		# quality = '720p' if QUAL == '1' or pos > QUALLIMIT else '540p' if QUAL == '2' else '360p'
 		if SITE == 'vaders':
 			tokenDict = {"username": "vsmystreams_" + USER, "password": PASS}
 			jsonToken = json.dumps(tokenDict)
 			tokens = base64.b64encode(jsonToken.encode('utf-8'))
-			strm = 'ts'  if STRM == 'mpegts' else 'm3u8'
+			strm = 'ts' if STRM == 'mpegts' else 'm3u8'
 			tokens = urllib.parse.urlencode({"token": str(tokens)[1:]})
 			channel_url = vaders_url.format(vaders_channels[str(pos)], strm) + tokens
 		else:
@@ -1884,17 +2008,18 @@ def build_xspf(host, request_file):
 			if not 'static' in request_file:
 				channel_url = urljoin(host, urlformatted)
 			else:
-				channel_url = template.format('https' if STRM == 'hls' else 'rtmp', SRVR, '443' if STRM == 'hls' else '3625',
-										   SITE, "{:02}".format(pos), QUAL if pos <= QUALLIMIT else '1',
-										   '/playlist.m3u8' if STRM == 'hls' else '', token['hash'])
+				channel_url = createURL(pos, QUAL, STRM, token)
+		# channel_url = template.format('https' if STRM == 'hls' else 'rtmp', SRVR, '443' if STRM == 'hls' else '3625',
+		# 						   SITE, "{:02}".format(pos), QUAL if pos <= QUALLIMIT else '1',
+		# 						   '/playlist.m3u8' if STRM == 'hls' else '', token['hash'])
 		# build playlist entry
 		try:
 			xspfTracks += xspfTrackTemplate.format(escape(program.album), escape(program.quality),
-												   escape(program.language), escape(program.title),
-												   str(program.channel), channel_url,
-												   str(int(chan_map[pos].channum)),
-												   str(int(chan_map[pos].channum) -1 ),
-												   escape(program.channelname), escape(program.description))
+			                                       escape(program.language), escape(program.title),
+			                                       str(program.channel), channel_url,
+			                                       str(int(chan_map[pos].channum)),
+			                                       str(int(chan_map[pos].channum) - 1),
+			                                       escape(program.channelname), escape(program.description))
 			xspfTracks2 += xspfTrack2Template.format(str(int(chan_map[pos].channum) - 1))
 
 
@@ -1906,24 +2031,26 @@ def build_xspf(host, request_file):
 	return xspf
 
 
-def build_static_playlist():
+def build_static_playlist(strmType=None):
 	global chan_map
+	if not strmType or strmType not in streamtype:
+		strmType = STRM
 	# build playlist using the data we have
 	new_playlist = "#EXTM3U x-tvg-url='%s/epg.xml'\n" % urljoin(SERVER_HOST, SERVER_PATH)
 	for pos in range(1, len(chan_map) + 1):
 		# build channel url
 
-		template = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}q{5}.stream{6}?wmsAuthSign={7}'
-		urlformatted = template.format('https' if STRM == 'hls' else 'rtmp', SRVR, '443' if STRM == 'hls' else '3625',
-									   SITE, "{:02}".format(pos), QUAL if pos <= QUALLIMIT else '1',
-									   '/playlist.m3u8' if STRM == 'hls' else '', token['hash'])
+		# template = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}q{5}.stream{6}?wmsAuthSign={7}'
+		# urlformatted = template.format('https' if STRM == 'hls' else 'rtmp', SRVR, '443' if STRM == 'hls' else '3625',
+		# 							   SITE, "{:02}".format(pos), QUAL if pos <= QUALLIMIT else '1',
+		# 							   '/playlist.m3u8' if STRM == 'hls' else '', token['hash'])
 		# build playlist entry
 		try:
 			new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s",%s\n' % (
 				chan_map[pos].channum, chan_map[pos].channame, SERVER_HOST, SERVER_PATH, chan_map[pos].channum,
 				chan_map[pos].channum,
 				chan_map[pos].channame)
-			new_playlist += '%s\n' % urlformatted
+			new_playlist += '%s\n' % createURL(pos, QUAL, strmType, token)
 		except:
 			logger.exception("Exception while updating static playlist: ")
 	logger.info("Built static playlist")
@@ -1959,6 +2086,20 @@ def build_test_playlist(hosts):
 	return new_playlist
 
 
+def build_server_playlist():
+	# build playlist using the data we have
+	new_playlist = "#EXTM3U x-tvg-url='%s/epg.xml'\n" % urljoin(SERVER_HOST, SERVER_PATH)
+	template = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}q{5}.stream{6}?wmsAuthSign={7}'
+	url = "{0}/sstv/playlist.m3u8?ch=1&strm=mpeg&qual=1"
+	# build playlist entry
+	for server in serverList:
+		new_playlist += '#EXTINF:-1 tvg-id="1" tvg-name="%s" channel-id="1","%s"\n' % (server[0], server[0])
+		new_playlist += '%s\n' % template.format('https', server[1], '443', SITE, "01", 1, '/mpeg.2ts', token['hash'])
+
+	logger.info("Built server playlist")
+	return new_playlist
+
+
 def thread_playlist():
 	global playlist
 
@@ -1978,12 +2119,12 @@ def create_channel_playlist(sanitized_channel, qual, strm, hash):
 	hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}=='
 	hls_url = hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, hash)
 	rtmp_url = rtmpTemplate.format(SRVR, SITE, sanitized_channel, qual, hash)
-	file = requests.urlopen(hls_url, timeout=2).read().decode("utf-8")
+	file = urllib.request.urlopen(hls_url, timeout=2).read().decode("utf-8")
 	if not os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'playlist.m3u8')):
 		f = open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'playlist.m3u8'), 'w')
 		f.close()
 	if strm == 'hls':
-		# Used to support HLS HTTPS requests
+		# Used to support HLS HTTPS urllib.request
 		template = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/chunks'
 		file = file.replace('chunks', template.format(SRVR, SITE, sanitized_channel, qual))
 		with open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'playlist.m3u8'), 'r+') as f:
@@ -1997,18 +2138,20 @@ def create_channel_playlist(sanitized_channel, qual, strm, hash):
 		#    f.write(file)
 		return rtmp_url
 
+
 def create_channel_file(url):
 	strm = 'hls'
 	if url.startswith('rtmp'):
 		strm = 'rtmp'
-	file = requests.urlopen(url, timeout=2).read().decode("utf-8")
+	file = urllib.request.urlopen(url, timeout=2).read().decode("utf-8")
 	if not os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'playlist.m3u8')):
 		f = open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'playlist.m3u8'), 'w')
 		f.close()
 	if strm == 'hls':
-		# Used to support HLS HTTPS requests
+		# Used to support HLS HTTPS urllib.request
 		# https://dnaw1.smoothstreams.tv:443/viewmmasr/ch69q2.stream/playlist.m3u8?wmsAuthSign=c2VydmVyX3RpbWU9OS82LzIwMTggOToxOTowMCBQTSZoYXNoX3ZhbHVlPTZ4R0QzNlhNMW5OTTgzaXBseXpsY2c9PSZ2YWxpZG1pbnV0ZXM9MjQwJmlkPXZpZXdtbWFzci0yNDI2NjY =
-		template = find_between(url,'', 'playlist') + "chunks"  #'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/chunks'
+		template = find_between(url, '',
+		                        'playlist') + "chunks"  # 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/chunks'
 		file = file.replace('chunks', template)
 		with open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'playlist.m3u8'), 'r+') as f:
 			f.write(file)
@@ -2021,11 +2164,12 @@ def create_channel_file(url):
 		#    f.write(file)
 		return rtmp_url
 
+
 def checkChannelURL(url):
 	try:
-		session = req.Session()
+		session = requests.Session()
 		code = session.get(url)
-		# code = requests.urlopen(url, timeout=10).getcode()
+		# code = urllib.request.urlopen(url, timeout=10).getcode()
 		if code.status_code != 200:
 			logger.debug("Exception on url %s with code %s" % (url, code.status_code))
 			return False
@@ -2037,23 +2181,64 @@ def checkChannelURL(url):
 		logger.debug("Exception on url %s" % url)
 		return False
 
+
 def fixURL(strm, ch, qual, hash):
 	template = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}q{5}.stream{6}?wmsAuthSign={7}'
-	urlformatted = template.format('https' if strm == 'hls' else 'rtmp', 'SRVR', '443' if strm == 'hls' else '3625', SITE, "{:02}".format(int(ch)), 'QUAL', '/playlist.m3u8' if strm == 'hls' else '', hash)
-	if checkChannelURL(urlformatted.replace('SRVR',SRVR).replace('QUAL',str(1))):
-		return urlformatted.replace('SRVR',SRVR).replace('QUAL',str(1))
+	urlformatted = template.format('https' if strm == 'hls' else 'rtmp', 'SRVR', '443' if strm == 'hls' else '3625',
+	                               SITE, "{:02}".format(int(ch)), 'QUAL', '/playlist.m3u8' if strm == 'hls' else '',
+	                               hash)
+	if checkChannelURL(urlformatted.replace('SRVR', SRVR).replace('QUAL', str(1))):
+		return urlformatted.replace('SRVR', SRVR).replace('QUAL', str(1))
 	# Check spare
-	if checkChannelURL(urlformatted.replace('SRVR',SRVR_SPARE).replace('QUAL',str(qual))):
-		return urlformatted.replace('SRVR',SRVR_SPARE).replace('QUAL',str(qual))
+	if checkChannelURL(urlformatted.replace('SRVR', SRVR_SPARE).replace('QUAL', str(qual))):
+		return urlformatted.replace('SRVR', SRVR_SPARE).replace('QUAL', str(qual))
 	else:
 		# Check other qualities
-		for q in range(1,4):
+		for q in range(1, 4):
 			if checkChannelURL(urlformatted.replace('SRVR', SRVR).replace('QUAL', str(q))):
 				return urlformatted.replace('SRVR', SRVR).replace('QUAL', str(q))
 			elif checkChannelURL(urlformatted.replace('SRVR', SRVR_SPARE).replace('QUAL', str(q))):
 				return urlformatted.replace('SRVR', SRVR_SPARE).replace('QUAL', str(q))
 		# oh boy we're in trouble now
 		return findChannelURL(input_url=urlformatted, qual=qual)
+
+
+def createURL(chan, qual, strm, token):
+	chan = int(chan)
+	qualOptions = {}
+	chanData = CHANAPI[str(chan)]
+	for i in chanData:
+		if i['id'] == '3':
+			qualOptions['720'] = 'q' + i['stream']
+		elif i['id'] == '4':
+			qualOptions['540'] = 'q' + i['stream']
+		elif i['id'] == '5':
+			qualOptions['360'] = 'q' + i['stream']
+
+	if int(qual) == 1:
+		quality = "720"  # HD - 2800k
+	elif int(qual) == 2:
+		quality = "540"  # LD - 1250k
+	elif int(qual) == 3:
+		quality = "360"  # Mobile - 400k ( Not in settings)
+	else:
+		quality = "720"
+	sanitizedQuality = 'q1'
+	if quality in qualOptions:
+		sanitizedQuality = qualOptions[quality]
+
+	sanitized_channel = "{:02.0f}".format(int(chan))
+	URLBASE = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}{5}{6}?wmsAuthSign={7}=='
+	url = URLBASE.format(STREAM_INFO[strm]['domain'],
+	                     SRVR,
+	                     STREAM_INFO[strm]['port'],
+	                     SITE,
+	                     sanitized_channel,
+	                     sanitizedQuality if STREAM_INFO[strm]['quality'] == 'standard' else '.smil',
+	                     STREAM_INFO[strm]['playlist'],
+	                     token['hash'])
+
+	return url
 
 
 ############################################################
@@ -2067,7 +2252,7 @@ def obtain_m3u8():
 	file = EXTM3UFILE
 	if url != '':
 		logger.debug("extra m3u8 url")
-		inputm3u8 = requests.urlopen(url).read().decode('utf-8')
+		inputm3u8 = urllib.request.urlopen(url).read().decode('utf-8')
 		inputm3u8 = inputm3u8.split("\n")[1:]
 	elif file != '':
 		logger.debug("extra m3u8 file")
@@ -2094,20 +2279,21 @@ def obtain_m3u8():
 			except:
 				logger.debug("skipped:", inputm3u8[i])
 	return formatted_m3u8
-def obtain_epg():
 
+
+def obtain_epg():
 	if os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'combined.xml')):
 		existing = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'combined.xml')
 		cur_utc_hr = datetime.utcnow().replace(microsecond=0, second=0, minute=0).hour
 		target_utc_hr = (cur_utc_hr // 3) * 3
 		target_utc_datetime = datetime.utcnow().replace(microsecond=0, second=0, minute=0, hour=target_utc_hr)
 		logger.debug("utc time is: %s,    utc target time is: %s,    file time is: %s" % (
-		datetime.utcnow(), target_utc_datetime, datetime.utcfromtimestamp(os.stat(existing).st_mtime)))
+			datetime.utcnow(), target_utc_datetime, datetime.utcfromtimestamp(os.stat(existing).st_mtime)))
 		if os.path.isfile(existing) and os.stat(existing).st_mtime > target_utc_datetime.timestamp():
 			logger.debug("Skipping download of epg")
 			return
-	#clear epg file
-	f = open('./cache/combined.xml','w')
+	# clear epg file
+	f = open('./cache/combined.xml', 'w')
 	f.write('<?xml version="1.0" encoding="UTF-8"?>'.rstrip('\r\n'))
 	f.write('''<tv></tv>''')
 	f.close()
@@ -2118,8 +2304,7 @@ def obtain_epg():
 
 
 def xmltv_merger(xml_url):
-	# todo download each xmltv
-	response = req.get(xml_url)
+	response = requests.get(xml_url)
 	if response.history:
 		logger.debug("Request was redirected")
 		for resp in response.history:
@@ -2129,10 +2314,10 @@ def xmltv_merger(xml_url):
 	else:
 		logger.debug("Request was not redirected")
 	if xml_url.endswith('.gz'):
-		requests.urlretrieve(xml_url, './cache/raw.xml.gz')
+		urllib.request.urlretrieve(xml_url, './cache/raw.xml.gz')
 		opened = gzip.open('./cache/raw.xml.gz')
 	else:
-		requests.urlretrieve(xml_url, './cache/raw.xml')
+		urllib.request.urlretrieve(xml_url, './cache/raw.xml')
 		opened = open('./cache/raw.xml', encoding="UTF-8")
 
 	tree = ET.parse('./cache/epg.xml')
@@ -2142,7 +2327,7 @@ def xmltv_merger(xml_url):
 		source = ET.parse(opened)
 	except:
 		# Try file as gzip instead
-		requests.urlretrieve(xml_url, './cache/raw.xml.gz')
+		urllib.request.urlretrieve(xml_url, './cache/raw.xml.gz')
 		opened = gzip.open('./cache/raw.xml.gz')
 		source = ET.parse(opened)
 
@@ -2158,6 +2343,7 @@ def xmltv_merger(xml_url):
 		f.seek(0, 0)
 		f.write('<?xml version="1.0" encoding="UTF-8"?>'.rstrip('\r\n') + content)
 	return
+
 
 ############################################################
 # TVHeadend
@@ -2191,7 +2377,7 @@ def build_tvh_playlist():
 def get_tvh_channels():
 	url = 'HTTP://%s:9981/api/channel/grid?start=0&limit=999999' % TVHURL
 	try:
-		r = req.get(url, auth=req.auth.HTTPBasicAuth(TVHUSER, TVHPASS)).text
+		r = requests.get(url, auth=requests.auth.HTTPBasicAuth(TVHUSER, TVHPASS)).text
 		data = json.loads(r)
 		return (data['entries'])
 	except:
@@ -2252,9 +2438,9 @@ def m3u8_plex(lineup, inputm3u8):
 					grouper = grouper.split(',')
 					name = grouper[1]
 					lineup.append({'GuideNumber': str(len(lineup) + 1),
-								   'GuideName': name,
-								   'URL': 'empty'
-								   })
+					               'GuideName': name,
+					               'URL': 'empty'
+					               })
 				elif inputm3u8[i].startswith("rtmp") or inputm3u8[i].startswith("http"):
 					template = "{0}/{1}/auto/v{2}?url={3}"
 					url = template.format(SERVER_HOST, SERVER_PATH, str(len(lineup)), inputm3u8[i])
@@ -2265,20 +2451,20 @@ def m3u8_plex(lineup, inputm3u8):
 	return lineup
 
 
-def lineup(chan_map):
+def createLineup(chan_map):
 	lineup = []
 
 	for c in range(1, len(chan_map) + 1):
 		template = "{0}/{1}/auto/v{2}"
 		url = template.format(SERVER_HOST, SERVER_PATH, chan_map[c].channum)
 		lineup.append({'GuideNumber': str(chan_map[c].channum),
-					   'GuideName': chan_map[c].channame,
-					   'URL': url
-					   })
+		               'GuideName': chan_map[c].channame,
+		               'URL': url
+		               })
 	formatted_m3u8 = ''
 	if EXTM3URL != '':
 		logger.debug("extra m3u8 url")
-		inputm3u8 = requests.urlopen(EXTM3URL).read().decode('utf-8')
+		inputm3u8 = urllib.request.urlopen(EXTM3URL).read().decode('utf-8')
 		inputm3u8 = inputm3u8.split("\n")[1:]
 		return jsonify(m3u8_plex(lineup, inputm3u8))
 	elif EXTM3UFILE != '':
@@ -2296,11 +2482,11 @@ def tvh_lineup():
 	for c in get_tvh_channels():
 		if c['enabled']:
 			url = 'http://%s:%s@%s:9981/stream/channel/%s?profile=%s&weight=%s' % (
-			TVHUSER, TVHPASS, TVHURL, c['uuid'], tvhstreamProfile, int(tvhWeight))
+				TVHUSER, TVHPASS, TVHURL, c['uuid'], tvhstreamProfile, int(tvhWeight))
 			lineup.append({'GuideNumber': str(c['number']),
-						   'GuideName': c['name'],
-						   'URL': url
-						   })
+			               'GuideName': c['name'],
+			               'URL': url
+			               })
 	return jsonify(lineup)
 
 
@@ -2340,6 +2526,33 @@ def tvh_device():
 	return render_template('device.xml', data=tvhdiscoverData), {'Content-Type': 'application/xml'}
 
 
+def ffmpegPipe(url):
+	logger.debug("starting generate function")
+	cmdline = list()
+	cmdline.append(FFMPEGLOC)
+	cmdline.append("-i")
+	cmdline.append(url)
+	cmdline.append("-vcodec")
+	cmdline.append("copy")
+	cmdline.append("-acodec")
+	cmdline.append("copy")
+	cmdline.append("-f")
+	cmdline.append("mpegts")
+	cmdline.append("pipe:1")
+	logger.debug(cmdline)
+	FNULL = open(os.devnull, 'w')
+	proc = subprocess.Popen(cmdline, stdout=subprocess.PIPE, stderr=FNULL)
+	logger.debug("pipe started")
+	try:
+		f = proc.stdout
+		byte = f.read(512)
+		while byte:
+			yield byte
+			byte = f.read(512)
+
+	finally:
+		proc.kill()
+
 
 ############################################################
 # Kodi
@@ -2371,8 +2584,8 @@ def build_kodi_playlist():
 				chan_map[pos].channum, chan_map[pos].channame, SERVER_HOST, SERVER_PATH, chan_map[pos].channum,
 				chan_map[pos].channum,
 				chan_map[pos].channame)
-			new_playlist += '%s\n' % rtmpTemplate.format(SRVR, SITE, "{:02}".format(pos), QUAL if pos <= QUALLIMIT else '1',
-														 token['hash'])
+			new_playlist += '%s\n' % createURL(pos, QUAL, 'rtmp',
+			                                   token)  # rtmpTemplate.format(SRVR, SITE, "{:02}".format(pos), QUAL if pos <= QUALLIMIT else '1',token['hash'])
 			prog = getProgram(pos)
 			if prog.title != 'none':
 				new_playlist += '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s/%s/%s.png" channel-id="%s" group-title="LIVE",%s\n' % (
@@ -2411,14 +2624,14 @@ def rescan_channels():
 	authorization = b'Basic ' + encoded_credentials
 	apiheaders = {'Content-Type': 'application/json', 'Authorization': authorization}
 	apidata = {"jsonrpc": "2.0", "method": "Addons.SetAddonEnabled",
-			   "params": {"addonid": "pvr.iptvsimple", "enabled": "toggle"}, "id": 1}
+	           "params": {"addonid": "pvr.iptvsimple", "enabled": "toggle"}, "id": 1}
 	apiurl = 'http://%s:%s/jsonrpc' % (request.environ.get('REMOTE_ADDR'), KODIPORT)
 	json_data = json.dumps(apidata)
 	post_data = json_data.encode('utf-8')
-	apirequest = requests.Request(apiurl, post_data, apiheaders)
+	apirequest = urllib.request.Request(apiurl, post_data, apiheaders)
 	# has to happen twice to toggle off then back on
-	result = requests.urlopen(apirequest)
-	result = requests.urlopen(apirequest)
+	result = urllib.request.urlopen(apirequest)
+	result = urllib.request.urlopen(apirequest)
 	logger.info("Forcing Kodi to rescan, result:%s " % result.read())
 
 
@@ -2453,27 +2666,34 @@ def create_menu():
 		html.write('<section class="container"><div class="left-half">')
 		html.write("<h1>YAP Settings</h1>")
 		template = "<a href='{1}/{2}/{0}.html'>{3}</a>"
-		html.write("<p>" + template.format("settings",SERVER_HOST, SERVER_PATH,"Options") + " " + template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions") + " " + template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List") + " " + template.format("adv_channels",SERVER_HOST, SERVER_PATH,"Advanced Settings") + "</p>")
+		html.write(
+			"<p>" + template.format("settings", SERVER_HOST, SERVER_PATH, "Options") + " " + template.format("howto",
+			                                                                                                 SERVER_HOST,
+			                                                                                                 SERVER_PATH,
+			                                                                                                 "Instructions") + " " + template.format(
+				"channels", SERVER_HOST, SERVER_PATH, "Channels List") + " " + template.format("adv_settings",
+			                                                                                   SERVER_HOST, SERVER_PATH,
+			                                                                                   "Advanced Settings") + "</p>")
 
 		html.write('<form action="%s/%s/handle_data" method="post">' % (SERVER_HOST, SERVER_PATH))
 
 		channelmap = {}
 		chanindex = 0
 		list = ["Username", "Password", "Quality", "Stream", "Server", "Service", "IP", "Port",
-				"ExternalIP", "ExternalPort"]
+		        "ExternalIP", "ExternalPort"]
 		html.write('<table width="300" border="2">')
 		for setting in list:
 			if setting.lower() == 'service':
 				html.write('<tr><td>Service:</td><td><select name="Service" size="1">')
 				for option in providerList:
 					html.write('<option value="%s"%s>%s</option>' % (
-					option[0], ' selected' if SITE == option[1] else "", option[0]))
+						option[0], ' selected' if SITE == option[1] else "", option[0]))
 				html.write('</select></td></tr>')
 			elif setting.lower() == 'server':
 				html.write('<tr><td>Server:</td><td><select name="Server" size="1">')
 				for option in serverList:
 					html.write('<option value="%s"%s>%s</option>' % (
-					option[0], ' selected' if SRVR == option[1] else "", option[0]))
+						option[0], ' selected' if SRVR == option[1] else "", option[0]))
 				html.write('</select></td></tr>')
 			elif setting.lower() == 'stream':
 				html.write('<tr><td>Stream:</td><td><select name="Stream" size="1">')
@@ -2485,11 +2705,11 @@ def create_menu():
 				html.write('<tr><td>Quality:</td><td><select name="Quality" size="1">')
 				for option in qualityList:
 					html.write('<option value="%s"%s>%s</option>' % (
-					option[0], ' selected' if QUAL == option[1] else "", option[0]))
+						option[0], ' selected' if QUAL == option[1] else "", option[0]))
 				html.write('</select></td></tr>')
 			elif setting.lower() == 'password':
 				html.write('<tr><td>%s:</td><td><input name="%s" type="Password" value="%s"></td></tr>' % (
-				setting, setting, PASS))
+					setting, setting, PASS))
 			else:
 				val = "Unknown"
 				if setting == "Username":
@@ -2519,10 +2739,14 @@ def create_menu():
 		html.write('</form>')
 		html.write('<form action="%s/%s/handle_data" method="post">' % (SERVER_HOST, SERVER_PATH))
 		html.write('<input type="hidden" name="restart"  value="3">')
+		devname = latestfile.replace('master', 'dev')
 		html.write('<input type="submit"  value="Update(Dev Branch) + Restart">')
+
 		html.write('</form>')
-		html.write('<p>&nbsp;</p>')
-		html.write('<p>&nbsp;</p>')
+		html.write("<p><a href='%s'>Manual Download Master link</a></p>" % latestfile)
+		html.write("<p><a href='%s'>Manual Download Dev link</a></p>" % devname)
+		# html.write('<p>&nbsp;</p>')
+		# html.write('<p>&nbsp;</p>')
 		html.write('<p>&nbsp;</p>')
 		html.write('<p>&nbsp;</p>')
 		html.write(footer)
@@ -2540,7 +2764,7 @@ def create_menu():
 		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
 
 		html.write("<tr><td rowspan='2'>Plex Live<sup>1</sup></td><td>Tuner - %s</td></tr>" % urljoin(SERVER_HOST,
-																									  SERVER_PATH))
+		                                                                                              SERVER_PATH))
 		html.write("<tr><td>EPG - %s/epg.xml</td></tr>" % urljoin(SERVER_HOST, SERVER_PATH))
 		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
 		html.write("<tr><td>TVHeadend<sup>1</sup></td><td>%s/tvh.m3u8</td></tr>" % urljoin(SERVER_HOST, SERVER_PATH))
@@ -2566,18 +2790,19 @@ def create_menu():
 		html.write("<tr><td>EPG - http://%s:9981/xmltv/channels</td></tr>" % TVHURL)
 		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
 		html.write("<tr><td>Test Playlist for troubleshooting</td><td>%s/test.m3u8</td></tr>" % urljoin(SERVER_HOST,
-																										SERVER_PATH))
+		                                                                                                SERVER_PATH))
 		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
-		html.write("<tr><td>Dynamic xspf, includes currently showing programs</td><td>%s/playlist.xspf</td></tr>" % urljoin(SERVER_HOST,
-																										SERVER_PATH))
+		html.write(
+			"<tr><td>Dynamic xspf, includes currently showing programs</td><td>%s/playlist.xspf</td></tr>" % urljoin(
+				SERVER_HOST,
+				SERVER_PATH))
 		html.write("<tr><td>Static xspf</td><td>%s/static.xspf</td></tr>" % urljoin(SERVER_HOST,
-																										SERVER_PATH))
+		                                                                            SERVER_PATH))
 		html.write("<tr><td>&nbsp;</td><td>&nbsp;</td></tr>")
 		html.write("<tr><td>Note 1:</td><td>Requires FFMPEG installation and setup</td></tr>")
 		html.write("<tr><td>Note 2:</td><td>Requires External IP and port in advancedsettings</td></tr>")
 		html.write("<tr><td>Note 3:</td><td>Requires TVH proxy setup in advancedsettings</td></tr></table>")
 		html.write("</div></section></body></html>\n")
-
 
 	with open("./cache/adv_settings.html", "w") as html:
 		html.write("""<html>
@@ -2590,21 +2815,37 @@ def create_menu():
 		html.write('<section class="container"><div class="left-half">')
 		html.write("<h1>YAP Settings</h1>")
 		template = "<a href='{1}/{2}/{0}.html'>{3}</a>"
-		html.write("<p>" + template.format("settings",SERVER_HOST, SERVER_PATH,"Options") + " " + template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions") + " " + template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List") + " " + template.format("adv_channels",SERVER_HOST, SERVER_PATH,"Advanced Settings") + "</p>")
+		html.write(
+			"<p>" + template.format("settings", SERVER_HOST, SERVER_PATH, "Options") + " " + template.format("howto",
+			                                                                                                 SERVER_HOST,
+			                                                                                                 SERVER_PATH,
+			                                                                                                 "Instructions") + " " + template.format(
+				"channels", SERVER_HOST, SERVER_PATH, "Channels List") + " " + template.format("adv_settings",
+			                                                                                   SERVER_HOST, SERVER_PATH,
+			                                                                                   "Advanced Settings") + "</p>")
 
 		html.write('<form action="%s/%s/handle_data" method="post">' % (SERVER_HOST, SERVER_PATH))
 
 		channelmap = {}
 		chanindex = 0
 		adv_set = ["kodiuser", "kodipass", "ffmpegloc", "kodiport", "extram3u8url", "extram3u8name", "extram3u8file",
-		           "extraxmlurl", "tvhredirect", "tvhaddress", "tvhuser", "tvhpass", "overridexml", "checkchannel"]
+		           "extraxmlurl", "tvhredirect", "tvhaddress", "tvhuser", "tvhpass", "overridexml", "checkchannel",
+		           "pipe"]
 		html.write('<table width="300" border="2">')
 		for setting in adv_set:
 			if setting.lower() == 'kodipass':
 				html.write('<tr><td>%s:</td><td><input name="%s" type="Password" value="%s"></td></tr>' % (
-				setting, setting, KODIPASS))
+					setting, setting, KODIPASS))
 			elif setting == "checkchannel":
-				html.write('<tr><td>%s:</td><td><select name="%s"  size="1"><option value="True" %s>Enabled</option><option value="False" %s>Disabled</option></select></td></tr>' % (setting, setting,  ' selected' if CHECK_CHANNEL == True else "", ' selected' if CHECK_CHANNEL == False else ""))
+				html.write(
+					'<tr><td>%s:</td><td><select name="%s"  size="1"><option value="True" %s>Enabled</option><option value="False" %s>Disabled</option></select></td></tr>' % (
+					setting, setting, ' selected' if CHECK_CHANNEL == True else "",
+					' selected' if CHECK_CHANNEL == False else ""))
+			elif setting == "pipe":
+				html.write(
+					'<tr><td>%s:</td><td><select name="%s"  size="1"><option value="True" %s>Enabled</option><option value="False" %s>Disabled</option></select></td></tr>' % (
+					setting, setting, ' selected' if PIPE == True else "", ' selected' if PIPE == False else ""))
+
 			else:
 				val = "Unknown"
 				if setting == "kodiuser":
@@ -2633,7 +2874,8 @@ def create_menu():
 					val = OVRXML
 
 				if not (setting == "ffmpegloc" and not platform.system() == 'Windows'):
-					html.write('<tr><td>%s:</td><td><input name="%s" type="text" value="%s"></td></tr>' % (setting, setting, val))
+					html.write('<tr><td>%s:</td><td><input name="%s" type="text" value="%s"></td></tr>' % (
+					setting, setting, val))
 		html.write('</table>')
 		html.write('<input type="submit"  value="Submit">')
 		html.write('</form>')
@@ -2658,20 +2900,26 @@ def create_menu():
 		html.write(footer)
 		html.write("</div></section></body></html>\n")
 
-
 	with open("./cache/channels.html", "w") as html:
 		global chan_map
 		html.write("""<html><head><title>YAP</title><meta charset="UTF-8">%s</head><body>\n""" % (style,))
 		html.write("<h1>Channel List and Upcoming Shows</h1>")
 		template = "<a href='{1}/{2}/{0}.html'>{3}</a>"
-		html.write("<p>" + template.format("settings",SERVER_HOST, SERVER_PATH,"Options") + " " + template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions") + " " + template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List") + " " + template.format("adv_channels",SERVER_HOST, SERVER_PATH,"Advanced Settings") + "</p>")
+		html.write(
+			"<p>" + template.format("settings", SERVER_HOST, SERVER_PATH, "Options") + " " + template.format("howto",
+			                                                                                                 SERVER_HOST,
+			                                                                                                 SERVER_PATH,
+			                                                                                                 "Instructions") + " " + template.format(
+				"channels", SERVER_HOST, SERVER_PATH, "Channels List") + " " + template.format("adv_settings",
+			                                                                                   SERVER_HOST, SERVER_PATH,
+			                                                                                   "Advanced Settings") + "</p>")
 		html.write('<section class="container"><div class="left-half"><table width="300" border="1">')
 		template = "<td>{0}</td><td><a href='{2}/{3}/playlist.m3u8?ch={0}'><img src='{2}/{3}/{0}.png'></a></td></td>"
 		for i in chan_map:
-			if i%5 == 1:
+			if i % 5 == 1:
 				html.write("<tr>")
 			html.write(template.format(chan_map[i].channum, chan_map[i].channame, SERVER_HOST, SERVER_PATH))
-			if i%5 == 0:
+			if i % 5 == 0:
 				html.write("</tr>")
 		html.write("</table>")
 		html.write("</br>%s</div>" % footer)
@@ -2681,7 +2929,8 @@ def create_menu():
 			prog = getProgram(i)
 			if prog.title != 'none':
 				try:
-					html.write(template.format(chan_map[i].channum, prog.title.encode('utf-8'), SERVER_HOST, SERVER_PATH))
+					html.write(
+						template.format(chan_map[i].channum, str(prog.title).encode('utf-8'), SERVER_HOST, SERVER_PATH))
 				except:
 					logger.exception(prog.title)
 		html.write("</div></section>")
@@ -2691,10 +2940,10 @@ def create_menu():
 		html.write("""<html><head><title>YAP</title><meta charset="UTF-8">%s</head><body>\n""" % (style,))
 		template = "<h2><a href='{1}/{2}/{0}.html'>{3}</a></h2>"
 		html.write("<h1>Welcome to YAP!</h1>")
-		html.write(template.format("settings",SERVER_HOST, SERVER_PATH,"Options"))
-		html.write(template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions"))
-		html.write(template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List"))
-		html.write(template.format("adv_channels", SERVER_HOST, SERVER_PATH, "Advanced Settings"))
+		html.write(template.format("settings", SERVER_HOST, SERVER_PATH, "Options"))
+		html.write(template.format("howto", SERVER_HOST, SERVER_PATH, "Instructions"))
+		html.write(template.format("channels", SERVER_HOST, SERVER_PATH, "Channels List"))
+		html.write(template.format("adv_settings", SERVER_HOST, SERVER_PATH, "Advanced Settings"))
 		html.write(footer)
 		html.write("</body></html>\n")
 
@@ -2702,18 +2951,27 @@ def create_menu():
 		html.write("""<html><head><title>YAP</title><meta charset="UTF-8">%s</head><body>\n""" % (style,))
 		template = "<a href='{1}/{2}/{0}.html'>{3}</a>"
 		html.write("<h1>Welcome to YAP!</h1>")
-		html.write("<p>" + template.format("settings",SERVER_HOST, SERVER_PATH,"Options") + " " + template.format("howto",SERVER_HOST, SERVER_PATH,"Instructions") + " " + template.format("channels",SERVER_HOST, SERVER_PATH,"Channels List") + " " + template.format("adv_channels",SERVER_HOST, SERVER_PATH,"Advanced Settings") + "</p>")
+		html.write(
+			"<p>" + template.format("settings", SERVER_HOST, SERVER_PATH, "Options") + " " + template.format("howto",
+			                                                                                                 SERVER_HOST,
+			                                                                                                 SERVER_PATH,
+			                                                                                                 "Instructions") + " " + template.format(
+				"channels", SERVER_HOST, SERVER_PATH, "Channels List") + " " + template.format("adv_settings",
+			                                                                                   SERVER_HOST, SERVER_PATH,
+			                                                                                   "Advanced Settings") + "</p>")
 		html.write("<h2>Work in progress.</h2>")
 
 		html.write("""<h2>Commandline Arguments</h2></br><p>'install' - forces recreation of the install function which creates certain files, such as the tvh internal grabber</br></br>
 'headless' - uses command line for initial setup rather than gui</br></br>
 'tvh' - each call to a piped channel will return channel 01 which is a 24/7 channel so will always generate a positive result, this allows TVH to create all services</p></br>""")
 
-		html.write("<h2><a href='https://seo-michael.co.uk/how-to-setup-livetv-pvr-simple-xbmc-kodi/'>Kodi Setup</a></h2>")
+		html.write(
+			"<h2><a href='https://seo-michael.co.uk/how-to-setup-livetv-pvr-simple-xbmc-kodi/'>Kodi Setup</a></h2>")
 		html.write("<p>Use this information to populate the settings:</p>")
 		html.write("<p>m3u8 - %s/kodi.m3u8</p>" % urljoin(SERVER_HOST, SERVER_PATH))
 		html.write("<p>EPG - %s/epg.xml</p>" % urljoin(SERVER_HOST, SERVER_PATH))
-		html.write('''<p>RTMP is an issue so there's a special playlist for it (kodi.m3u8), it has two of every channel in both rtmp and hls, in kodi Tv use the Left hand menu  and select group or filter. Then select dynamic (forced hls) or static rtmp.For static_refresh channel (151) don't use it on the guide page, use it on the channel list page. Otherwise kodi will crash. This will lock kodi for about 20secs but refresh the playlist.</p>''')
+		html.write(
+			'''<p>RTMP is an issue so there's a special playlist for it (kodi.m3u8), it has two of every channel in both rtmp and hls, in kodi Tv use the Left hand menu  and select group or filter. Then select dynamic (forced hls) or static rtmp.For static_refresh channel (151) don't use it on the guide page, use it on the channel list page. Otherwise kodi will crash. This will lock kodi for about 20secs but refresh the playlist.</p>''')
 
 		html.write("<h2>Ensure you can get YAP working in Kodi or VLC first before attmepting Plex or TVHeadend!</h2>")
 		html.write("<h2><a href='https://imgur.com/a/OZkN0'>Plex Setup</a></h2>")
@@ -2809,6 +3067,7 @@ A url source for the epg "overridexml":"url/string"</p>""")
 
 		html.write("</body></html>\n")
 
+
 def close_menu(restart):
 	with open("./cache/close.html", "w") as html:
 		html.write("""<html><head><title>YAP</title><meta charset="UTF-8">%s</head><body>\n""" % (style,))
@@ -2831,20 +3090,10 @@ def close_menu(restart):
 		html.write("</body></html>\n")
 
 
-
-
 def restart_program():
 	os.system('cls' if os.name == 'nt' else 'clear')
 	args = sys.argv[:]
 	print(args)
-	# logger.info('Re-spawning %s' % ' '.join(args))
-	# #
-	# # args.insert(0, sys.executable)
-	# # if sys.platform == 'win32':
-	# # 	args = ['"%s"' % arg for arg in args]
-	#
-	# os.execl(sys.executable, *([sys.executable] + sys.argv))
-
 
 	logger.info("YAP is restarting...")
 	FULL_PATH = sys.argv[0]
@@ -2862,7 +3111,6 @@ def restart_program():
 	else:
 		os.execv(exe, args)
 	os._exit(0)
-# os.execv(sys.executable, args)
 
 
 ############################################################
@@ -2878,15 +3126,15 @@ def handle_data():
 			logger.info('Updating YAP Dev')
 			newfilename = ntpath.basename(latestfile)
 			devname = latestfile.replace('master', 'dev')
-			requests.urlretrieve(devname, os.path.join(os.path.dirname(sys.argv[0]), newfilename))
+			urllib.request.urlretrieve(devname, os.path.join(os.path.dirname(sys.argv[0]), newfilename))
 		elif inc_data["restart"] == '2':
 			logger.info('Updating YAP')
 			newfilename = ntpath.basename(latestfile)
-			requests.urlretrieve(latestfile, os.path.join(os.path.dirname(sys.argv[0]), newfilename))
+			urllib.request.urlretrieve(latestfile, os.path.join(os.path.dirname(sys.argv[0]), newfilename))
 		logger.info('Restarting YAP')
 		restart_program()
 		return
-	if request_page.endswith("adv_channels.html"):
+	if request_page.endswith("adv_settings.html"):
 		logger.info("Received new adv settings from %s", request.environ.get('REMOTE_ADDR'))
 		restartrequired = False
 		with open('./advancedsettings.json', 'w') as fp:
@@ -2940,7 +3188,9 @@ def handle_data():
 	else:
 		close_menu(False)
 	return redirect(request_page, code=302)
-	# return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'close.html')
+
+
+# return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'close.html')
 
 
 @app.route('/')
@@ -2959,7 +3209,7 @@ def index(request_file):
 	elif request_file.lower() == 'discover.json':
 		return discover()
 	elif request_file.lower() == 'lineup.json':
-		return lineup(chan_map)
+		return createLineup(chan_map)
 	elif request_file.lower() == 'lineup.post':
 		return lineup_post()
 	# logger.debug(request.headers)
@@ -2975,9 +3225,14 @@ def bridge(request_file):
 	check_token()
 	try:
 		client = find_client(request.headers['User-Agent'])
+		logger.debug("Client is %s, user agent is %s" % (client, request.headers['User-Agent']))
 	except:
 		logger.debug("No user-agent provided by %s", request.environ.get('REMOTE_ADDR'))
 		client = 'unk'
+
+	if request_file.lower() == ('version'):
+		resp = {'version': __version__, 'type': type}
+		return jsonify(resp)
 
 	if request_file.lower().endswith('.xspf'):
 		playlist = build_xspf(SERVER_HOST, request_file)
@@ -3048,7 +3303,7 @@ def bridge(request_file):
 		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'settings.html')
 
 	# return settings menu
-	elif request_file.lower().startswith('adv'):
+	elif request_file.lower().startswith('adv_settings'):
 		logger.info("Adv_Settings was requested by %s", request.environ.get('REMOTE_ADDR'))
 		create_menu()
 		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'adv_settings.html')
@@ -3076,14 +3331,23 @@ def bridge(request_file):
 
 	# returns static playlist
 	elif request_file.lower().startswith('static'):
-		staticplaylist = build_static_playlist()
+		if request.args.get('strm'):
+			strmType = request.args.get('strm')
+		else:
+			strmType = STRM
+		staticplaylist = build_static_playlist(strmType)
 		logger.info("Static playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
 		return Response(staticplaylist, mimetype='application/x-mpegURL')
 
 	# returns test playlist
 	elif request_file.lower() == "test.m3u8":
 		testplaylist = build_test_playlist([SERVER_HOST, EXT_HOST])
-		logger.info("Static playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
+		logger.info("Test playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
+		return Response(testplaylist, mimetype='application/x-mpegURL')
+
+	elif request_file.lower() == "server.m3u8":
+		testplaylist = build_server_playlist()
+		logger.info("Server playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
 		return Response(testplaylist, mimetype='application/x-mpegURL')
 
 	# returns kodi playlist
@@ -3111,7 +3375,8 @@ def bridge(request_file):
 		logger.info("TVH channels playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
 		return Response(tvhplaylist, mimetype='application/x-mpegURL')
 
-	elif request_file.lower() == 'playlist.m3u8' or request_file.lower().startswith('ch'):
+	elif request_file.lower() == 'playlist.m3u8' or request_file.lower().startswith(
+			'ch') or request_file.lower() == 'mpeg.2ts':
 		# returning Dynamic channels
 		if request.args.get('ch') or request_file.lower().startswith('ch'):
 			if request_file.lower().startswith('ch'):
@@ -3122,9 +3387,11 @@ def bridge(request_file):
 				sanitized_channel = ("0%d" % int(request.args.get('ch'))) if int(
 					request.args.get('ch')) < 10 else request.args.get('ch')
 			check_token()
+			logger.info("Channel %s playlist was requested by %s", sanitized_channel,
+			            request.environ.get('REMOTE_ADDR'))
 			if SITE == 'vaders':
 				logger.info("Channel %s playlist was requested by %s", sanitized_channel,
-							request.environ.get('REMOTE_ADDR'))
+				            request.environ.get('REMOTE_ADDR'))
 				vaders_url = "http://vapi.vaders.tv/play/{0}.{1}?"
 				tokenDict = {"username": "vsmystreams_" + USER, "password": PASS}
 
@@ -3133,7 +3400,7 @@ def bridge(request_file):
 				strm = 'ts' if STRM == 'mpegts' else 'm3u8'
 				if request.args.get('strm'):
 					strm = request.args.get('strm')
-				tokens = urllib.parse.urlencode({"token":str(tokens)[1:]})
+				tokens = urllib.parse.urlencode({"token": str(tokens)[1:]})
 
 				if int(chan) > 150:
 					channel = chan
@@ -3144,34 +3411,27 @@ def bridge(request_file):
 				return redirect(channel_url, code=302)
 
 			qual = 1
-			if request.args.get('qual'):# and int(sanitized_channel) <= QUALLIMIT:
+			if request.args.get('qual'):  # and int(sanitized_channel) <= QUALLIMIT:
 				qual = request.args.get('qual')
 			elif int(sanitized_channel) <= QUALLIMIT:
 				qual = QUAL
-			if request.args.get('strm') and request.args.get('strm') == 'rtmp':
-				strm = 'rtmp'
-				rtmpTemplate = 'rtmp://{0}.smoothstreams.tv:3625/{1}/ch{2}q{3}.stream?wmsAuthSign={4}'
-				pure_url = rtmpTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
-				output_url = rtmpTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
-			elif request.args.get('strm') and request.args.get('strm') == 'mpegts':
-				strm = 'mpegts'
-				return auto(sanitized_channel, qual)
-			else:
-				strm = 'hls'
-				hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}=='
-				pure_url = hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
-				output_url = pure_url
 
+			if request.args.get('strm'):
+				strm = request.args.get('strm')
+			else:
+				strm = STRM
+			output_url = createURL(sanitized_channel, qual, strm, token)
+
+			# if strm == 'mpegts':
+			# return auto(sanitized_channel, qual)
 
 			# channel fixing for dead server/Quality
-			if CHECK_CHANNEL and not checkChannelURL(pure_url) and strm == 'hls':
+			if CHECK_CHANNEL and strm == 'hls' and not checkChannelURL(output_url):
 				output_url = fixURL(strm, sanitized_channel, qual, token['hash'])
 			# creates the output playlist files and returns it as a variable as well
 			if strm == 'hls':
 				output_file = create_channel_file(output_url)
 
-			logger.info("Channel %s playlist was requested by %s", sanitized_channel,
-						request.environ.get('REMOTE_ADDR'))
 			# useful for debugging
 			logger.debug("URL returned: %s" % output_url)
 
@@ -3206,15 +3466,34 @@ def bridge(request_file):
 
 			else:
 				# some players are having issues with http/https redirects
-				logger.debug("returning m3u8 as variable")
-				return output_file
+				try:
+					logger.debug("returning m3u8 as variable")
+					return output_file
+				except:
+					logger.debug("returning hls url")
+					return output_url
+
 
 		# returning dynamic playlist
 		else:
-			playlist = build_playlist(SERVER_HOST)
-			logger.info("All channels playlist was requested by %s", request.environ.get('REMOTE_ADDR'))
+			if request.args.get('strm'):
+				strmType = request.args.get('strm')
+			else:
+				strmType = STRM
+			playlist = build_playlist(SERVER_HOST, strmType)
+			logger.info(
+				"All channels playlist(%s) was requested by %s" % (strmType, request.environ.get('REMOTE_ADDR')))
 			return Response(playlist, mimetype='application/x-mpegURL')
 
+	elif '.m3u8' in request_file.lower():
+		strng = request_file.lower().replace('.m3u8', '')
+		if strng in streamtype:
+			strmType = strng
+		else:
+			strmType = STRM
+		playlist = build_playlist(SERVER_HOST, strmType)
+		logger.info("All channels playlist(%s) was requested by %s" % (strmType, request.environ.get('REMOTE_ADDR')))
+		return Response(playlist, mimetype='application/x-mpegURL')
 	# HDHomeRun emulated json files for Plex Live tv.
 	elif request_file.lower() == 'lineup_status.json':
 		return status()
@@ -3224,7 +3503,7 @@ def bridge(request_file):
 		if TVHREDIRECT == True:
 			return tvh_lineup()
 		else:
-			return lineup(chan_map)
+			return createLineup(chan_map)
 	elif request_file.lower() == 'lineup.post':
 		return lineup_post()
 	elif request_file.lower() == 'device.xml':
@@ -3254,83 +3533,81 @@ def tvh_returns(request_file):
 @app.route('/%s/auto/<request_file>' % SERVER_PATH)
 # returns a piped stream, used for TVH/Plex Live TV
 def auto(request_file, qual=""):
-	logger.debug("starting pipe function")
-	check_token()
-	channel = request_file.replace("v", "")
-	logger.info("Channel %s playlist was requested by %s", channel,
-				request.environ.get('REMOTE_ADDR'))
-	sanitized_channel = ("0%d" % int(channel)) if int(channel) < 10 else channel
-
-	sanitized_qual = '1'
-	if int(channel) <= QUALLIMIT:
-		if qual == "":
-			sanitized_qual = QUAL
-		else:
-			sanitized_qual = qual
-	template = "https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}"
-	url = template.format(SRVR, SITE, sanitized_channel, sanitized_qual, token['hash'])
-
-	logger.debug(
-		"sanitized_channel: %s sanitized_qual: %s QUAL: %s qual: %s" % (sanitized_channel, sanitized_qual, QUAL, qual))
-
-	if CHECK_CHANNEL and not checkChannelURL(url):
-		url = fixURL('hls', sanitized_channel, qual, token['hash'])
-
-	logger.debug(url)
-	# try:
-	# 	urllib.request.urlopen(url, timeout=2).getcode()
-	# except:
-	# 	a = 1
-	# except timeout:
-	# 	#special arg for tricking tvh into saving every channel first time
-	# 	print("timeout")
-	# 	sanitized_channel = '01'
-	# 	sanitized_qual = '3'
-	# 	url = template.format(SRVR, SITE, sanitized_channel,sanitized_qual, token['hash'])
-	if args.tvh:
-		logger.debug("TVH Trickery happening")
-		sanitized_channel = '01'
-		sanitized_qual = '3'
-		url = template.format(SRVR, SITE, sanitized_channel, sanitized_qual, token['hash'])
-		logger.debug(url)
+	logger.debug("starting auto function")
+	if request.args.get('transcode') and request.args.get('transcode') != 'none':
+		desired = request.args.get('transcode')
+		if desired == 'heavy' or desired == 'mobile':
+			qual = '1'
+		elif desired == 'internet540' or desired == 'internet480':
+			qual = '2'
+		elif desired == 'internet360' or desired == 'internet240':
+			qual = '3'
 	if request.args.get('url'):
 		logger.info("Piping custom URL")
 		url = request.args.get('url')
 		if '|' in url:
 			url = url.split('|')[0]
 		logger.debug(url)
-	import subprocess
+		return Response(response=ffmpegPipe(url), status=200, mimetype='video/mp2t',
+		                headers={'Access-Control-Allow-Origin': '*', "Content-Type": "video/mp2t",
+		                         "Content-Disposition": "inline", "Content-Transfer-Enconding": "binary"})
+	else:
+		check_token()
+		channel = request_file.replace("v", "")
+		logger.info("Channel %s playlist was requested by %s", channel,
+		            request.environ.get('REMOTE_ADDR'))
+		sanitized_channel = ("0%d" % int(channel)) if int(channel) < 10 else channel
 
-	def generate():
-		logger.debug("starting generate function")
-		cmdline = list()
-		cmdline.append(FFMPEGLOC)
-		cmdline.append("-i")
-		cmdline.append(url)
-		cmdline.append("-vcodec")
-		cmdline.append("copy")
-		cmdline.append("-acodec")
-		cmdline.append("copy")
-		cmdline.append("-f")
-		cmdline.append("mpegts")
-		cmdline.append("pipe:1")
-		logger.debug(cmdline)
-		FNULL = open(os.devnull, 'w')
-		proc = subprocess.Popen(cmdline, stdout=subprocess.PIPE, stderr=FNULL)
-		logger.debug("pipe started")
-		try:
-			f = proc.stdout
-			byte = f.read(512)
-			while byte:
-				yield byte
-				byte = f.read(512)
+		# find the quality to use for the url
+		sanitized_qual = '1'
+		if qual == "" and checkChannelURL(createURL(sanitized_channel, QUAL, 'hls', token)):
+			sanitized_qual = QUAL
+		elif qual != "" and checkChannelURL(createURL(sanitized_channel, qual, 'hls', token)):
+			sanitized_qual = qual
 
-		finally:
-			proc.kill()
+		url = createURL(sanitized_channel, sanitized_qual, 'mpegts', token)
 
-	return Response(response=generate(), status=200, mimetype='video/mp2t',
-					headers={'Access-Control-Allow-Origin': '*', "Content-Type": "video/mp2t",
-							 "Content-Disposition": "inline", "Content-Transfer-Enconding": "binary"})
+		logger.debug(
+			"sanitized_channel: %s sanitized_qual: %s QUAL: %s qual: %s" % (
+			sanitized_channel, sanitized_qual, QUAL, qual))
+
+		# changing to mpegts
+		# if CHECK_CHANNEL and not checkChannelURL(url):
+		# 	url = fixURL('hls', sanitized_channel, qual, token['hash'])
+
+		logger.debug(url)
+		# try:
+		# 	urllib.request.urlopen(url, timeout=2).getcode()
+		# except:
+		# 	a = 1
+		# except timeout:
+		# 	#special arg for tricking tvh into saving every channel first time
+		# 	print("timeout")
+		# 	sanitized_channel = '01'
+		# 	sanitized_qual = '3'
+		# 	url = template.format(SRVR, SITE, sanitized_channel,sanitized_qual, token['hash'])
+		if args.tvh:
+			logger.debug("TVH Trickery happening")
+			sanitized_channel = '01'
+			sanitized_qual = '3'
+			url = createURL(sanitized_channel, sanitized_qual, 'mpegts', token)
+			logger.debug(url)
+
+		response = redirect(url, code=302)
+		headers = dict(response.headers)
+		headers.update({'Content-Type': 'video/mp2t', "Access-Control-Allow-Origin": "*"})
+		response.headers = headers
+		logger.debug("returning response")
+		if PIPE:
+			url = createURL(sanitized_channel, sanitized_qual, 'hls', token)
+			logger.debug("Piping")
+			return Response(response=ffmpegPipe(url), status=200, mimetype='video/mp2t',
+			                headers={'Access-Control-Allow-Origin': '*', "Content-Type": "video/mp2t",
+			                         "Content-Disposition": "inline", "Content-Transfer-Enconding": "binary"})
+		return response
+
+
+# return redirect(url, code=302)
 
 
 ############################################################
@@ -3355,10 +3632,15 @@ if __name__ == "__main__":
 			# cannot get response from fog, resorting to fallback
 			fallback = True
 			chan_map = build_channel_map_sstv()
+		try:
+			chanAPIURL = 'https://guide.smoothstreams.tv/api/api-qualities-new.php'
+			CHANAPI = json.loads(urllib.request.urlopen(chanAPIURL).read().decode("utf-8"))
+		except:
+			CHANAPI = None
 		jsonGuide1 = getJSON("iptv.json", "https://iptvguide.netlify.com/iptv.json",
-							 "https://fast-guide.smoothstreams.tv/altepg/feed1.json")
+		                     "https://fast-guide.smoothstreams.tv/altepg/feed1.json")
 		jsonGuide2 = getJSON("tv.json", "https://iptvguide.netlify.com/tv.json",
-							 "https://fast-guide.smoothstreams.tv/altepg/feedall1.json")
+		                     "https://fast-guide.smoothstreams.tv/altepg/feedall1.json")
 		playlist = build_playlist(SERVER_HOST)
 		kodiplaylist = build_kodi_playlist()
 		tvhplaylist = build_tvh_playlist()
@@ -3402,11 +3684,11 @@ if __name__ == "__main__":
 	if __version__ < latest_ver:
 		logger.info(
 			"Your version (%s%s) is out of date, the latest is %s, which has now be downloaded for you into the 'updates' subdirectory." % (
-			type, __version__, latest_ver))
+				type, __version__, latest_ver))
 		newfilename = ntpath.basename(latestfile)
 		if not os.path.isdir(os.path.join(os.path.dirname(sys.argv[0]), 'updates')):
 			os.mkdir(os.path.join(os.path.dirname(sys.argv[0]), 'updates'))
-		requests.urlretrieve(latestfile, os.path.join(os.path.dirname(sys.argv[0]), 'updates', newfilename))
+		urllib.request.urlretrieve(latestfile, os.path.join(os.path.dirname(sys.argv[0]), 'updates', newfilename))
 	else:
 		logger.info("Your version (%s) is up to date." % (__version__))
 	logger.info("Listening on %s:%d", LISTEN_IP, LISTEN_PORT)
@@ -3417,6 +3699,7 @@ if __name__ == "__main__":
 	except (KeyboardInterrupt, SystemExit):
 		sys.exit()
 
+	launch_browser()
 	# debug causes it to load twice on initial startup and every time the script is saved, TODO disbale later
 	try:
 		app.run(host=LISTEN_IP, port=LISTEN_PORT, threaded=True, debug=False)
