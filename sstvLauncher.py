@@ -1,4 +1,4 @@
-import os, subprocess, sys, urllib, json, logging, ntpath, platform, requests, shutil
+import os, subprocess, sys, urllib, json, logging, ntpath, platform, requests, shutil, threading, multiprocessing
 from logging.handlers import RotatingFileHandler
 import wx.adv
 import wx
@@ -49,6 +49,7 @@ class TaskBarIcon(wx.adv.TaskBarIcon):
 		self.latestVersion = None
 		# Branch Master = True
 		self.branch = True
+		self.yap = None
 		start = False
 		try:
 			logger.debug("Parsing settings")
@@ -111,6 +112,7 @@ class TaskBarIcon(wx.adv.TaskBarIcon):
 		self.SetIcon(icon, hover_text)
 
 	def on_exit(self, event):
+		if self.yap: self.yap.terminate()
 		wx.CallAfter(self.Destroy)
 		self.frame.Close()
 
@@ -139,8 +141,7 @@ class TaskBarIcon(wx.adv.TaskBarIcon):
 		self.type = "Windows/"
 		self.assign_latestFile()
 		self.shutdown(update=True)
-		self.version = float(json.loads(urllib.request.urlopen(self.url).read().decode('utf-8'))['Version'])
-		self.save_data()
+
 
 	def check_install(self):
 		logger.info("Check install")
@@ -155,8 +156,7 @@ class TaskBarIcon(wx.adv.TaskBarIcon):
 		logger.info('Installing YAP %s' % self.type)
 		self.assign_latestFile()
 		self.shutdown(update=True)
-		self.version = float(json.loads(urllib.request.urlopen(self.url).read().decode('utf-8'))['Version'])
-		self.save_data()
+
 
 	def assign_latestFile(self):
 		if self.type == "": self.latestfile = "https://raw.githubusercontent.com/vorghahn/sstvProxy/{branch}/sstvProxy.py"
@@ -180,7 +180,7 @@ class TaskBarIcon(wx.adv.TaskBarIcon):
 			latest_ver = float(0.0)
 			logger.info("Latest version check failed, check internet.")
 		if self.version < latest_ver:
-			logger.info("Update Available")
+			logger.info("Update Available. You are on v%s with v%s available." % (self.version, latest_ver))
 		else:
 			logger.info("Proxy is up to date!")
 
@@ -192,7 +192,9 @@ class TaskBarIcon(wx.adv.TaskBarIcon):
 	def tray_start(self):
 		if self.type == "":
 			import sstvProxy
-			sstvProxy.main()
+			self.yap = multiprocessing.Process (target=sstvProxy.main)
+			self.yap.start()
+
 		elif self.type == "Linux/": os.execv(sys.executable, ["./sstvProxy", "-d"]) #subprocess.call(["./sstvProxy", "-d"])
 		elif self.type == "Windows/": subprocess.Popen([".\sstvproxy.exe", "-d"], cwd=os.getcwd()) #subprocess.call([".\sstvproxy.exe", "-d"])
 		elif self.type == "Macintosh/": os.execv(sys.executable, ["./sstvproxy", "-d"])
@@ -229,8 +231,25 @@ class TaskBarIcon(wx.adv.TaskBarIcon):
 
 	def shutdown(self, restart=False, update=False, checkout=False, closeLauncher=False):
 		logger.info(u"Stopping YAP web server...")
-		if self.type == '/Windows':
+		if self.type == 'Windows/':
 			os.system("taskkill /F /im sstvProxy.exe")
+		elif self.type == 'Linux/':
+			import psutil
+			PROCNAME = "sstvProxy"
+			for proc in psutil.process_iter():
+				# check whether the process name matches
+				if proc.name() == PROCNAME:
+					proc.kill()
+		elif self.type == 'Macintosh/':
+			import psutil
+			PROCNAME = "sstvproxy"
+			for proc in psutil.process_iter():
+				# check whether the process name matches
+				if proc.name() == PROCNAME:
+					proc.kill()
+		elif self.yap:
+			self.yap.terminate()
+			self.yap = None
 
 		if not restart and not update and not checkout:
 			logger.info(u"YAP is shutting down...")
@@ -247,6 +266,9 @@ class TaskBarIcon(wx.adv.TaskBarIcon):
 				os.system("taskkill /F /im sstvProxy.exe")
 				urllib.request.urlretrieve(url, os.path.join(os.path.dirname(sys.argv[0]), newfilename))
 				logger.info("Update forced")
+			self.version = float(json.loads(urllib.request.urlopen(self.url).read().decode('utf-8'))['Version'])
+			self.save_data()
+
 
 
 		if checkout:
