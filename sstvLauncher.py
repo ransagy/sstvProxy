@@ -46,7 +46,7 @@ class TaskBarIcon(wx.adv.TaskBarIcon):
 		self.Bind(wx.adv.EVT_TASKBAR_LEFT_DOWN, self.tray_open)
 		self.type = ""
 		self.version = float("0.0")
-		self.latestVersion = None
+		self.latestVersion = float("0.0")
 		# Branch Master = True
 		self.branch = True
 		self.yap = None
@@ -66,6 +66,8 @@ class TaskBarIcon(wx.adv.TaskBarIcon):
 				self.check_install()
 				start = True
 		except:
+			urllib.request.urlretrieve('https://raw.githubusercontent.com/vorghahn/sstvProxy/master/logo_tray.ico', os.path.join(os.path.dirname(sys.argv[0]), 'logo_tray.ico'))
+			urllib.request.urlretrieve('https://raw.githubusercontent.com/vorghahn/sstvProxy/master/logo_tray-update.ico', os.path.join(os.path.dirname(sys.argv[0]), 'logo_tray-update.ico'))
 			self.detect_install()
 		self.version = float(self.version)
 
