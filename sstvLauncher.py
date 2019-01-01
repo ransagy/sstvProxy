@@ -50,6 +50,9 @@ class TaskBarIcon(wx.adv.TaskBarIcon):
 		# Branch Master = True
 		self.branch = True
 		self.yap = None
+		self.LISTEN_IP = '127.0.0.1'
+		self.LISTEN_PORT = 6969
+		self.SERVER_HOST = "http://" + self.LISTEN_IP + ":" + str(self.LISTEN_PORT)
 		start = False
 		try:
 			logger.debug("Parsing settings")
@@ -77,7 +80,22 @@ class TaskBarIcon(wx.adv.TaskBarIcon):
 		if start:
 			self.tray_start()
 
-			
+	def gather_yap(self):
+		if not os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'proxysettings.json')):
+			logger.debug("No config file found.")
+		try:
+			logger.debug("Parsing settings")
+			with open(os.path.join(os.path.dirname(sys.argv[0]), 'proxysettings.json')) as jsonConfig:
+				config = {}
+				config = json.load(jsonConfig)
+				if "ip" in config and "port" in config:
+					self.LISTEN_IP = config["ip"]
+					self.LISTEN_PORT = config["port"]
+					self.SERVER_HOST = "http://" + self.LISTEN_IP + ":" + str(self.LISTEN_PORT)
+				logger.debug("Using config file.")
+		except:
+			pass
+
 	def tray_update(self, sysTrayIcon):
 		if self.version < self.latestVersion:
 			# todo make update link
@@ -223,11 +241,10 @@ class TaskBarIcon(wx.adv.TaskBarIcon):
 		self.set_icon()
 
 	def launch_browser(self):
-		LISTEN_IP = '127.0.0.1'
-		LISTEN_PORT = 100
 		try:
 			import webbrowser
-			webbrowser.open('%s://%s:%i%s' % ('http', LISTEN_IP, LISTEN_PORT, '/sstv/index.html'))
+			self.gather_yap()
+			webbrowser.open('%s%s' % (self.SERVER_HOST,'/sstv/index.html'))
 		except Exception as e:
 			logger.error(u"Could not launch browser: %s" % e)
 
