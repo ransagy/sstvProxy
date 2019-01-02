@@ -81,8 +81,10 @@ if args.headless or 'headless' in sys.argv:
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.8351
+__version__ = 1.8353
 # Changelog
+# 1.8353 - Fallback fix
+# 1.8352 - Small refactor for sstvLauncher
 # 1.8351 - XML tag fix, xml path fix
 # 1.835 - Emby fix for categories
 # 1.834 - Dynamic mpegts added
@@ -422,6 +424,7 @@ tvhstreamProfile = 'pass'  # specifiy a stream profile that you want to use for 
 GUIDELOOKAHEAD = 5 #minutes
 PIPE = False
 CHANAPI = None
+FALLBACK = False
 
 # LINUX/WINDOWS
 if platform.system() == 'Linux':
@@ -1439,9 +1442,9 @@ def launch_browser():
 
 
 def dl_epg(source=1):
-	global chan_map, fallback
+	global chan_map, FALLBACK
 	# download epg xml
-	source = 2 if fallback == True else 1
+	source = 2 if FALLBACK == True else 1
 	if os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'epg.xml')):
 		existing = os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'epg.xml')
 		cur_utc_hr = datetime.utcnow().replace(microsecond=0, second=0, minute=0).hour
@@ -3151,7 +3154,7 @@ def index(request_file):
 
 @app.route('/%s/<request_file>' % SERVER_PATH)
 def bridge(request_file):
-	global playlist, token, chan_map, kodiplaylist, tvhplaylist, fallback
+	global playlist, token, chan_map, kodiplaylist, tvhplaylist, FALLBACK
 	check_token()
 	try:
 		client = find_client(request.headers['User-Agent'])
@@ -3172,7 +3175,7 @@ def bridge(request_file):
 	# return epg
 	if request_file.lower().startswith('epg.'):
 		logger.info("EPG was requested by %s", request.environ.get('REMOTE_ADDR'))
-		if not fallback:
+		if not FALLBACK:
 			dl_epg()
 		else:
 			logger.exception("EPG build, EPG download failed. Trying SSTV.")
@@ -3191,7 +3194,7 @@ def bridge(request_file):
 	# return sports only epg
 	if request_file.lower() == 'sports.xml':
 		logger.info("Sports EPG was requested by %s", request.environ.get('REMOTE_ADDR'))
-		if not fallback:
+		if not FALLBACK:
 			dl_epg()
 		else:
 			logger.exception("Sports EPG build, EPG download failed. Trying SSTV.")
@@ -3201,7 +3204,7 @@ def bridge(request_file):
 	# return combined epg
 	if request_file.lower() == 'combined.xml':
 		logger.info("Combined EPG was requested by %s", request.environ.get('REMOTE_ADDR'))
-		if not fallback:
+		if not FALLBACK:
 			dl_epg()
 		else:
 			logger.exception("Combined EPG build, EPG download failed. Trying SSTV.")
@@ -3539,24 +3542,22 @@ def auto(request_file, qual=""):
 ############################################################
 # MAIN
 ############################################################
-
-
-if __name__ == "__main__":
+def main():
 	logger.info("Initializing")
 	load_settings()
 	if os.path.exists(TOKEN_PATH):
 		load_token()
 	check_token()
-	fallback = False
 
 	logger.info("Building initial playlist...")
 	try:
+		global chan_map, FALLBACK, CHANAPI, jsonGuide1, jsonGuide2, playlist, kodiplaylist, tvhplaylist
 		# fetch chan_map
 		try:
 			chan_map = build_channel_map()
 		except:
 			# cannot get response from fog, resorting to fallback
-			fallback = True
+			FALLBACK = True
 			chan_map = build_channel_map_sstv()
 		try:
 			chanAPIURL = 'https://guide.smoothstreams.tv/api/api-qualities-new.php'
@@ -3633,3 +3634,6 @@ if __name__ == "__main__":
 		os.system('cls' if os.name == 'nt' else 'clear')
 		logger.exception("Proxy failed to launch, try another port")
 	logger.info("Finished!")
+
+if __name__ == "__main__":
+	main()
