@@ -81,8 +81,9 @@ if args.headless or 'headless' in sys.argv:
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.8353
+__version__ = 1.8354
 # Changelog
+# 1.8354 - Removal of trailing '==' from URLs.
 # 1.8353 - Fallback fix
 # 1.8352 - Small refactor for sstvLauncher
 # 1.8351 - XML tag fix, xml path fix
@@ -2101,7 +2102,7 @@ def thread_playlist():
 
 def create_channel_playlist(sanitized_channel, qual, strm, hash):
 	rtmpTemplate = 'rtmp://{0}.smoothstreams.tv:3625/{1}/ch{2}q{3}.stream?wmsAuthSign={4}'
-	hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}=='
+	hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}'
 	hls_url = hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, hash)
 	rtmp_url = rtmpTemplate.format(SRVR, SITE, sanitized_channel, qual, hash)
 	file = urllib.request.urlopen(hls_url, timeout=2).read().decode("utf-8")
@@ -2206,7 +2207,7 @@ def createURL(chan, qual, strm, token):
 		sanitizedQuality = qualOptions[quality]
 
 	sanitized_channel = "{:02.0f}".format(int(chan))
-	URLBASE = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}{5}{6}?wmsAuthSign={7}=='
+	URLBASE = '{0}://{1}.smoothstreams.tv:{2}/{3}/ch{4}{5}{6}?wmsAuthSign={7}'
 	url =  URLBASE.format(STREAM_INFO[strm]['domain'],
 	                      SRVR,
 	                      STREAM_INFO[strm]['port'],
@@ -3383,7 +3384,7 @@ def bridge(request_file):
 				return response
 
 			elif returntype == 1 or client == 'kodi':
-				# hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}=='
+				# hlsTemplate = 'https://{0}.smoothstreams.tv:443/{1}/ch{2}q{3}.stream/playlist.m3u8?wmsAuthSign={4}'
 				# ss_url = hlsTemplate.format(SRVR, SITE, sanitized_channel, qual, token['hash'])
 				# some players are having issues with http/https redirects
 				logger.debug("returning hls url redirect")
