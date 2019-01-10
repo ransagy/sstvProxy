@@ -81,8 +81,9 @@ if args.headless or 'headless' in sys.argv:
 
 app = Flask(__name__, static_url_path='')
 
-__version__ = 1.836
+__version__ = 1.837
 # Changelog
+# 1.837 - Web work
 # 1.836 - Addition of sports.m3u8 which includes groups for current sports
 # 1.8354 - Removal of trailing '==' from URLs.
 # 1.8353 - Fallback fix
@@ -2704,7 +2705,9 @@ def create_menu():
 			                                                                                                 "Instructions") + " " + template.format(
 				"channels", SERVER_HOST, SERVER_PATH, "Channels List") + " " + template.format("adv_settings",
 			                                                                                   SERVER_HOST, SERVER_PATH,
-			                                                                                   "Advanced Settings") + "</p>")
+			                                                                                   "Advanced Settings") + " " + template.format("paths",
+			                                                                                   SERVER_HOST, SERVER_PATH,
+			                                                                                   "Proxy Paths") + "</p>")
 
 		html.write('<form action="%s/%s/handle_data" method="post">' % (SERVER_HOST, SERVER_PATH))
 
@@ -2855,7 +2858,9 @@ def create_menu():
 			                                                                                                 "Instructions") + " " + template.format(
 				"channels", SERVER_HOST, SERVER_PATH, "Channels List") + " " + template.format("adv_settings",
 			                                                                                   SERVER_HOST, SERVER_PATH,
-			                                                                                   "Advanced Settings") + "</p>")
+			                                                                                   "Advanced Settings") + " " + template.format("paths",
+			                                                                                   SERVER_HOST, SERVER_PATH,
+			                                                                                   "Proxy Paths") + "</p>")
 
 		html.write('<form action="%s/%s/handle_data" method="post">' % (SERVER_HOST, SERVER_PATH))
 
@@ -2945,7 +2950,10 @@ def create_menu():
 			                                                                                                 "Instructions") + " " + template.format(
 				"channels", SERVER_HOST, SERVER_PATH, "Channels List") + " " + template.format("adv_settings",
 			                                                                                   SERVER_HOST, SERVER_PATH,
-			                                                                                   "Advanced Settings") + "</p>")
+			                                                                                   "Advanced Settings") + " " + template.format("paths",
+			                                                                                   SERVER_HOST, SERVER_PATH,
+			                                                                                   "Proxy Paths") + "</p>")
+		html.write("<a href='https://guide.smoothstreams.tv/'>Click here to go to the SmoothStreams Official Guide</a>")
 		html.write('<section class="container"><div class="left-half"><table width="300" border="1">')
 		template = "<td>{0}</td><td><a href='{2}/{3}/playlist.m3u8?ch={0}'><img src='{2}/{3}/{0}.png'></a></td></td>"
 		for i in chan_map:
@@ -2977,6 +2985,7 @@ def create_menu():
 		html.write(template.format("howto", SERVER_HOST, SERVER_PATH, "Instructions"))
 		html.write(template.format("channels", SERVER_HOST, SERVER_PATH, "Channels List"))
 		html.write(template.format("adv_settings", SERVER_HOST, SERVER_PATH, "Advanced Settings"))
+		html.write(template.format("paths", SERVER_HOST, SERVER_PATH, "Proxy Paths"))
 		html.write(footer)
 		html.write("</body></html>\n")
 
@@ -3096,6 +3105,56 @@ password "tvhpass": ""</br>
 </br>
 If you want to override the EPG with your own one then:</br>
 A url source for the epg "overridexml":"url/string"</p>""")
+		html.write(footer)
+
+		html.write("</body></html>\n")
+
+	with open("./cache/paths.html", "w") as html:
+		html.write("""<html><head><title>YAP</title><meta charset="UTF-8">%s</head><body>\n""" % (style,))
+		template = "<a href='{1}/{2}/{0}.html'>{3}</a>"
+		html.write("<h1>Welcome to YAP!</h1>")
+		html.write(
+			"<p>" + template.format("settings", SERVER_HOST, SERVER_PATH, "Options") + " " + template.format("howto",
+			                                                                                                 SERVER_HOST,
+			                                                                                                 SERVER_PATH,
+			                                                                                                 "Instructions") + " " + template.format(
+				"channels", SERVER_HOST, SERVER_PATH, "Channels List") + " " + template.format("adv_settings",
+			                                                                                   SERVER_HOST, SERVER_PATH,
+			                                                                                   "Advanced Settings") + " " + template.format("paths",
+			                                                                                   SERVER_HOST, SERVER_PATH,
+			                                                                                   "Proxy Paths") + "</p>")
+		html.write("<h2>Work in progress.</h2>")
+
+		html.write("<h2>Proxy URL Paths</h2>")
+		html.write("""<p>m3u8 playlists can be called using http://ip:port/sstv/playlist.m3u8 optional arguments include 'strm' to overide defaults</p>
+<p>alternatively using http://ip:port/sstv/{strm}.m3u8 strm options are 'hls', 'hlsa', 'rtmp', 'mpegts', 'rtsp', 'dash', 'wss'</p>
+<p>a specific mpeg playlsit can also be accesed via http://ip:port/sstv/mpeg.2ts</p>
+<p>single channels can be called using http://ip:port/sstv/playlist.m3u8?ch=# or http://ip:port/sstv/ch# optional arguments 'strm','qual' to overide defaults</p>
+<p>kodi m3u8 url is http://ip:port/sstv/kodi.m3u8</p>
+<p>sports m3u8 url is http://ip:port/sstv/sports.m3u8</p>
+<p>EPG url is http://ip:port/sstv/epg.xml</p>
+<p>Sports EPG url is http://ip:port/sstv/sports.xml</p>
+<p>Plex Live TV url is http://ip:port/sstv</p>
+<p>TVHeadend Proxy can be used using http://ip:port/sstv/tvh.m3u8</p>
+<p>External m3u8 url is http://externalip:externalport/sstv/external.m3u8</p>
+<p>Combined m3u8 url is http://ip:port/sstv/combined.m3u8</p>
+<p>Combined EPG url is http://ip:port/sstv/combined.xml</p>
+<p>Static m3u8 url is http://ip:port/sstv/static.m3u8 optional arguments include 'strm' to overide defaults</p>
+<p>TVH's own EPG url is http://127.0.0.1:9981/xmltv/channels</p>
+<p>Static XSPF url is http://ip:port/sstv/static.xspf</p>
+<p>Dynamic XSPF url is http://ip:port/sstv/playlist.xspf</p>
+		<p></p>
+		<p></p>
+		<p></p>
+		<p></p>
+		<p></p>
+		<p></p>
+		<p></p>
+		<p></p>
+		<p></p>		
+		""")
+
+
 		html.write(footer)
 
 		html.write("</body></html>\n")
@@ -3345,6 +3404,12 @@ def bridge(request_file):
 		logger.info("Channels was requested by %s", request.environ.get('REMOTE_ADDR'))
 		create_menu()
 		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'channels.html')
+
+	# return paths menu
+	elif request_file.lower().startswith('paths'):
+		logger.info("Channels was requested by %s", request.environ.get('REMOTE_ADDR'))
+		create_menu()
+		return send_from_directory(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), 'paths.html')
 
 	# return howto menu
 	elif request_file.lower().startswith('howto'):
@@ -3642,7 +3707,6 @@ def auto(request_file, qual=""):
 			                         "Content-Disposition": "inline", "Content-Transfer-Enconding": "binary"})
 		return response
 	# return redirect(url, code=302)
-
 
 ############################################################
 # MAIN
