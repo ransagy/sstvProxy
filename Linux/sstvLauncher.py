@@ -1,18 +1,8 @@
-import os, subprocess, sys, urllib, json, logging, ntpath, platform, requests, shutil, threading, multiprocessing, signal
+import sys, signal, os, urllib, subprocess, json, logging, ntpath, platform, requests, shutil, threading, multiprocessing
+from PyQt4 import QtGui, QtCore
+
+
 from logging.handlers import RotatingFileHandler
-
-import gi
-gi.require_version('AppIndicator3', '0.1')
-gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk
-from gi.repository import AppIndicator3 as appindicator
-
-
-def create_menu_item(menu, label, func):
-	item = wx.MenuItem(menu, -1, label)
-	menu.Bind(wx.EVT_MENU, func, id=item.GetId())
-	menu.Append(item)
-	return item
 
 # Setup logging
 log_formatter = logging.Formatter(
@@ -40,10 +30,63 @@ file_handler.setFormatter(log_formatter)
 logger.addHandler(file_handler)
 
 
-# class system_tray(object):
-class TaskBarIcon(object):
-	def __init__(self):
 
+class SystemTrayIcon(QtGui.QSystemTrayIcon):
+	def __init__(self, icon, parent=None):
+		self.initVariables()
+		QtGui.QSystemTrayIcon.__init__(self,icon,parent)
+		self.menu = QtGui.QMenu(parent)
+
+		self.createMenu()
+		self.setContextMenu(self.menu)
+
+		self.set_icon()
+
+		if self.start:
+			logger.info("Launching YAP!")
+
+			self.tray_start()
+		else:
+			logger.info("not launching")
+
+	def createMenu(self,update=False):
+		if update: self.menu.clear()
+
+		if self.start:
+			openAction = self.menu.addAction('Open YAP')
+			QtCore.QObject.connect(openAction, QtCore.SIGNAL('triggered()'), self.tray_open)
+
+			terminalAction = self.menu.addAction('Show Terminal')
+			QtCore.QObject.connect(terminalAction, QtCore.SIGNAL('triggered()'), self.showTerminal)
+		else:
+			startAction = self.menu.addAction('Start YAP')
+			QtCore.QObject.connect(startAction, QtCore.SIGNAL('triggered()'), self.tray_restart)
+
+		self.menu.addSeparator()
+		checkAction = self.menu.addAction('Check for Updates')
+		QtCore.QObject.connect(checkAction, QtCore.SIGNAL('triggered()'), self.tray_check_update)
+
+		updateAction = self.menu.addAction('Update')
+		QtCore.QObject.connect(updateAction, QtCore.SIGNAL('triggered()'), self.tray_update)
+
+		if self.start:
+			restartAction = self.menu.addAction('Restart YAP')
+			QtCore.QObject.connect(restartAction, QtCore.SIGNAL('triggered()'), self.tray_restart)
+
+		branchAction = self.menu.addAction('Switch Master/Dev')
+		QtCore.QObject.connect(branchAction, QtCore.SIGNAL('triggered()'), self.tray_branch)
+
+		logAction = self.menu.addAction('Open Logs')
+		QtCore.QObject.connect(logAction, QtCore.SIGNAL('triggered()'), self.tray_logs)
+
+		cacheAction = self.menu.addAction('Clear Cache')
+		QtCore.QObject.connect(cacheAction, QtCore.SIGNAL('triggered()'), self.tray_cache)
+
+		exitAction = self.menu.addAction('Exit')
+		QtCore.QObject.connect(exitAction, QtCore.SIGNAL('triggered()'), self.on_exit)
+
+
+	def initVariables(self):
 		self.type = ""
 		self.version = float("0.0")
 		self.latestVersion = float("0.0")
@@ -53,7 +96,9 @@ class TaskBarIcon(object):
 		self.LISTEN_IP = '127.0.0.1'
 		self.LISTEN_PORT = 6969
 		self.SERVER_HOST = "http://" + self.LISTEN_IP + ":" + str(self.LISTEN_PORT)
-		start = False
+		self.start = False
+		self.validIcon = QtGui.QIcon("logo_tray.ico")
+		self.updateIcon = QtGui.QIcon("logo_tray-update.ico")
 		try:
 			logger.debug("Parsing settings")
 			with open(os.path.join(os.path.dirname(sys.argv[0]), 'launcher.json')) as jsonConfig:
@@ -67,75 +112,63 @@ class TaskBarIcon(object):
 					self.branch = config["branch"] == True
 				self.assign_latestFile()
 				self.check_install()
-				start = True
+				self.start = True
 		except:
-			urllib.request.urlretrieve('https://raw.githubusercontent.com/vorghahn/sstvProxy/master/logo_tray.ico', os.path.join(os.path.dirname(sys.argv[0]), 'logo_tray.ico'))
-			urllib.request.urlretrieve('https://raw.githubusercontent.com/vorghahn/sstvProxy/master/logo_tray-update.ico', os.path.join(os.path.dirname(sys.argv[0]), 'logo_tray-update.ico'))
+			urllib.request.urlretrieve('https://raw.githubusercontent.com/vorghahn/sstvProxy/master/logo_tray.ico',
+			                           os.path.join(os.path.dirname(sys.argv[0]), 'logo_tray.ico'))
+			urllib.request.urlretrieve(
+				'https://raw.githubusercontent.com/vorghahn/sstvProxy/master/logo_tray-update.ico',
+				os.path.join(os.path.dirname(sys.argv[0]), 'logo_tray-update.ico'))
 			self.detect_install()
 			self.assign_latestFile()
 		self.version = float(self.version)
+		logger.debug("Settings complete")
+		return
 
-		logger.info(u"Launching system tray icon.")
-		self.ind = appindicator.Indicator.new (
-				        "sstvLauncherTray",
-				         os.path.abspath('logo_tray.ico'),
-				        appindicator.IndicatorCategory.APPLICATION_STATUS)
-		self.ind.set_status (appindicator.IndicatorStatus.ACTIVE)
-		self.ind.set_attention_icon ("indicator-messages-new")
+	def closeEvent(self, event):
+		if self.okayToClose(): 
+			#user asked for exit
+			self.trayIcon.hide()
+			event.accept()
+		else:
+			#"minimize"
+			self.hide()
+			self.trayIcon.show() #thanks @mojo
+			event.ignore()
 
-		# create a menu
-		menu = Gtk.Menu()
+	def __icon_activated(self, reason):
+		if reason in (QtGui.QSystemTrayIcon.Trigger, QtGui.QSystemTrayIcon.DoubleClick):
+			logger.info("double clicked")
+			self.show()
 
-		# this is where you would connect your menu item up with a function:
+	def on_exit(self):
+		if self.yap: self.yap.terminate()
+		self.exit()
 
-		menu_items = Gtk.MenuItem('Open YAP')
-		menu_items.connect("activate", self.tray_open)
-		menu.append(menu_items)
+	def exit(self):
+		QtCore.QCoreApplication.exit()
 
-		#menu.AppendSeparator()
-		menu_items = Gtk.MenuItem('Check for Updates')
-		menu_items.connect("activate", self.tray_check_update)
-		menu.append(menu_items)
+	def showTerminal(self):
+		import time		
+		import select
+		if platform.system() == 'Linux':
+			#subprocess.Popen(args, stdout=subprocess.PIPE)
+			subprocess.Popen(["tail", "-F", "nohup.out"], stdout=subprocess.PIPE)
+			#f = subprocess.Popen(['tail','-F','nohup.out')],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+			#p = select.poll()
+			#p.register(f.stdout)
 
-		menu_items = Gtk.MenuItem('Update')
-		menu_items.connect("activate", self.tray_update)
-		menu.append(menu_items)
+			#while True:
+				#if p.poll(1):
+					#print (f.stdout.readline())
+				#time.sleep(1)
 
-		menu_items = Gtk.MenuItem('Start/Restart YAP')
-		menu_items.connect("activate", self.tray_restart)
-		menu.append(menu_items)
+		elif platform.system() == 'Windows':
+			a=1
 
-		menu_items = Gtk.MenuItem('Switch Master/Dev')
-		menu_items.connect("activate", self.tray_branch)
-		menu.append(menu_items)
-
-		menu_items = Gtk.MenuItem('Open Logs')
-		menu_items.connect("activate", self.tray_logs)
-		menu.append(menu_items)
-
-		menu_items = Gtk.MenuItem('Clear Cache')
-		menu_items.connect("activate", self.tray_cache)
-		menu.append(menu_items)
-
-		menu_items = Gtk.MenuItem('Exit')
-		menu_items.connect("activate", self.on_exit)
-		menu.append(menu_items)
-
-		# show the items
-		menu.show_all()
-
-		self.ind.set_menu(menu)
-		signal.signal(signal.SIGINT, signal.SIG_DFL)
-		if start:
-			self.tray_start()
-
-		self.set_icon()
-		Gtk.main()
-
+		elif platform.system() == 'Darwin':
+			a=1
 		
-
-
-
 	def gather_yap(self):
 		if not os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'proxysettings.json')):
 			logger.debug("No config file found.")
@@ -152,47 +185,29 @@ class TaskBarIcon(object):
 		except:
 			pass
 
-	def tray_update(self, w):
+	def tray_update(self):
 		if self.version < self.latestVersion:
 			# todo make update link
-			self.shutdown(update=True)
+			self.shutdown(update=True, restart=True)
 			self.set_icon()
 		else:
 			icon = os.path.join(os.path.dirname(sys.argv[0]), 'logo_tray.ico')
-			#icon = wx.Icon(icon)
 			hover_text = 'YAP' + ' - No Update Available'
 			self.set_icon()
 			
-	def CreatePopupMenu(self):
-		menu = wx.Menu()
-		create_menu_item(menu, 'Open YAP', self.tray_open)
-		menu.AppendSeparator()
-		create_menu_item(menu, 'Check for Updates', self.tray_check_update)
-		create_menu_item(menu, 'Update', self.tray_update)
-		create_menu_item(menu, 'Start/Restart YAP', self.tray_restart)
-		create_menu_item(menu, 'Switch Master/Dev', self.tray_branch)
-		create_menu_item(menu, 'Open Logs', self.tray_logs)
-		create_menu_item(menu, 'Clear Cache', self.tray_cache)
-		create_menu_item(menu, 'Exit', self.on_exit)
-		return menu
-
 	def set_icon(self):
+		logger.info("set icon")
 		if self.version < self.latestVersion:
 			icon = os.path.abspath('logo_tray-update.ico')
 			hover_text = 'YAP' + ' - Update Available!'
+			self.setIcon(self.updateIcon)
 
 		else:
 			icon = os.path.abspath('logo_tray.ico')
 			hover_text = 'YAP'
-		self.ind.set_icon(icon)
-		#icon = wx.Icon(icon)
-		#self.SetIcon(icon, hover_text)
-
-	def on_exit(self, w):
-		if self.yap: self.yap.terminate()
-		Gtk.main_quit()
-		#wx.CallAfter(self.Destroy)
-		#self.frame.Close()
+			self.setIcon(self.validIcon)
+		logger.info("icon 2")
+		return
 
 	def detect_install(self):
 		logger.info("Detect install")
@@ -201,28 +216,27 @@ class TaskBarIcon(object):
 			self.type = ""
 			return
 		elif platform.system() == 'Linux':
+			self.type = "Linux/"
 			if os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'sstvProxy')):
 				logger.info("Detect linux exe")
-				self.type = "Linux/"
 				return
 		elif platform.system() == 'Windows':
+			self.type = "Windows/"
 			if os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'sstvproxy.exe')):
 				logger.info("Detect win exe")
-				self.type = "Windows/"
 				return
 		elif platform.system() == 'Darwin':
+			self.type = "Macintosh/"
 			if os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'sstvproxy')):
 				logger.info("Detect mac exe")
-				self.type = "Macintosh/"
 				return
 		logger.info('installing')
-		self.type = "Windows/"
 		self.assign_latestFile()
-		self.shutdown(update=True)
+		self.shutdown(update=True, install=True)
 
 
 	def check_install(self):
-		logger.info("Check install")
+		logger.debug("Check install")
 		if self.type == "" and os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'sstvProxy.py')):
 			return
 		elif self.type == "Linux/" and platform.system() == 'Linux' and os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'sstvProxy')):
@@ -247,11 +261,12 @@ class TaskBarIcon(object):
 		except:
 			self.latestVersion = float(0.0)
 			logger.info("Latest version check failed, check internet.")
+			logger.info(self.url)
 
-	def tray_open(self, w):
+	def tray_open(self):
 		self.launch_browser()
 
-	def tray_check_update(self, w):
+	def tray_check_update(self):
 		try:
 			latest_ver = float(json.loads(urllib.request.urlopen(self.url).read().decode('utf-8'))['Version'])
 		except:
@@ -263,6 +278,7 @@ class TaskBarIcon(object):
 			logger.info("Proxy is up to date!")
 
 	def save_data(self):
+		logger.info("Saving data")
 		config = {'version':self.version,'type':self.type,'branch':self.branch}
 		with open(os.path.join(os.path.dirname(sys.argv[0]), 'launcher.json'), 'w') as fp:
 			json.dump(config, fp)
@@ -270,33 +286,35 @@ class TaskBarIcon(object):
 	def tray_start(self):
 		if self.type == "":
 			import sstvProxy
-			self.yap = multiprocessing.Process (target=sstvProxy.main)
+			self.yap = multiprocessing.Process(target=sstvProxy.main)
 			self.yap.start()
+		elif self.type == "Linux/": subprocess.Popen(os.path.abspath("sstvProxy"), stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+		#elif self.type == "Linux/": os.spawnl(sys.executable, os.path.abspath("sstvProxy"))
+		elif self.type == "Windows/": subprocess.Popen([".\sstvproxy.exe", "-d"], cwd=os.getcwd())
+		elif self.type == "Macintosh/": subprocess.Popen(os.path.abspath("sstvproxy"), stdout=subprocess.PIPE,stderr=subprocess.PIPE) #os.execv(sys.executable, ["./sstvproxy", "-d"])
+		self.start = True
+		self.createMenu(True)
 
-		elif self.type == "Linux/": os.execv(sys.executable, ["./sstvProxy", "-d"]) #subprocess.call(["./sstvProxy", "-d"])
-		elif self.type == "Windows/": subprocess.Popen([".\sstvproxy.exe", "-d"], cwd=os.getcwd()) #subprocess.call([".\sstvproxy.exe", "-d"])
-		elif self.type == "Macintosh/": os.execv(sys.executable, ["./sstvproxy", "-d"])
 
-	def tray_restart(self, w):
+	def tray_restart(self):
 		self.shutdown(restart=True)
 
-	def tray_quit(self, w):
+	def tray_quit(self):
 		self.shutdown()
 
-	def tray_cache(self, w):
+	def tray_cache(self):
 		shutil.rmtree(os.path.join(os.path.dirname(sys.argv[0]), 'cache'), ignore_errors=True)
 
-	def tray_logs(self, w):
+	def tray_logs(self):
 		try:
 			import webbrowser
 			webbrowser.open(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'status.log'))
 		except Exception as e:
 			logger.error(u"Could not open logs: %s" % e)
 
-	def tray_branch(self, w):
+	def tray_branch(self):
 		self.branch = not self.branch
 		self.shutdown(update=True, restart=True)
-		#self.set_icon()
 
 	def launch_browser(self):
 		try:
@@ -306,7 +324,7 @@ class TaskBarIcon(object):
 		except Exception as e:
 			logger.error(u"Could not launch browser: %s" % e)
 
-	def shutdown(self, restart=False, update=False, checkout=False, closeLauncher=False):
+	def shutdown(self, restart=False, update=False, install=False):
 		logger.info(u"Stopping YAP web server...")
 		if self.type == 'Windows/':
 			os.system("taskkill /F /im sstvProxy.exe")
@@ -328,9 +346,6 @@ class TaskBarIcon(object):
 			self.yap.terminate()
 			self.yap = None
 
-		if not restart and not update and not checkout:
-			logger.info(u"YAP is shutting down...")
-
 		if update:
 			logger.info(u"YAP is updating...")
 			url = self.latestfile.format(branch='master' if self.branch else 'dev')
@@ -343,58 +358,28 @@ class TaskBarIcon(object):
 				os.system("taskkill /F /im sstvProxy.exe")
 				urllib.request.urlretrieve(url, os.path.join(os.path.dirname(sys.argv[0]), newfilename))
 				logger.info("Update forced")
+			logger.debug("Gathering version")
 			self.version = float(json.loads(urllib.request.urlopen(self.url).read().decode('utf-8'))['Version'])
 			self.save_data()
-
-
-
-		if checkout:
-			pass
+			if install and platform.system() == 'Linux':
+				os.chmod(os.path.join(os.path.dirname(sys.argv[0]), ntpath.basename(url)), 0o777)
 
 		if restart:
 			os.system('cls' if os.name == 'nt' else 'clear')
 			logger.info(u"YAP is restarting...")
 			self.tray_start()
-			# exe = sys.executable
-			# args = [exe, sys.argv[0]]
-			# args += sys.argv[1:]
-			# # if '--nolaunch' not in args:
-			# # 	args += ['--nolaunch']
-			#
-			# # Separate out logger so we can shutdown logger after
-			# if NOFORK:
-			# 	logger.info('Running as service, not forking. Exiting...')
-			# elif os.name == 'nt':
-			# 	logger.info('Restarting YAP with %s', args)
-			# else:
-			# 	logger.info('Restarting YAP with %s', args)
-			#
-			# # logger.shutdown()
-			#
-			# # os.execv fails with spaced names on Windows
-			# # https://bugs.python.org/issue19066
-			# if NOFORK:
-			# 	pass
-			# elif os.name == 'nt':
-			# 	subprocess.Popen(args, cwd=os.getcwd())
-			# else:
-			# 	os.execv(exe, args)
 
 
-		if closeLauncher:
-			os._exit(0)
 
-#class App(wx.App):
-	#def OnInit(self):
-		#frame=wx.Frame(None)
-		#self.SetTopWindow(frame)
-		#TaskBarIcon(frame)
-		#return True
+def main():
+	app = QtGui.QApplication(sys.argv)
 
-#def main():
-	#app = App(False)
-	#app.MainLoop()
+	w = QtGui.QWidget()
+	trayIcon = SystemTrayIcon(QtGui.QIcon('logo_tray.ico'), w)
+	signal.signal(signal.SIGINT, signal.SIG_DFL)
+	trayIcon.show()
+	sys.exit(app.exec_())
 
 if __name__ == '__main__':
-	#main()
-	TaskBarIcon()
+	main()
+
