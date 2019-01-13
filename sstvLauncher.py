@@ -1,6 +1,6 @@
-import sys, signal, os, urllib, subprocess, json, logging, ntpath, platform, requests, shutil, threading, \
-	multiprocessing
+import sys, signal, os, urllib, subprocess, json, logging, ntpath, platform, requests, shutil, threading, multiprocessing
 from PyQt4 import QtGui, QtCore
+
 
 from logging.handlers import RotatingFileHandler
 
@@ -23,36 +23,35 @@ logger.addHandler(console_handler)
 if not os.path.isdir(os.path.join(os.path.dirname(sys.argv[0]), 'cache')):
 	os.mkdir(os.path.join(os.path.dirname(sys.argv[0]), 'cache'))
 file_handler = RotatingFileHandler(os.path.join(os.path.dirname(sys.argv[0]), 'cache', 'status.log'),
-                                   maxBytes=1024 * 1024 * 2,
-                                   backupCount=5)
+								   maxBytes=1024 * 1024 * 2,
+								   backupCount=5)
 file_handler.setLevel(logging.DEBUG)
 file_handler.setFormatter(log_formatter)
 logger.addHandler(file_handler)
 
 
+
 class SystemTrayIcon(QtGui.QSystemTrayIcon):
 	def __init__(self, icon, parent=None):
 		self.initVariables()
+		QtGui.QSystemTrayIcon.__init__(self,icon,parent)
+		self.menu = QtGui.QMenu(parent)
 
-		QtGui.QSystemTrayIcon.__init__(self)
-		# self.tray_icon = QtGui.QSystemTrayIcon(self)
-		self.menu = QtGui.QMenu()
 		self.createMenu()
 		self.setContextMenu(self.menu)
 
 		self.set_icon()
+
 		if self.start:
 			logger.info("Launching YAP!")
+
 			self.tray_start()
 		else:
 			logger.info("not launching")
 
 	def createMenu(self,update=False):
 		if update: self.menu.clear()
-		# self.tray_icon.activated.connect(self.__icon_activated)
 
-		# traySignal = "activated(QSystemTrayIcon::ActivationReason)"
-		# QtCore.QObject.connect(self.tray_icon, QtCore.SIGNAL(traySignal), self.__icon_activated)
 		if self.start:
 			openAction = self.menu.addAction('Open YAP')
 			QtCore.QObject.connect(openAction, QtCore.SIGNAL('triggered()'), self.tray_open)
@@ -98,8 +97,8 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
 		self.LISTEN_PORT = 6969
 		self.SERVER_HOST = "http://" + self.LISTEN_IP + ":" + str(self.LISTEN_PORT)
 		self.start = False
-		self.validIcon = QtGui.QIcon(os.path.abspath("logo_tray.ico"))
-		self.updateIcon = QtGui.QIcon(os.path.abspath("logo_tray-update.ico"))
+		self.validIcon = QtGui.QIcon("logo_tray.ico")
+		self.updateIcon = QtGui.QIcon("logo_tray-update.ico")
 		try:
 			logger.debug("Parsing settings")
 			with open(os.path.join(os.path.dirname(sys.argv[0]), 'launcher.json')) as jsonConfig:
@@ -127,14 +126,14 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
 		return
 
 	def closeEvent(self, event):
-		if self.okayToClose():
-			# user asked for exit
+		if self.okayToClose(): 
+			#user asked for exit
 			self.trayIcon.hide()
 			event.accept()
 		else:
-			# "minimize"
+			#"minimize"
 			self.hide()
-			self.trayIcon.show()  # thanks @mojo
+			self.trayIcon.show() #thanks @mojo
 			event.ignore()
 
 	def __icon_activated(self, reason):
@@ -150,26 +149,26 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
 		QtCore.QCoreApplication.exit()
 
 	def showTerminal(self):
-		import time
+		import time		
 		import select
 		if platform.system() == 'Linux':
-			# subprocess.Popen(args, stdout=subprocess.PIPE)
+			#subprocess.Popen(args, stdout=subprocess.PIPE)
 			subprocess.Popen(["tail", "-F", "nohup.out"], stdout=subprocess.PIPE)
-		# f = subprocess.Popen(['tail','-F','nohup.out')],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-		# p = select.poll()
-		# p.register(f.stdout)
+			#f = subprocess.Popen(['tail','-F','nohup.out')],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+			#p = select.poll()
+			#p.register(f.stdout)
 
-		# while True:
-		# if p.poll(1):
-		# print (f.stdout.readline())
-		# time.sleep(1)
+			#while True:
+				#if p.poll(1):
+					#print (f.stdout.readline())
+				#time.sleep(1)
 
 		elif platform.system() == 'Windows':
-			a = 1
+			a=1
 
 		elif platform.system() == 'Darwin':
-			a = 1
-
+			a=1
+		
 	def gather_yap(self):
 		if not os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'proxysettings.json')):
 			logger.debug("No config file found.")
@@ -195,7 +194,7 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
 			icon = os.path.join(os.path.dirname(sys.argv[0]), 'logo_tray.ico')
 			hover_text = 'YAP' + ' - No Update Available'
 			self.set_icon()
-
+			
 	def set_icon(self):
 		logger.info("set icon")
 		if self.version < self.latestVersion:
@@ -233,34 +232,29 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
 				return
 		logger.info('installing')
 		self.assign_latestFile()
-		self.shutdown(update=True)
+		self.shutdown(update=True, install=True)
+
 
 	def check_install(self):
 		logger.debug("Check install")
 		if self.type == "" and os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'sstvProxy.py')):
 			return
-		elif self.type == "Linux/" and platform.system() == 'Linux' and os.path.isfile(
-				os.path.join(os.path.dirname(sys.argv[0]), 'sstvProxy')):
+		elif self.type == "Linux/" and platform.system() == 'Linux' and os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'sstvProxy')):
 			return
-		elif self.type == "Windows/" and platform.system() == 'Windows' and os.path.isfile(
-				os.path.join(os.path.dirname(sys.argv[0]), 'sstvproxy.exe')):
+		elif self.type == "Windows/" and platform.system() == 'Windows'and os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'sstvproxy.exe')):
 			return
-		elif self.type == "Macintosh/" and platform.system() == 'Darwin' and os.path.isfile(
-				os.path.join(os.path.dirname(sys.argv[0]), 'sstvproxy')):
+		elif self.type == "Macintosh/" and platform.system() == 'Darwin' and os.path.isfile(os.path.join(os.path.dirname(sys.argv[0]), 'sstvproxy')):
 			return
 		logger.info('Installing YAP %s' % self.type)
 		self.assign_latestFile()
 		self.shutdown(update=True)
 
+
 	def assign_latestFile(self):
-		if self.type == "":
-			self.latestfile = "https://raw.githubusercontent.com/vorghahn/sstvProxy/{branch}/sstvProxy.py"
-		elif self.type == "Linux/":
-			self.latestfile = "https://raw.githubusercontent.com/vorghahn/sstvProxy/{branch}/Linux/sstvProxy"
-		elif self.type == "Windows/":
-			self.latestfile = "https://raw.githubusercontent.com/vorghahn/sstvProxy/{branch}/Windows/sstvproxy.exe"
-		elif self.type == "Macintosh/":
-			self.latestfile = "https://raw.githubusercontent.com/vorghahn/sstvProxy/{branch}/Macintosh/sstvproxy"
+		if self.type == "": self.latestfile = "https://raw.githubusercontent.com/vorghahn/sstvProxy/{branch}/sstvProxy.py"
+		elif self.type == "Linux/": self.latestfile = "https://raw.githubusercontent.com/vorghahn/sstvProxy/{branch}/Linux/sstvProxy"
+		elif self.type == "Windows/": self.latestfile = "https://raw.githubusercontent.com/vorghahn/sstvProxy/{branch}/Windows/sstvproxy.exe"
+		elif self.type == "Macintosh/": self.latestfile = "https://raw.githubusercontent.com/vorghahn/sstvProxy/{branch}/Macintosh/sstvproxy"
 		self.url = "https://raw.githubusercontent.com/vorghahn/sstvProxy/master/%sversion.txt" % self.type
 		try:
 			self.latestVersion = float(requests.get(self.url).json()['Version'])
@@ -284,7 +278,8 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
 			logger.info("Proxy is up to date!")
 
 	def save_data(self):
-		config = {'version': self.version, 'type': self.type, 'branch': self.branch}
+		logger.info("Saving data")
+		config = {'version':self.version,'type':self.type,'branch':self.branch}
 		with open(os.path.join(os.path.dirname(sys.argv[0]), 'launcher.json'), 'w') as fp:
 			json.dump(config, fp)
 
@@ -293,15 +288,13 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
 			import sstvProxy
 			self.yap = multiprocessing.Process(target=sstvProxy.main)
 			self.yap.start()
-
-		elif self.type == "Linux/":
-			subprocess.Popen(os.path.abspath("sstvProxy"), stdout=subprocess.PIPE, shell=True)
-		elif self.type == "Windows/":
-			subprocess.Popen([".\sstvproxy.exe", "-d"], cwd=os.getcwd())  # subprocess.call([".\sstvproxy.exe", "-d"])
-		elif self.type == "Macintosh/":
-			os.execv(sys.executable, ["./sstvproxy", "-d"])
+		elif self.type == "Linux/": subprocess.Popen(os.path.abspath("sstvProxy"), stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+		#elif self.type == "Linux/": os.spawnl(sys.executable, os.path.abspath("sstvProxy"))
+		elif self.type == "Windows/": subprocess.Popen([".\sstvproxy.exe", "-d"], cwd=os.getcwd())
+		elif self.type == "Macintosh/": subprocess.Popen(os.path.abspath("sstvproxy"), stdout=subprocess.PIPE,stderr=subprocess.PIPE) #os.execv(sys.executable, ["./sstvproxy", "-d"])
 		self.start = True
 		self.createMenu(True)
+
 
 	def tray_restart(self):
 		self.shutdown(restart=True)
@@ -327,11 +320,11 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
 		try:
 			import webbrowser
 			self.gather_yap()
-			webbrowser.open('%s%s' % (self.SERVER_HOST, '/sstv/index.html'))
+			webbrowser.open('%s%s' % (self.SERVER_HOST,'/sstv/index.html'))
 		except Exception as e:
 			logger.error(u"Could not launch browser: %s" % e)
 
-	def shutdown(self, restart=False, update=False):
+	def shutdown(self, restart=False, update=False, install=False):
 		logger.info(u"Stopping YAP web server...")
 		if self.type == 'Windows/':
 			os.system("taskkill /F /im sstvProxy.exe")
@@ -358,15 +351,18 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
 			url = self.latestfile.format(branch='master' if self.branch else 'dev')
 			try:
 				newfilename = ntpath.basename(url)
-				logger.debug("downloading %s to %s" % (url, os.path.join(os.path.dirname(sys.argv[0]), newfilename)))
+				logger.debug("downloading %s to %s" % (url,os.path.join(os.path.dirname(sys.argv[0]), newfilename)))
 
 				urllib.request.urlretrieve(url, os.path.join(os.path.dirname(sys.argv[0]), newfilename))
 			except Exception as e:
 				os.system("taskkill /F /im sstvProxy.exe")
 				urllib.request.urlretrieve(url, os.path.join(os.path.dirname(sys.argv[0]), newfilename))
 				logger.info("Update forced")
+			logger.debug("Gathering version")
 			self.version = float(json.loads(urllib.request.urlopen(self.url).read().decode('utf-8'))['Version'])
 			self.save_data()
+			if install and platform.system() == 'Linux':
+				os.chmod(os.path.join(os.path.dirname(sys.argv[0]), ntpath.basename(url)), 0o777)
 
 		if restart:
 			os.system('cls' if os.name == 'nt' else 'clear')
@@ -374,15 +370,16 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
 			self.tray_start()
 
 
+
 def main():
 	app = QtGui.QApplication(sys.argv)
 
 	w = QtGui.QWidget()
-	trayIcon = SystemTrayIcon(QtGui.QIcon(os.path.abspath('logo_tray.ico')), w)
+	trayIcon = SystemTrayIcon(QtGui.QIcon('logo_tray.ico'), w)
 	signal.signal(signal.SIGINT, signal.SIG_DFL)
 	trayIcon.show()
 	sys.exit(app.exec_())
 
-
 if __name__ == '__main__':
 	main()
+
