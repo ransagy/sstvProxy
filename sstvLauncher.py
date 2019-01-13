@@ -1,6 +1,6 @@
 import sys, signal, os, urllib, subprocess, json, logging, ntpath, platform, requests, shutil, threading, multiprocessing
 from PyQt4 import QtGui, QtCore
-
+if platform.system() == 'Linux': print("To run without terminal launch using 'nohup ./sstvLauncher &'")
 
 from logging.handlers import RotatingFileHandler
 
@@ -153,15 +153,19 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
 		import select
 		if platform.system() == 'Linux':
 			#subprocess.Popen(args, stdout=subprocess.PIPE)
-			subprocess.Popen(["tail", "-F", "nohup.out"], stdout=subprocess.PIPE)
-			#f = subprocess.Popen(['tail','-F','nohup.out')],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-			#p = select.poll()
-			#p.register(f.stdout)
+			try:
+				subprocess.Popen(["gnome-terminal -e 'bash -c \"tail -F ./nohup.out; exec bash\"'"], shell=True)
+			except:
+				subprocess.Popen(["lxterminal -e 'bash -c \"tail -F ./nohup.out; exec bash\"'"], shell=True)
+			return
+			f = subprocess.Popen(['tail','-F','nohup.out'], stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+			p = select.poll()
+			p.register(f.stdout)
 
-			#while True:
-				#if p.poll(1):
-					#print (f.stdout.readline())
-				#time.sleep(1)
+			while True:
+				if p.poll(1):
+					print(f.stdout.readline())
+				time.sleep(1)
 
 		elif platform.system() == 'Windows':
 			a=1
